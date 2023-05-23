@@ -1,21 +1,23 @@
-####
-# This module contains everything related to handling GW skymaps
-####
-
-import os 
-import healpy as hp
-import numpy as np
-from tqdm import tqdm
-from astropy.table import Table
-from scipy.stats import gaussian_kde
-import matplotlib.pyplot as plt
-
-from copy import deepcopy
-
-
-import DSutils as utils
+#
+#   This module handles the gravitational-wave (GW) events analysis.
+#
+#   Copyright (c) 2023 Nicola Borghi <nicola.borghi6@unibo.it>, Michele Mancarella <michele.mancarella@unimib.it>               
+#
+#   All rights reserved. Use of this source code is governed by the license that can be found in the LICENSE file.
+#
 
 import logging
+from copy import deepcopy
+
+import healpy as hp
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.table import Table
+from scipy.stats import gaussian_kde
+from tqdm import tqdm
+
+import CHIMERA.chimeraUtils as chimeraUtils
+
 log = logging.getLogger(__name__)
 
 __all__ = ['GW']
@@ -81,8 +83,6 @@ class GW(object):
             self.nside, self.pix_conf, self.ra_conf, self.dec_conf = self.prepixelize(nside_list, npix_event)
 
 
-            # self.compute_sky_localization(self.nside)
-
 
 
     def prepixelize(self, nside_list, npix_event):
@@ -91,7 +91,7 @@ class GW(object):
         """
         for n in nside_list:
             log.info("Precomputing Healpixels for the GW events (NSIDE={:d}, NEST={})".format(n,self.nest))
-            self.data.update({"pix"+str(n) : utils.find_pix_RAdec(self.data["ra"],self.data["dec"],n,self.nest)})
+            self.data.update({"pix"+str(n) : chimeraUtils.find_pix_RAdec(self.data["ra"],self.data["dec"],n,self.nest)})
 
         log.info("Finding optimal pixelization for each event (~{:d} pix/event)".format(npix_event))
 
@@ -104,21 +104,20 @@ class GW(object):
         log.info(" > counts:"+" ".join("{:4d}".format(x) for x in c))
 
         pixels  = [self.compute_sky_conf_event(e,nside[e]) for e in range(self.Nevents)]
-        ra, dec = zip(*(utils.find_ra_dec(pixels[e], nside=nside[e]) for e in range(self.Nevents)))
+        ra, dec = zip(*(chimeraUtils.find_ra_dec(pixels[e], nside=nside[e]) for e in range(self.Nevents)))
 
         return nside, pixels, ra, dec
 
 
     def compute_sky_conf_event(self, event, nside):
-        """Return all the Healpix indices of the skymap where the probability of 
-        an event is above a given threshold.
+        """Return all the Healpix indices of the skymap where the probability of an event is above a given threshold.
 
         Args:
-            event (_type_): _description_
-            nside (_type_): _description_
+            event (int): number of the event
+            nside (int): nside parameter for Healpix
 
         Returns:
-            _type_: _description_
+            np.ndarray: Healpix indices of the skymap where the probability of an event is above a given threshold.
         """
 
         unique, counts = np.unique(self.data["pix"+str(nside)][event], return_counts=True)
@@ -130,6 +129,17 @@ class GW(object):
 
 
     def compute_event(self, event, z_grid, lambda_cosmo, lambda_mass):
+        """ Compute the pixelized GW probability for one event.
+
+        Args:
+            event (int):  number of the event
+            z_grid (np.ndarray): redshift grid
+            lambda_cosmo (dict): cosmology hyperparameters
+            lambda_mass (dict): mass hyperparameters
+
+        Returns:
+            np.ndarray: pixelized GW probability for one event.
+        """
 
         kde_gw, kde_norm = self.kde_event(event, lambda_cosmo=lambda_cosmo, lambda_mass=lambda_mass)
         Npix = len(self.pix_conf[event])
@@ -143,8 +153,19 @@ class GW(object):
 
 
     def kde_event(self, event, lambda_cosmo, lambda_mass):
+        """Compute the KDE for one event.
+
+        Args:
+            event (int): number of the event
+            lambda_cosmo (dict): cosmology hyperparameters
+            lambda_mass (dict): mass hyperparameters
+
+        Returns:
+            [gaussian_kde, norm]: KDE for one event and its normalization factor.
+        """
+
         dL  = self.data["dL"][event]
-        z   = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
+        z   = self.model_cosmo.z_from_dL(dL*1000, lambda_cosmo)
         ra  = self.data["ra"][event]
         dec = self.data["dec"][event]
         m1  = self.data["m1z"][event]/(1+z)
@@ -158,8 +179,9 @@ class GW(object):
         # return gaussian_kde(np.array([z,ra,dec]), bw_method=self.data_smooth), norm
 
 
+    
 
-
+    # OLD, to be removed 
 
     def old_like(self, lambda_cosmo, lambda_mass, **kwargs):
         self.update_cosmology_quantities(lambda_cosmo)
@@ -178,7 +200,7 @@ class GW(object):
 
         self.lambda_cosmo = lambda_cosmo
 
-        z = self.model_cosmo.z_from_dL(self.data["dL"], self.lambda_cosmo)
+        z = self.model_cosmo.z_from_dL(self.data["dL"]*1000, self.lambda_cosmo)
         
         self.data.update({"z" : z})
         self.data.update({"m1" : self.data["m1z"]/(1+z)})
@@ -225,13 +247,13 @@ class GW(object):
         p            = np.full((self.Nevents, self.npix), np.nan)
 
         for i in range(self.Nevents):
-            pix_all                 = utils.find_pix_RAdec(ra=self.data["ra"][i], dec=self.data["dec"][i], nside=nside)
+            pix_all                 = chimeraUtils.find_pix_RAdec(ra=self.data["ra"][i], dec=self.data["dec"][i], nside=nside)
             unique, counts          = np.unique(pix_all, return_counts=True)
             p[i]                    = np.zeros(self.npix, dtype=float)
             p[i][unique]            = counts/pix_all.shape[0]
             is_conf                 = p[i]>=self._get_threshold(p[i], level=self.sky_conf)
             pix_conf[i,:][is_conf]  = np.arange(0, self.npix)[is_conf]
-            ra_conf[i,:][is_conf], dec_conf[i,:][is_conf] = utils.find_ra_dec(pix=pix_conf[i,:][is_conf], nside=nside)
+            ra_conf[i,:][is_conf], dec_conf[i,:][is_conf] = chimeraUtils.find_ra_dec(pix=pix_conf[i,:][is_conf], nside=nside)
 
         self.ra_conf  = ra_conf
         self.dec_conf = dec_conf 
@@ -341,8 +363,8 @@ class GW(object):
         # dL_min[dL_min<0.] = 0.
         dL_min[dL_min<0.073] = 0.073
 
-        z_min  = self.model_cosmo.z_from_dL(dL_min, {"H0":H0_prior_range[0], "Om0":0.3})
-        z_max  = self.model_cosmo.z_from_dL(dL_max, {"H0":H0_prior_range[1], "Om0":0.3})
+        z_min  = self.model_cosmo.z_from_dL(dL_min*1000, {"H0":H0_prior_range[0], "Om0":0.3})
+        z_max  = self.model_cosmo.z_from_dL(dL_max*1000, {"H0":H0_prior_range[1], "Om0":0.3})
 
         return np.linspace(z_min, z_max, z_res, axis=1)
 
@@ -374,8 +396,8 @@ class GW(object):
             dL_max = med + z_conf_range * mad
 
         dL_min[dL_min<0.] = 0.
-        z_min  = self.model_cosmo.z_from_dL(dL_min, {"H0":H0_prior_range[0], "Om0":0.3})
-        z_max  = self.model_cosmo.z_from_dL(dL_max, {"H0":H0_prior_range[1], "Om0":0.3})
+        z_min  = self.model_cosmo.z_from_dL(dL_min*1000, {"H0":H0_prior_range[0], "Om0":0.3})
+        z_max  = self.model_cosmo.z_from_dL(dL_max*1000, {"H0":H0_prior_range[1], "Om0":0.3})
 
         return np.array([z_min,z_max]).T
 
@@ -440,8 +462,8 @@ class GW(object):
             Default grid np.logspace(-2, 1, 100)
         """        
 
-        from sklearn.neighbors import KernelDensity
         from sklearn.model_selection import GridSearchCV
+        from sklearn.neighbors import KernelDensity
 
         print("Computing 3D KDE bandwidths using sklearn GridSearch")
 
@@ -552,198 +574,3 @@ class GW(object):
         return mincount
     
     
-
-    def p_z_ra_dec_marginal(self, z, ra, dec):
-        
-        '''
-
-        Parameters
-        ----------
-        z : TYPE np array dimension ( n_points)
-            DESCRIPTION: redshift points.
-        ra : TYPE np array
-            DESCRIPTION: ra points.
-        dec : TYPE np array
-            DESCRIPTION:  dec points.
-            
-        indicator: index of the event
-
-        Returns
-        -------
-        TYPE
-            Gives p(z, ra, dec | D_gw ) for one event, marginalised over the masses
-            
-
-        '''
-        
-        return -1
-
-
-
-
-    # def p_z_ra_dec_marginal(self, z, ra, dec):
-
-# class GWsamples(object):
-    
-#     '''
-    
-#     Class for handling single GW event posteriors
-    
-#     '''
-    
-    
-#     def __init__(self, event_name, snr_th=8):
-        
-#         samples = self.load_posteriors(event_name, snr_th=8)
-
-#         self.m1z  = np.squeeze(samples.m1z)
-#         self.m2z  = np.squeeze(samples.m2z)
-#         self.ra   = np.squeeze(samples.ra)
-#         self.dec  = np.squeeze(samples.dec)
-
-#         print("init")
-
-
-
-#     def load_posteriors(self, event_name, snr_th=8):
-#         """Loads the event posteriors given its name (e.g., "GW170817") using MGCosmoPop routines.
-
-#         Args:
-#             event_name (str): Event name (e.g., "GW170823")
-#             snr_th (int): Minimum SNR threshold. Defaults to 8.
-
-#         Returns:
-#             _type_: _description_
-#         """        
-
-#         events = {'use':[event_name], 'not_use':None}
-
-#         if 150911 < int(event_name[2:8]) < 170826:       # O1 & O2
-#             dir_data = os.path.join(MGCosmoPop.Globals.dataPath, 'O1O2')
-#             data     = O1O2Data(dir_data, events_use=events, nSamplesUse=None, SNR_th=snr_th )
-
-#         elif 190400 < int(event_name[2:8]) < 191002:     # O3a
-#             dir_data = os.path.join(MGCosmoPop.Globals.dataPath, 'O3a')
-#             data     = O3aData(dir_data, events_use=events, nSamplesUse=None, SNR_th=snr_th )
-
-#         elif 191100 < int(event_name[2:8]) < 200328:     # O3b
-#             dir_data = os.path.join(MGCosmoPop.Globals.dataPath, 'O3b')
-#             data     = O3bData(dir_data, events_use=events, nSamplesUse=None, SNR_th=snr_th )
-
-#         else:
-#             print("Event name or format is wrong. It should be e.g., GW170817")
-#             return -1
-
-#         return data
-
-
-
-        
-
-#     # def get_posteriors_dir(self, event_name):
-#     #     """Retrieve the directory of the event posteriors given its name (e.g., GW170817)
-
-#     #     Args:
-#     #         event_name (str): Event name (e.g., "GW170817")
-
-#     #     Returns:
-#     #         str: Directory of the posterior samples.
-#     #     """    
-
-#     #     if 150911 < int(event_name[2:8]) < 170826:       # O1 & O2
-#     #         dir_data = os.path.join(MGCosmoPop.Globals.dataPath, 'O1O2')
-#     #     elif 190400 < int(event_name[2:8]) < 191002:     # O3a
-#     #         dir_data = os.path.join(MGCosmoPop.Globals.dataPath, 'O3a')
-#     #     elif 191100 < int(event_name[2:8]) < 200328:     # O3b
-#     #         dir_data = os.path.join(MGCosmoPop.Globals.dataPath, 'O3b')
-#     #     else:
-#     #         print("Event name or format is wrong. It should be e.g., GW170817")
-#     #         return -1
-        
-#     #     return dir_data
-        
-
-
-
-#     def p_z_ra_dec_marginal(self, z, ra, dec):
-        
-#         '''
-
-#         Parameters
-#         ----------
-#         z : TYPE np array dimension ( n_points)
-#             DESCRIPTION: redshift points.
-#         ra : TYPE np array
-#             DESCRIPTION: ra points.
-#         dec : TYPE np array
-#             DESCRIPTION:  dec points.
-            
-#         indicator: index of the event
-
-#         Returns
-#         -------
-#         TYPE
-#             Gives p(z, ra, dec | D_gw ) for one event, marginalised over the masses
-            
-
-#         '''
-        
-#         return -1
-    
-    
-#     def p_z_ra_dec_marginal_pix(self, z, pixels):
-        
-#         '''
-
-#         Parameters
-#         ----------
-#         z : TYPE np array dimension ( n_points)
-#             DESCRIPTION: redshift points.
-#         pixels : TYPE np array
-#             DESCRIPTION: pixel numbers.
-
-
-#         Returns
-#         -------
-#         TYPE
-#             Gives p(z, ra, dec) in the pixels.
-
-#         '''
-        
-#         ra, dec = find_ra_dec( pixels, self.nside,  nest=self.nest)
-        
-#         return self.p_z_ra_dec_marginal(z, ra, dec)
-    
-    
-#     def compute_z_lims(self, prior):
-        
-#         '''
-#         Computes max and min possible redshifts taking into account all the prior range
-        
-#         '''
-        
-#         zmin = -1
-#         zmax = 10
-        
-#         print('Redshift range encompassing all the prior range: (z_min, z_max)=(%s, %s)' %(zmin, zmax))
-        
-#         return -1
-    
-   
-
-
-#     # def _get_credible_region_pixels_onev(self, ra, dec, level=0.9):
-#     #     # Add a for over events
-        
-#     #     theta = np.pi/2-dec
-#     #     phi = ra
-        
-#     #     pixel_indices = hp.ang2pix(self.nside, theta, phi)
-#     #     m = np.zeros(hp.nside2npix(self.nside))
-
-#     #     unique, counts = np.unique(pixel_indices, return_counts=True)
-#     #     m[unique] = counts/pixel_indices.shape[0]
-
-#     #     return pixel_indices[ m>=self._get_credible_region_pth_onev(m, level=level) ]
-           
-

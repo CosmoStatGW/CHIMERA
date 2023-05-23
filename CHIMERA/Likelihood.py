@@ -1,20 +1,28 @@
-import h5py
-import numpy as np
-from tqdm import tqdm
-from scipy.integrate import quad
+#
+#   This module handles the computation of the overall likelihood.
+#
+#   Copyright (c) 2023 Nicola Borghi <nicola.borghi6@unibo.it>, Michele Mancarella <michele.mancarella@unimib.it>               
+#
+#   All rights reserved. Use of this source code is governed by the license that can be found in the LICENSE file.
+#
+
 
 import logging
-log = logging.getLogger(__name__)
 
-import matplotlib.pyplot as plt 
+import h5py, sys
+import numpy as np
+from tqdm import tqdm
 
-import DSutils, DSplotting
+logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
 
-from GW import GW
-from GLADE import GLADEPlus_v2
-from Completeness import SkipCompleteness, MaskCompleteness_v2
+import CHIMERA.plotting as plotting
+import CHIMERA.chimeraUtils as chimeraUtils
+import matplotlib.pyplot as plt
+from CHIMERA.Completeness import MaskCompleteness_v2, SkipCompleteness
+from CHIMERA.GLADE import GLADEPlus_v2
+from CHIMERA.GW import GW
+from CHIMERA.Mock import MockGalaxiesMICEv2
 
-from Mock import MockGalaxiesMICEv2
 
 class MockLike():
 
@@ -41,9 +49,7 @@ class MockLike():
                  z_int_H0_prior,
                  z_int_sigma,
                  z_int_res,
-
-                 # Backend
-                 dir_out,
+                 z_det_range,
                  ):
         
             
@@ -52,8 +58,10 @@ class MockLike():
                           model_mass=model_mass, model_rate=model_rate, model_spin="", model_cosmo=model_cosmo, 
                           npix_event=npix_event, nside_list=nside_list, sky_conf=sky_conf)
         
-        self.z_grids = self.gw.compute_z_grids(z_int_H0_prior, z_int_sigma, z_int_res)
-
+        self.z_grids   = self.gw.compute_z_grids(z_int_H0_prior, z_int_sigma, z_int_res)
+        
+        self.z_det_range = z_det_range
+        
         self.gal     = MockGalaxiesMICEv2(data_GAL_dir, 
                                           z_err = data_GAL_zerr,
                                           nside = self.gw.nside)
@@ -61,45 +69,45 @@ class MockLike():
         self.p_gal, self.p_gal_w = self.gal.precompute(self.gw.nside, self.gw.pix_conf, self.z_grids, self.gw.data_names)
         # why not functions?
 
-        self.dir_out = dir_out
 
 
+    # def compute(self, lambda_cosmo, lambda_mass, lambda_rate, return_full=False):
 
-    def compute(self, lambda_cosmo, lambda_mass, lambda_rate, return_full=False):
+    #     def nanaverage(A,weights,axis):
+    #         return np.nansum(A*weights,axis=axis)/((~np.isnan(A))*weights).sum(axis=axis)
 
-        def nanaverage(A,weights,axis):
-            return np.nansum(A*weights,axis=axis)/((~np.isnan(A))*weights).sum(axis=axis)
-
-        like_event = np.empty(self.gw.Nevents)
+    #     like_event = np.empty(self.gw.Nevents)
         
-        if return_full:
-            like_allpix_ev = []
-            p_gw_ev = []
-            p_rate_ev = []
+    #     if return_full:
+    #         like_allpix_ev = []
+    #         p_gw_ev = []
+    #         p_rate_ev = []
         
-        for e in range(self.gw.Nevents):
-            p_gw     = self.gw.compute_event(e, self.z_grids[e], lambda_cosmo, lambda_mass)
+    #     for e in range(self.gw.Nevents):
+    #         p_gw     = self.gw.compute_event(e, self.z_grids[e], lambda_cosmo, lambda_mass)
             
-            # p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])
-            p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])*self.gw.model_cosmo.dV_dz(self.z_grids[e], lambda_cosmo)
-            p_rate  /= np.trapz(p_rate, self.z_grids[e], axis=0)
+    #         # p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])
+    #         p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])*self.gw.model_cosmo.dV_dz(self.z_grids[e], lambda_cosmo)
+    #         # p_rate  /= np.trapz(p_rate, self.z_grids[e], axis=0)
 
 
-            p_z      = p_rate[:,np.newaxis]*self.p_gal[e]
-            p_z     /= np.trapz(p_z, self.z_grids[e], axis=0)
+    #         p_z      = p_rate[:,np.newaxis]*self.p_gal[e]
+    #         p_z     /= np.trapz(p_z, self.z_grids[e], axis=0)
 
-            like_pix      = np.trapz(p_gw*p_z, self.z_grids[e], axis=0)
-            like_event[e] = nanaverage(like_pix, weights=self.p_gal_w[e], axis=0)
+    #         like_pix      = np.trapz(p_gw*p_z, self.z_grids[e], axis=0)
+    #         like_event[e] = nanaverage(like_pix, weights=self.p_gal_w[e], axis=0)
         
-            if return_full:
-                like_allpix_ev.append(like_pix)
-                p_gw_ev.append(p_gw)
-                p_rate_ev.append(p_rate)
-        
-        if return_full:
-            return like_event, like_allpix_ev, p_gw_ev, p_rate
-        else:
-            return like_event
+    #         if return_full:
+    #             like_allpix_ev.append(like_pix)
+    #             p_gw_ev.append(p_gw)
+    #             p_rate_ev.append(p_rate)
+
+
+
+    #     if return_full:
+    #         return like_event, like_allpix_ev, p_gw_ev, p_rate
+    #     else:
+    #         return like_event
 
 
 
@@ -114,36 +122,40 @@ class MockLike():
             return np.nansum(A*weights,axis=axis) /((~np.isnan(A))*weights).sum(axis=axis)
 
         like_event = np.empty(self.gw.Nevents)
-        
+
+        # Compute overall rate normalization given lambda_rate
+        z_det       = np.linspace(*self.z_det_range, 1000)
+        p_rate_norm = self.gw.model_rate(z_det, lambda_rate)/(1.+z_det)#*self.gw.model_cosmo.dV_dz(zz_norm, lambda_cosmo)
+        p_rate_norm = np.trapz(p_rate_norm, z_det, axis=0)
+
+
         if return_full:
             like_allpix_ev = []
             p_gw_ev = []
             p_rate_ev = []
         
         for e in range(self.gw.Nevents):
-            # print(e)
             p_gw     = self.gw.compute_event(e, self.z_grids[e], lambda_cosmo, lambda_mass)
-            # print("GW")
 
-            p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e]) #*self.gw.model_cosmo.dV_dz(self.z_grids[e], lambda_cosmo)
-            # p_rate  /= np.trapz(p_rate, self.z_grids[e], axis=0)
-            # print("rate")
+            # self.z_grids[e] = np.linspace(0.1,1.4,300)
+        
+            p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])#*self.gw.model_cosmo.dV_dz(self.z_grids[e], lambda_cosmo)
+            p_rate  /= np.trapz(p_rate, self.z_grids[e], axis=0)
 
+            p_gal    = self.p_gal[e]
+            p_gal   /= np.trapz(p_gal, self.z_grids[e], axis=0)
 
-            # p_gal    = self.p_gal[e]
-            # p_gal   /= np.trapz(p_gal, self.z_grids[e], axis=0)
-            # print("p_gal")
+            p_z      = (p_rate/p_rate_norm)[:,np.newaxis] * p_gal
+            # p_z     /= np.trapz(p_z, self.z_grids[e], axis=0)   
 
+            # p_z      = self.p_gal[e]
+            # p_z     /= np.trapz(p_z, np.linspace(0,1.4,1000), axis=0)
 
-            p_z      = p_rate[:,np.newaxis]#*self.p_gal[e]
-            # p_z     /= np.trapz(p_z, self.z_grids[e], axis=0)
-            # print("p_z")
-
-            log_p    = np.log(p_gw) + np.log(p_z)
 
             # \int dz, then dOmega
-            like_pix      = np.trapz(np.exp(log_p), self.z_grids[e], axis=0)#/beta
-            like_event[e] = nanaverage(like_pix, weights=self.p_gal_w[e], axis=0)
+            like_pix      = np.trapz(p_gw*p_z, self.z_grids[e], axis=0)/beta
+            # like_event[e] = nanaverage(like_pix, weights=self.p_gal_w[e], axis=0)
+            like_event[e] = np.nanmean(like_pix, axis=0)
             # print("like_pix")
         
             # \int dOmega, then dz
@@ -220,10 +232,10 @@ class IndividualLikelihoods():
 
 
         if kind == "BBH":
-            self.dataGW = DSutils.load_data(self.event_list, obs_run, conf["GW_Nsamples"], BBH_only=True, SNR_th=11)
+            self.dataGW = chimeraUtils.load_data(self.event_list, obs_run, conf["GW_Nsamples"], BBH_only=True, SNR_th=11)
         
         elif kind == "other":
-            self.dataGW = DSutils.load_data(self.event_list, obs_run, conf["GW_Nsamples"], BBH_only=False)
+            self.dataGW = chimeraUtils.load_data(self.event_list, obs_run, conf["GW_Nsamples"], BBH_only=False)
         else:
             print("ERROR")
     
@@ -302,7 +314,7 @@ class IndividualLikelihoods():
             # Plot 2D+"coring"
             fig, ax     = plt.subplots(1,2,figsize=(13,5))
             fig.suptitle(self.event_list[e])
-            DSplotting.plot_2Dcoring(ax, cat.data.ra, cat.data.dec, cat.data.z,
+            plotting.plot_2Dcoring(ax, cat.data.ra, cat.data.dec, cat.data.z,
                                      conf_pixels,
                                      self.conf["NSIDE"],
                                      self.z_limits[e],

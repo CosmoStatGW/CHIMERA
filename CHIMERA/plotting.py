@@ -1,12 +1,18 @@
-import matplotlib.pyplot as plt
+#
+#   Plotting functions
+#
+#   Copyright (c) 2023 Nicola Borghi <nicola.borghi6@unibo.it>, Michele Mancarella <michele.mancarella@unimib.it>               
+#
+#   All rights reserved. Use of this source code is governed by the license that can be found in the LICENSE file.
+#
+
+
 import healpy as hp
+import matplotlib.pyplot as plt
 import numpy as np
-
-import DSutils, DSglobals
-
 from scipy.interpolate import interp1d
 
-
+import CHIMERA.chimeraUtils as chimeraUtils
 
 
 def legend_unique(ax):
@@ -34,7 +40,7 @@ def plot_2Dcoring(ax, ra, dec, z, pixels, nside, z_limits,
     z_bins = np.linspace(*z_limits,30)
 
 
-    alpha = DSutils.remapMinMax(-z, a=.1, b=.5)
+    alpha = chimeraUtils.remapMinMax(-z, a=.1, b=.5)
     ax[0].scatter(ra,dec, marker='x', c='r', s=30, alpha=alpha, label="GLADE")
 
     if do_boundaries: # Highlight Healpixels
@@ -56,7 +62,7 @@ def plot_2Dcoring(ax, ra, dec, z, pixels, nside, z_limits,
 
     if do_pGW: # Plot p(z)_GW for each pixel
 
-        pix_ra, pix_dec = DSutils.find_ra_dec(pix=pixels, nside=nside, nest=nest)
+        pix_ra, pix_dec = chimeraUtils.find_ra_dec(pix=pixels, nside=nside, nest=nest)
 
         z_grid = np.linspace(*z_limits,200)
         probs  = [pGW_KDE([z_grid, np.full_like(z_grid, i), np.full_like(z_grid, j)]) for (i,j) in zip(pix_ra, pix_dec)]
@@ -120,7 +126,7 @@ def plot_completeness(filename_base, GWobj, catalogue, z_lims = [0,1], mask = No
     zmin, zmax = z_lims
     z = np.linspace(zmin, zmax, 1000)
 
-    theta, phi = DSutils.th_phi_from_ra_dec(np.array(GWobj.ra_conf_finite), 
+    theta, phi = chimeraUtils.th_phi_from_ra_dec(np.array(GWobj.ra_conf_finite), 
                                             np.array(GWobj.dec_conf_finite))
 
     for i in range(GWobj.Nevents):
@@ -155,8 +161,8 @@ def plot_conf(ax, x, y, perc_val=[0.1,0.5,0.9], key="$H_0$"):
 
 
 def plot_2Dcoring_like(like, event=0, 
-                       lambda_cosmo = DSglobals.lambda_cosmo_mock_v1, 
-                       lambda_mass  = DSglobals.lambda_mass_PLP_mock_v1):
+                       lambda_cosmo = chimeraUtils.lambda_cosmo_mock_v1, 
+                       lambda_mass  = chimeraUtils.lambda_mass_PLP_mock_v1):
     
     z_min, z_max = like.z_grids[event][0], like.z_grids[event][-1]
     z_grid       = np.linspace(z_min, z_max, 2000)
@@ -182,7 +188,7 @@ def plot_2Dcoring_like(like, event=0,
 
     # Plot galaxies
     ax[0].scatter(gal_selected["ra"], gal_selected["dec"], marker='x', c='red', s=30, label="all galaxies", 
-                  alpha=DSutils.remapMinMax(-gal_selected["z"], a=.2, b=.7))
+                  alpha=chimeraUtils.remapMinMax(-gal_selected["z"], a=.2, b=.7))
     ax[1].hist(gal_selected["z"], bins=np.linspace(z_min, z_max, 70), color='k', alpha=0.2, label="all galaxies", density=True)
 
     # Plot p_GW
@@ -198,7 +204,7 @@ def plot_2Dcoring_like(like, event=0,
 
 
     # Plot p_GAL
-    p_gal = np.vstack([DSutils.sum_of_gaussians(z_grid,
+    p_gal = np.vstack([chimeraUtils.sum_of_gaussians(z_grid,
                                                 gal.selectedData["z"][gal.selectedData["pix"+str(NSIDE)] == pix],
                                                 gal.selectedData["z_err"][gal.selectedData["pix"+str(NSIDE)] == pix]) for pix in pix_conf]).T
     p_gal /= np.trapz(p_gal,z_grid, axis=0)

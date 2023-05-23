@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+
+mass_funct/
+
+data/
+
+notebook/
+
+*.jpg
+*.npy
+*.json
+*.logb 

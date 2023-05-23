@@ -1,15 +1,21 @@
-import logging
-log = logging.getLogger(__name__)
+#
+#   This module handles I/O and computations related to the mock catalogs.
+#
+#   Copyright (c) 2023 Nicola Borghi <nicola.borghi6@unibo.it>, Michele Mancarella <michele.mancarella@unimib.it>               
+#
+#   All rights reserved. Use of this source code is governed by the license that can be found in the LICENSE file.
+#
 
-from Galaxies import GalCat
-from Completeness import SkipCompleteness
+import logging
+
+log = logging.getLogger(__name__)
 
 import h5py
 import numpy as np
 import pandas as pd
 
-import DSutils
-
+from CHIMERA.Galaxies import GalCat
+import CHIMERA.chimeraUtils as chimeraUtils
 
 class MockGalaxiesMICEv2(GalCat):
 
@@ -34,8 +40,8 @@ class MockGalaxiesMICEv2(GalCat):
             df["dec_gal"] = np.deg2rad(df["dec_gal"])
 
         if z_err is not None:
-            log.info(" > setting galaxies' z uncertainties as {}% of z".format(z_err))
-            df.loc[:,"z_err"] = float(z_err)/100 * df["z_cgal"]
+            log.info(" > setting galaxies' z uncertainties to {:.1e} x (1+z)".format(z_err))
+            df.loc[:,"z_err"] = z_err * (1. + df["z_cgal"])
 
         df = df.rename(columns={"ra_gal":"ra", 
                                 "dec_gal":"dec",
@@ -52,7 +58,7 @@ class MockGWInjectionsGWFAST():
                   N_gen,
                  #DeltaOm=None,
                   #nInjUse=None,  
-                  dist_unit="Mpc", Tobs=1, 
+                  dist_unit="Gpc", Tobs=1, 
                   #snr_th=12,
                  #DelOm_th=100,
                   
@@ -86,7 +92,7 @@ class MockGWInjectionsGWFAST():
     
         m1_sel = injections_df['m1_det']
         m2_sel = injections_df['m2_det']
-        dl_sel = injections_df['dL'] * 1000 # Mpc
+        dl_sel = injections_df['dL'] #* 1000 # Mpc
         log_weights_sel = injections_df['log_p_draw_nospin']
         
         self.detected = np.full(len(m1_sel), True)
@@ -146,13 +152,13 @@ class MockGW():
                     else:
                         evs[pn] = np.array(phi['posteriors'][pn])[:Nevents]
         
-        log.info(" > converting (theta,phi) to (ra,dec) [rad] and dL [Mpc]")
-        ra, dec   = DSutils.ra_dec_from_th_phi(evs["theta"], evs["phi"])
+        log.info(" > converting (theta,phi) to (ra,dec) [rad] and dL [Gpc]")
+        ra, dec   = chimeraUtils.ra_dec_from_th_phi(evs["theta"], evs["phi"])
         del evs["phi"]
         del evs["theta"]
         evs["ra"]   = ra
         evs["dec"]  = dec
-        evs["dL"]   = 1000*evs["dL"] # Mpc
+        evs["dL"]   = evs["dL"] #*1000 Mpc
 
         self.data = evs
 

@@ -1,14 +1,35 @@
-import os
-import time
+# 
+#   Base functions and parameters
+#
+#   Copyright (c) 2023 Nicola Borghi <nicola.borghi6@unibo.it>, Michele Mancarella <michele.mancarella@unimib.it>               
+#
+#   All rights reserved. Use of this source code is governed by the license that can be found in the LICENSE file.
+#
 
-import numpy as np
+import os, h5py
+
 import healpy as hp
-import h5py
-
-from scipy.stats import gaussian_kde, norm
+import numpy as np
 
 
-from cosmologies import fLCDM
+#########################
+# Some base parameters
+#########################
+
+# MASS: lambdaPeak, alpha, beta, deltam, ml, mh, muMass, sigmaMass 
+lambda_mass_PLP_mock_v1   = [0.039, 3.4, 1.1, 4.8, 5.1, 87., 34., 3.6]
+
+# RATE: R0, alphaRedshift , betaRedshift, zp 
+lambda_rate_Madau_mock_v1 = {"gamma":1.9,"kappa":3.4,"zp":2.4,"R0":17,}  
+
+# COSMOLOGY: Planck18 H0, Om0
+lambda_cosmo_mock_v1      = {"H0":67.66,"Om0":0.30966}
+lamda_cosmo_GLADE         = {"H0":70., "Om0":0.27}
+
+
+#############################
+# Lists of observed events
+#############################
 
 # All confident events with SNR>8 and FAR>1
 list_O1O2_events = ['GW150914', 'GW170729', 'GW170814', 'GW170809', 'GW151226', 'GW170104', 'GW170818', 'GW151012', 'GW170823', 'GW170608']
@@ -20,73 +41,78 @@ list_O1O2_events11 = ['GW150914', 'GW170814', 'GW170809', 'GW151226', 'GW170104'
 list_O3a_events11  = ['GW190701_203306', 'GW190720_000836', 'GW190708_232457', 'GW190503_185404', 'GW190924_021846', 'GW190828_065509', 'GW190706_222641', 'GW190408_181802', 'GW190915_235702', 'GW190728_064510', 'GW190727_060333', 'GW190707_093326', 'GW190828_063405', 'GW190602_175927', 'GW190521', 'GW190521_074359', 'GW190910_112807', 'GW190519_153544', 'GW190412', 'GW190512_180714', 'GW190630_185205', 'GW190513_205428']
 list_O3b_events11  = ['GW191222_033537', 'GW200112_155838', 'GW191216_213338', 'GW191204_171526', 'GW191215_223052', 'GW200225_060421', 'GW200311_115853', 'GW200224_222234', 'GW200129_065458', 'GW191129_134029', 'GW191109_010717']
 
-
-
 list_all_SNR11 = ['GW150914', 'GW170814', 'GW170809', 'GW151226', 'GW170104', 'GW170818', 'GW170823', 'GW170608',
                   'GW190701_203306', 'GW190720_000836', 'GW190708_232457', 'GW190503_185404', 'GW190924_021846', 'GW190828_065509', 'GW190706_222641', 'GW190408_181802', 'GW190915_235702', 'GW190728_064510', 'GW190727_060333', 'GW190707_093326', 'GW190828_063405', 'GW190602_175927', 'GW190521', 'GW190521_074359', 'GW190910_112807', 'GW190519_153544', 'GW190412', 'GW190512_180714', 'GW190630_185205', 'GW190513_205428',
                   'GW191222_033537', 'GW200112_155838', 'GW191216_213338', 'GW191204_171526', 'GW191215_223052', 'GW200225_060421', 'GW200311_115853', 'GW200224_222234', 'GW200129_065458', 'GW191129_134029', 'GW191109_010717']
 
 list_NSBH = ['GW190814', 'GW200210'] 
 
+
 ###########################
- # Angles-related functions
-##########################
-
-# def ra_dec_from_th_phi(theta, phi):
-#            ra = np.rad2deg(phi)
-#            dec = np.rad2deg(0.5 * np.pi - theta)
-#            return ra, dec
-
-     
-# def th_phi_from_ra_dec(ra, dec):
-#        theta = 0.5 * np.pi - np.deg2rad(dec)
-#        phi = np.deg2rad(ra)
-#        return theta, phi
-
+#  Angles-related functions
+###########################
 
 def th_phi_from_ra_dec(ra, dec):
+    """From (RA, dec) to (theta, phi)
+
+    Args:
+        ra (np.ndarray): right ascension [rad]
+        dec (np.ndarray): declination [rad]
+
+    Returns:
+        [np.ndarray, np.ndarray]: list of theta and phi
+    """
     return 0.5 * np.pi - dec, ra
 
+
 def ra_dec_from_th_phi(theta, phi):
+    """From (theta, phi) to (RA, dec)
+
+    Args:
+        theta (np.ndarray): angle from the north pole [rad]
+        phi (np.ndarray): angle from the x-axis [rad]
+
+    Returns:
+        [np.ndarray, np.ndarray]: list of RA and dec
+    """
     return phi, 0.5 * np.pi - theta
 
 
-
-# def ra_dec_from_ipix(nside, ipix, nest=False, verbose=False):
-#     """RA and dec from HEALPix index"""
-#     (theta, phi) = hp.pix2ang(nside, ipix, nest=nest)
-#     if verbose:
-#         print("pixel has RA,DEC = ({:.2f},{:.2f})r = ({:.2f},{:.2f})d".format(phi, np.pi/2.-theta, np.rad2deg(phi), np.rad2deg(np.pi/2.-theta)))
-#     return (phi, np.pi/2.-theta)
-
-
-# def ipix_from_ra_dec(nside, ra, dec, nest=False):
-#     """HEALPix index from RA and dec"""
-#     (theta, phi) = (np.pi/2.-dec, ra)
-#     return hp.ang2pix(nside, theta, phi, nest=nest)
-
-
 def find_pix_RAdec(ra, dec, nside, nest=False):
-    '''
-    input: ra dec in radians
-    output: corresponding pixel with nside given by that of the skymap
-    '''
+    """From (RA, dec) to HEALPix pixel index
+
+    Args:
+        ra (np.ndarray): right ascension [rad]
+        dec (np.ndarray): declination [rad]
+        nside (int): HEALPix nside parameter
+        nest (bool, optional): HEALPix nest parameter. Defaults to False.
+
+    Returns:
+        np.ndarray: list of the corresponding HEALPix pixel indices
+    """
     theta, phi = th_phi_from_ra_dec(ra, dec)
-    
-    # Note: when using ang2pix, theta and phi must be in rad 
-    pix = hp.ang2pix(nside, theta, phi, nest=nest)
-    return pix
+
+    return hp.ang2pix(nside, theta, phi, nest=nest)
+
 
 def find_pix(theta, phi, nside, nest=False):
-    '''
-    input: theta phi in rad
-    output: corresponding pixel with nside given by that of the skymap
-    '''
+    """From (theta, phi) to HEALPix pixel index
+
+    Args:
+        theta (np.ndarray): angle from the north pole [rad]
+        phi (np.ndarray): angle from the x-axis [rad]
+        nside (int): HEALPix nside parameter
+        nest (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
 
     pix = hp.ang2pix(nside, theta, phi, nest=nest)
     return pix
 
-def find_theta_phi( pix, nside, nest=False):
+
+def find_theta_phi(pix, nside, nest=False):
     '''
     input:  pixel
     output: (theta, phi)of pixel center in rad, with nside given by that of the skymap 
@@ -102,12 +128,6 @@ def find_ra_dec( pix, nside,  nest=False):
     theta, phi = find_theta_phi(pix, nside,  nest=nest)
     ra, dec = ra_dec_from_th_phi(theta, phi)
     return ra, dec
-    
-
-def hpx_downgrade_idx(hpx_array, nside_out=1024):
-    #Computes the list of explored indices in a hpx array for the chosen nside_out
-    arr_down = hp.ud_grade(hpx_array, nside_out)
-    return np.where(arr_down>0.)[0] 
 
 
 def hav(theta):
@@ -118,18 +138,19 @@ def haversine(phi, theta, phi0, theta0):
 
 
 def gal_to_eq(l, b):
-    '''
-    input: galactic coordinates (l, b) in radians
-    returns equatorial coordinates (RA, dec) in radians
-    
-    https://en.wikipedia.org/wiki/Celestial_coordinate_system#Equatorial_↔_galactic
-    '''
-    
-    l_NCP = np.radians(122.93192)
-    
-    del_NGP = np.radians(27.128336)
+    """ From galactic coordinates to equatorial (RA, dec) coordinates.
+    See: https://en.wikipedia.org/wiki/Celestial_coordinate_system#Equatorial_↔_galactic
+
+    Args:
+        l (np.ndarray): galactic longitude [rad]
+        b (np.ndarray): glacitc latitude [rad]
+
+    Returns:
+        [np.ndarray, np.ndarray]: (RA, dec) coordinates [rad]
+    """
+    l_NCP     = np.radians(122.93192)
+    del_NGP   = np.radians(27.128336)
     alpha_NGP = np.radians(192.859508)
-    
     
     RA = np.arctan((np.cos(b)*np.sin(l_NCP-l))/(np.cos(del_NGP)*np.sin(b)-np.sin(del_NGP)*np.cos(b)*np.cos(l_NCP-l)))+alpha_NGP
     dec = np.arcsin(np.sin(del_NGP)*np.sin(b)+np.cos(del_NGP)*np.cos(b)*np.cos(l_NCP-l))
@@ -137,8 +158,9 @@ def gal_to_eq(l, b):
     return RA, dec
 
 
-###########################
-###########################
+##############################
+#  Multiprocessing functions
+##############################
 
 import multiprocessing
 
@@ -198,55 +220,39 @@ def healpixelize(nside, ra, dec, nest=False):
     return dicts
 
 
-def add_pixelized_group_GLADEp(dir_catalog, nsides = [32, 64, 128], nest=False):
-    """Add new groups to the hdf5 file of GLADe+ (from zenodo GWTC-3) that
-    contain the Healpix pixel indices. In this way we can load smaller portions
-    of the catalog on runtime without memory probles.
+
+###################
+# Other functions
+###################
+
+def load_data_h5(fname):
+    """Generic function to load data from h5 files
 
     Args:
-        dir_catalog (str): path to the .hdf5 file
-        nsides (list, optional): pixelizations columns to add. Defaults to [32, 64, 128].
-        nest (bool, optional): Healpix parameter nest. Defaults to False.
+        fname (str): path to the h5 file
+
+    Returns:
+        h5py.File: h5py file
     """
-
-    # Open the HDF5 file and get the dataset
-    with h5py.File(dir_catalog, 'a') as f:
-        table = f['table']
-        
-        # Iterate over the resolutions
-        for nside in nsides:
-            print("Computing indices for NSIDE={:d}".format(nside))
-            # Calculate the HEALPix pixel indices for each row in the dataset
-            indices = find_pix_RAdec(np.array(table['ra']), np.array(table['dec']), nside, nest)
-            
-            # Create a new subgroup in the HDF5 file to store the index data
-            index_group = f.create_group('indices_' + str(nside))
-            
-            # Create a dataset in the index group to store the pixel indices
-            index_ds = index_group.create_dataset('pixel_indices', data=indices)
+    events={}
+    with h5py.File(fname, 'r') as f:
+        for key in f.keys(): 
+            events[key] = np.array(f[key])
+    return events
 
 
-def sum_of_gaussians(z_grid, mu, sigma, weights=None):
-    # Vectorized sum of multiple Gaussians on z_grid each one with its own weight
-
-    z_grid = np.array(z_grid)[:, np.newaxis]
-    mu     = np.array(mu)
-    sigma  = np.array(sigma)
-
-    if weights is None:
-        weights = np.ones(len(mu))
-
-    dVdz     = fLCDM.dV_dz(z_grid, {"H0":70,"Om0":0.3})
-    gauss    = norm.pdf(z_grid, mu, sigma)
-    # integral = np.trapz(dVdz*gauss, z_grid, axis=0)
-
-    # return np.sum(weights * dVdz * gauss/integral, axis=1)
-    return np.sum(weights * dVdz * gauss, axis=1)
-
+def remapMinMax(value, a=0, b=1):
+    return (value - value.min()) / (value.max() - value.min()) * (b - a) + a
 
 
 class Stopwatch:
+    """
+    Simple stopwatch class
+    """
+
     def __init__(self):
+        import time
+
         self.start_time = time.time()
 
     def __call__(self, msg=None):
@@ -257,6 +263,7 @@ class Stopwatch:
         else:
             print("{:s}: {:.6f} s".format(msg, elapsed_time))
         self.start_time = time.time()
+
 
 # Temporary 
 def load_data(events, run, nSamplesUse=None, verbose=False, BBH_only=True, SNR_th = 12, FAR_th = 1):
@@ -287,32 +294,129 @@ def load_data(events, run, nSamplesUse=None, verbose=False, BBH_only=True, SNR_t
 
 
 
+###################
+# Magnitudes
+###################
 
-
-
-def remapMinMax(value, a=0, b=1):
-    return (value - value.min()) / (value.max() - value.min()) * (b - a) + a
-
-
-#####
-####################
-#####
-
-def m2M(m, dL, lambda_cosmo={"H0":70.0, "Om0":0.3}):
-    """Converts observed to absolute magnitude, given luminosity distance in Mpc.
+def Mag2lum(M, band='K'):
+    """Converts magnitudes to solar luminosities
 
     Args:
-        m (float): _description_
-        dL (float): _description_
+        M (float): magnitude
+        band (str, optional): obs. magnitude. K corr not implemented. Defaults to 'K'.
+
+    Returns:
+        float: luminositu in units of solar luminosity
     """
-    return m - 5*np.log10(dL) - 25 #- 0.5*np.log10(1+Om*(D/H0)**2) 
+    
+    if band == 'bol':
+        M_sun = 4.83
+    elif band == 'B':
+        M_sun = 4.72
+    elif band == 'W1':
+        M_sun = 3.24
+    else:
+        ValueError("Not supported")
+
+    return np.power(10, (M_sun-M)/2.5)
 
 
-def M2m(M, dL, lambda_cosmo={"H0":70.0, "Om0":0.3}):
-    """Converts absolute to observed magnitude, given luminosity distance in Mpc.
+def lum2Mag(L, band='K'):
+    """Converts magnitudes to solar luminosities
 
     Args:
-        m (float): _description_
-        dL (float): _description_
+        M (float): magnitude
+        band (str, optional): obs. magnitude. K corr not implemented. Defaults to 'K'.
+
+    Returns:
+        float: luminositu in units of solar luminosity
     """
-    return M + 5*np.log10(dL) + 25 #+ 0.5*np.log10(1+Om*(D/H0)**2) 
+    
+    if band == 'bol':
+        M_sun = 4.83
+    elif band == 'W1':
+        M_sun = 3.24
+    else:
+        ValueError("Not supported")
+
+    return -2,5*np.log10(L) + M_sun
+
+
+
+
+
+######################
+# Schechter functions
+######################
+
+
+import numpy as np
+from scipy.integrate import quad
+
+
+
+def lambda_default(band):
+    if band=="B":
+        # GWCOSMO
+        return {"alpha":-1.21, "M_star":-19.70, "phi_star":5.5e-3} # "Mmin":-22.96, "Mmax":-12.96
+    elif band=="K":
+        # GWCOSMO
+        # https://iopscience.iop.org/article/10.1086/322488/pdf
+        # Mmax from  Fig 3 of the above reference 
+        return {"alpha":-1.09, "M_star":-23.39, "phi_star":5.5e-3}  # , "Mmin":-27.0, "Mmax":-19.0
+    elif band=="B_Gehrels_Arcavi_17":
+        # used in Fischbach 2019
+        return {"alpha":-1.07, "M_star":-20.47, "phi_star":5.5e-3} 
+    elif band=="K_GLADE_2.4":
+        # used in Fischbach 2019
+        return {"alpha":-1.02, "M_star":-23.55, "phi_star":5.5e-3} 
+
+    else:
+        raise ValueError("{band} band not implemented")
+
+
+
+
+# phistar does not affect the analysis, (cancels in numerator and denominator of the main analysis, as for H0)
+
+
+def phiM(M, args_Sch, args_cosmo):
+    """Compute Schechter function (in log)
+
+    Args:
+        M (np.array, float): detector frame absolute magnitudes
+        args_Sch (dict): Schechter function parameters
+        args_cosmo (dict): cosmology parameters
+
+    Returns:
+        _type_: _description_
+    """    
+    alpha, M_star, phi_star = args_Sch.values()
+    h07                     = args_cosmo["H0"]/70.
+
+    M_star   = M_star + 5.*np.log10(h07)
+    phi_star = phi_star * h07**3
+    factor   = 10**(0.4*(M-M_star))
+
+    return 0.4 * np.log(10.0) * phi_star * factor**(1.+alpha) * np.exp(-factor)
+    
+
+
+
+def phi_norm(M, Mmin, Mmax, args_Sch, args_cosmo):
+    """Compute normalized Schechter function
+
+    Args:
+        M (np.array, float): detector frame absolute magnitudes
+        Mmin (float): lower limit of integration
+        Mmax (float): upper limit of integration
+        args_Sch (dict): Schechter function parameters
+        args_cosmo (dict): cosmology parameters
+
+    Returns:
+        np.array: Normalized Schechter function 
+    """
+    return phiM(M,args_Sch,args_cosmo)/quad(phiM, Mmin, Mmax, args=(args_Sch, args_cosmo))[0]
+
+
+
