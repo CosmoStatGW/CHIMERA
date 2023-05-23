@@ -91,4 +91,38 @@ class SelectionBias():
         return self.fcn1D.Ndet(x)[0][0]
 
 
-    
+
+    def update_bias_fcn_ND(self, param_todo, zmax):
+        """Compute the bias function for a given parameter/s.
+
+        Args:
+            param_todo (str): parameter to compute the bias for
+            lambda_cosmo (dict): dictionary of cosmological hyperparameters
+            lambda_rate (dict): dictionary of rate hyperparameters
+            lambda_mass (dict): dictionary of mass hyperparameters
+
+        Returns:
+            function: bias function
+        """
+        log.info("\nComputing bias function with MGCosmoPop for parameter {}...".format(param_todo))
+
+        self.fcnND = self.SelectionBiasInjections(self.allPopsMD, 
+                                                  [self.injMock, ],
+                                                  param_todo, 
+                                                  zmax = zmax,
+                                                  normalized=True)
+
+    def get_bias_fcn_ND(self, x):
+        """Return the bias function for a given parameter/s.
+
+        Args:
+            param_todo (str): parameter to compute the bias for
+            lambda_cosmo (dict): dictionary of cosmological hyperparameters
+            lambda_rate (dict): dictionary of rate hyperparameters
+            lambda_mass (dict): dictionary of mass hyperparameters
+
+        Returns:
+            function: bias function
+        """
+
+        return self.fcnND.Ndet(x)[0][0]

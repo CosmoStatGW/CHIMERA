@@ -6,14 +6,11 @@
 #   All rights reserved. Use of this source code is governed by the license that can be found in the LICENSE file.
 #
 
-
-import logging
-
 import h5py, sys
 import numpy as np
 from tqdm import tqdm
 
-logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
+
 
 import CHIMERA.plotting as plotting
 import CHIMERA.chimeraUtils as chimeraUtils
