@@ -15,6 +15,7 @@ import numpy as np
 from astropy.table import Table
 from scipy.stats import gaussian_kde
 from tqdm import tqdm
+from numpy.linalg import LinAlgError
 
 import CHIMERA.chimeraUtils as chimeraUtils
 
@@ -140,14 +141,28 @@ class GW(object):
         Returns:
             np.ndarray: pixelized GW probability for one event.
         """
+        Npix = len(self.pix_conf[event])
+
+        try:
+            kde_gw, kde_norm = self.kde_event(event, lambda_cosmo=lambda_cosmo, lambda_mass=lambda_mass)
+        except:
+            # If LinAlgError occurs, return p_gw filled with zeros
+            print("LINEALG!!!!")
+            return np.zeros((len(z_grid), Npix))
 
         kde_gw, kde_norm = self.kde_event(event, lambda_cosmo=lambda_cosmo, lambda_mass=lambda_mass)
-        Npix = len(self.pix_conf[event])
         args =  np.array([np.tile(z_grid, Npix),
                           np.hstack([ np.full_like(z_grid, x) for x in self.ra_conf[event] ]),
                           np.hstack([ np.full_like(z_grid, x) for x in self.dec_conf[event] ])])
 
-        p_gw =  kde_gw(args).reshape(Npix,len(z_grid)).T * kde_norm
+        # p_gw =  kde_gw(args).reshape(Npix,len(z_grid)).T * kde_norm
+
+        try:
+            return kde_gw(args).reshape(Npix,len(z_grid)).T * kde_norm
+        except:
+            # If LinAlgError occurs, return p_gw filled with zeros
+            print("LINEALG!!!!")
+            return np.zeros((len(z_grid), Npix))
 
         return p_gw
 
@@ -175,6 +190,11 @@ class GW(object):
 
         norm   = np.mean(weight, axis=0)
 
+        # TEMP
+        if (np.sum(~np.isfinite(weight))>0) or (np.sum(weight)==0) or (np.any(~np.isfinite(norm))) or (np.any(~np.isfinite(weight))):
+            return gaussian_kde(np.array([z,ra,dec]), bw_method=self.data_smooth), norm
+
+        
         return gaussian_kde(np.array([z,ra,dec]), bw_method=self.data_smooth, weights=weight), norm
         # return gaussian_kde(np.array([z,ra,dec]), bw_method=self.data_smooth), norm
 
