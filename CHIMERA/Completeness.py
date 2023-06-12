@@ -26,7 +26,6 @@ import healpy as hp
 from CHIMERA.cosmo import fLCDM
 lambda_cosmo = {"H0":70.0, "Om0":0.3}
 
-from sklearn import cluster
 
 def get_SchNorm(phistar, Lstar, alpha, Lcut):
         '''
