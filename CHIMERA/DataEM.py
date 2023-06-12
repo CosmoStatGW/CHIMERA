@@ -16,6 +16,7 @@ import CHIMERA.chimeraUtils as chimeraUtils
 
 import logging
 log = logging.getLogger(__name__)
+from CHIMERA.cosmo import fLCDM
 
 
 
@@ -63,3 +64,65 @@ class MockGalaxiesMICEv2(GalCat):
 
 
 
+class GLADEPlus_v3(GalCat):
+
+    def __init__(self,
+                 dir_cat,
+                 nside=None,
+                 **kwargs):
+        
+        self.dir_cat  = dir_cat
+        self.all_keys = ['ra', 'dec', 'z', 'sigmaz', 'm_B', 'm_K', 'm_W1', 'm_bJ']
+        
+        GalCat.__init__(self, nside, **kwargs)
+
+
+    def load(self, 
+             keys=None,
+             Lcut=None,
+             band=None,
+             ):
+
+        if keys is None:
+            keys = self.all_keys
+
+
+        # Load data from a hdf5 file in the most efficient and less memory consuming way (do not use pandas)
+        with h5py.File(self.dir_cat, 'r') as f:
+            data = {key: np.array(f[key]) for key in keys}
+
+        if Lcut is not None:
+            mask = self.get_mask_Lcut(band, Lcut)
+            for key in keys:
+                data[key] = data[key][mask]
+
+        
+        if "sigmaz" in data: data["z_err"] = data.pop("sigmaz")
+
+        self.data = data
+
+       
+
+    def get_mask_Lcut(self, band, level):
+
+        colm = "m_"+band
+        colL = "L_"+band
+
+        if colm not in self.data.keys():
+            ValueError("ERROR, band not present in the catalog")
+
+        if colL not in self.data.keys():
+
+            dL   = fLCDM.dL(self.data["z"], chimeraUtils.lambda_cosmo_GLADE)
+            Mabs = self.data[colm] - 5 * np.log10(dL) - 25  # dL in [Mpc]
+            L    = chimeraUtils.Mag2lum(Mabs, band)
+            self.data.update({colL: L})
+
+ 
+        L_th = level * chimeraUtils.Lstar_default(band)
+
+        mask = self.data[colL] > L_th
+        # log.info(" > applied Lcut on band {} at L > {:.1e}".format(band, L_th))
+        print(" > L_{} cut, L > {:.1e}Lo: kept {:d} galaxies ({:.1f}%)".format(band, L_th, mask.sum(), 100*mask.sum()/len(mask)))
+
+        return mask
