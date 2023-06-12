@@ -23,7 +23,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import healpy as hp
 
-from CHIMERA.cosmologies import fLCDM
+from CHIMERA.cosmo import fLCDM
 lambda_cosmo = {"H0":70.0, "Om0":0.3}
 
 from sklearn import cluster

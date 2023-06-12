@@ -17,154 +17,147 @@ import pandas as pd
 from CHIMERA.Galaxies import GalCat
 import CHIMERA.chimeraUtils as chimeraUtils
 
+# class MockGalaxiesMICEv2(GalCat):
+
+#     def __init__(self, 
+#                  file_catalog,
+#                  nside,
+#                  **kwargs):
+        
+#         self._file = file_catalog
+#         super().__init__(nside=nside, **kwargs)
+
+
+#     def load(self,
+#              z_err          = 5, 
+#              units_ra_dec   = "deg",
+#              columns        = ["ra_gal", "dec_gal", "z_cgal"]):
+
+#         log.info("Loading mock galaxy catalog...")
+#         df = pd.read_hdf(self._file, columns=columns)
+
+#         if units_ra_dec == "deg":
+#             df["ra_gal"]  = np.deg2rad(df["ra_gal"])
+#             df["dec_gal"] = np.deg2rad(df["dec_gal"])
+
+#         if z_err is not None:
+#             log.info(" > setting galaxies' z uncertainties to {:.1e} x (1+z)".format(z_err))
+#             df.loc[:,"z_err"] = z_err * (1. + df["z_cgal"])
+
+#         df = df.rename(columns={"ra_gal":"ra", 
+#                                 "dec_gal":"dec",
+#                                 "z_cgal":"z"})
+        
+#         self.data = self.data.append(df, ignore_index=True)
+
+
+
 class MockGalaxiesMICEv2(GalCat):
 
     def __init__(self, 
-                 file_catalog,
+                 dir_catalog, 
+                 nside, 
                  **kwargs):
         
-        self._file = file_catalog
-        GalCat.__init__(self, file_catalog, completeness=None, **kwargs)
+        self._file = dir_catalog
+
+        super().__init__(nside=nside, **kwargs)
 
 
     def load(self,
-             z_err          = 5, 
+             z_err          = 1,
              units_ra_dec   = "deg",
-             columns        = ["ra_gal", "dec_gal", "z_cgal"]):
+             keys_load      = ["ra_gal", "dec_gal", "z_cgal"]):
 
         log.info("Loading mock galaxy catalog...")
-        df = pd.read_hdf(self._file, columns=columns)
+
+        cat={}
+
+        with h5py.File(self._file, 'r') as file:
+            for k in keys_load:
+                cat[k] = np.array(file[k][()])
 
         if units_ra_dec == "deg":
-            df["ra_gal"]  = np.deg2rad(df["ra_gal"])
-            df["dec_gal"] = np.deg2rad(df["dec_gal"])
+            log.info(" > converting (RA,DEC) to [rad]")
+            cat["ra_gal"]  = np.deg2rad(cat["ra_gal"])
+            cat["dec_gal"] = np.deg2rad(cat["dec_gal"])
 
         if z_err is not None:
-            log.info(" > setting galaxies' z uncertainties to {:.1e} x (1+z)".format(z_err))
-            df.loc[:,"z_err"] = z_err * (1. + df["z_cgal"])
+            log.info(" > setting galaxies' z uncertainties to {:.1e} * (1+z)".format(z_err))
+            cat["z_err"] = z_err * (1. + cat["z_cgal"])
 
-        df = df.rename(columns={"ra_gal":"ra", 
-                                "dec_gal":"dec",
-                                "z_cgal":"z"})
-        
-        self.data = self.data.append(df, ignore_index=True)
+        cat["ra"]  = cat.pop("ra_gal")
+        cat["dec"] = cat.pop("dec_gal")
+        cat["z"]   = cat.pop("z_cgal")
 
-
-
-class MockGWInjectionsGWFAST():
-    
-    def __init__(self, 
-                  injections_df, 
-                  N_gen,
-                 #DeltaOm=None,
-                  #nInjUse=None,  
-                  dist_unit="Gpc", Tobs=1, 
-                  #snr_th=12,
-                 #DelOm_th=100,
-                  
-                 ):
-        
-        self.N_gen=N_gen
-        #self.snr_th=snr_th
-        #self.DelOm_th=DelOm_th
-        
-        
-        self.dist_unit=dist_unit
-        self.m1z, self.m2z, self.dL, self.log_weights_sel  = self._load_data(injections_df )
-        self.logN_gen = np.log(self.N_gen)
-        assert (self.m1z > 0).all()
-        assert (self.m2z > 0).all()
-        assert (self.dL > 0).all()
-        assert(self.m2z<=self.m1z).all()
-
-        
-        self.Tobs=Tobs
-        self.spins = []
-        print('Obs time: %s' %self.Tobs )
-        
-        self.condition = np.full(self.m1z.shape, True)
-        
-    def get_theta(self):
-        return np.array( [self.m1z, self.m2z, self.dL  ] ) 
-    
-    
-    def _load_data(self, injections_df,):
-    
-        m1_sel = injections_df['m1_det']
-        m2_sel = injections_df['m2_det']
-        dl_sel = injections_df['dL'] #* 1000 # Mpc
-        log_weights_sel = injections_df['log_p_draw_nospin']
-        
-        self.detected = np.full(len(m1_sel), True)
-        print('Total detected injections: %s' %self.detected.sum())
-       
-        self.keep = self.detected
-        return m1_sel[self.keep], m2_sel[self.keep], dl_sel[self.keep],  log_weights_sel[self.keep] 
+        self.data = cat
 
 
 
 
+class MockGWData():
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-class MockGW():
+    """ 
+        Class to handle mock GW data.
+    """
     
     def __init__(self,
-                 file_catalog):
+                 dir_catalog):
         
-        self._file = file_catalog
+        self._file = dir_catalog
 
 
     def load(self, 
-             Nevents,
-             Nsamples,
-             keys_skip = ['Phicoal', 'chi1z', 'chi2z', 'iota','psi', 'tcoal']
+             Nevents   = None,
+             Nsamples  = None,
+             keys_load = ["m1det", "m2det", "chi1z", "phi", "dL", "theta", "chi2z", "iota"],
              ):
+        
+        """Load mock GW catalog calculating (RA,DEC) values.
+
+        Args:
+            Nevents (int, optional): number of events to load. Defaults to all events.
+            Nsamples (int, optional): number of samples to load for each event. Defaults to all samples.
+            keys_load (list, optional): list of keys to be loaded. Defaults to ["m1det", "m2det", "phi", "dL", "theta"].
+
+        Returns:
+            dict: dictionary of arrays containing the mock GW data.
+        """
+
+        data = {}
+
         log.info("Loading mock GW catalog...")
 
-        evs={}
-        with h5py.File(self._file, 'r') as phi: 
-            #observations.h5 has to be in the same folder as this code
+        with h5py.File(self._file, 'r') as f:
 
-            log.info(" > N_events: {:d}".format(phi['posteriors'][keys_skip[0]].shape[0]))
+            Nevents_max, Nsamples_max = f["posteriors"][keys_load[0]].shape
 
-            for pn in phi['posteriors'].keys():
-                if pn not in keys_skip:
-                    log.info(' > loading %s' %pn)
-                    pn_last=pn
-                    if pn!='rho':
-                        if Nsamples is not None:
-                            evs[pn] = np.array(phi['posteriors'][pn])[:Nevents, :Nsamples]
-                        else:
-                            evs[pn] = np.array(phi['posteriors'][pn])[:Nevents, :]
-                    else:
-                        evs[pn] = np.array(phi['posteriors'][pn])[:Nevents]
-        
-        log.info(" > converting (theta,phi) to (ra,dec) [rad] and dL [Gpc]")
-        ra, dec   = chimeraUtils.ra_dec_from_th_phi(evs["theta"], evs["phi"])
-        del evs["phi"]
-        del evs["theta"]
-        evs["ra"]   = ra
-        evs["dec"]  = dec
-        evs["dL"]   = evs["dL"] #*1000 Mpc
+            if Nevents is None: Nevents = Nevents_max
+            if Nsamples is None: Nsamples = Nsamples_max
 
-        self.data = evs
+            for f_key in keys_load:
+                if f_key not in f['posteriors'].keys(): 
+                    log.warning(" > key {:s} not available".format(f_key))
+                else:
+                    data[f_key] = np.array(f["posteriors"][f_key])[:Nevents, :Nsamples]
 
-        return evs
+        self.Nevents  = Nevents
+        self.Nsamples = Nsamples
+
+        log.info(" > loaded {:d} events with {:d} posterior samples each".format(self.Nevents, self.Nsamples))
+        log.info(" > converting (theta,phi) to (RA,DEC) [rad] and dL [Gpc]")
+
+        ra, dec      = chimeraUtils.ra_dec_from_th_phi(data["theta"], data["phi"])
+        data["ra"]    = ra
+        data["dec"]   = dec
+
+        self.data = data
+
+        return data
     
 
     def medians(self):
-        """Return the median values of the parameters"""
+
+        """Return the median values of the parameters."""
+
         return {k:np.median(v, axis=1) for k,v in self.data.items()}
