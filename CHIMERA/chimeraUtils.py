@@ -7,7 +7,6 @@
 #
 
 import os, h5py
-
 import healpy as hp
 import numpy as np
 
@@ -24,7 +23,7 @@ lambda_rate_Madau_mock_v1 = {"gamma":1.9,"kappa":3.4,"zp":2.4,"R0":17,}
 
 # COSMOLOGY: Planck18 H0, Om0
 lambda_cosmo_mock_v1      = {"H0":67.66,"Om0":0.30966}
-lamda_cosmo_GLADE         = {"H0":70., "Om0":0.27}
+lambda_cosmo_GLADE        = {"H0":70., "Om0":0.27}
 
 
 #############################
@@ -32,20 +31,30 @@ lamda_cosmo_GLADE         = {"H0":70., "Om0":0.27}
 #############################
 
 # All confident events with SNR>8 and FAR>1
-list_O1O2_events = ['GW150914', 'GW170729', 'GW170814', 'GW170809', 'GW151226', 'GW170104', 'GW170818', 'GW151012', 'GW170823', 'GW170608']
-list_O3a_events  = ['GW190701_203306', 'GW190413_134308', 'GW190720_000836', 'GW190527_092055', 'GW190708_232457', 'GW190503_185404', 'GW190924_021846', 'GW190413_052954', 'GW190514_065416', 'GW190731_140936', 'GW190828_065509', 'GW190706_222641', 'GW190930_133541', 'GW190408_181802', 'GW190803_022701', 'GW190915_235702', 'GW190728_064510', 'GW190727_060333', 'GW190707_093326', 'GW190828_063405', 'GW190602_175927', 'GW190421_213856', 'GW190521', 'GW190521_074359', 'GW190910_112807', 'GW190519_153544', 'GW190412', 'GW190512_180714', 'GW190630_185205', 'GW190517_055101', 'GW190513_205428', 'GW190929_012149', 'GW190620_030421']
-list_O3b_events  = ['GW191222_033537', 'GW200112_155838', 'GW200202_154313', 'GW191216_213338', 'GW191204_171526', 'GW200208_130117', 'GW191230_180458', 'GW200302_015811', 'GW200219_094415', 'GW191215_223052', 'GW191127_050227', 'GW200128_022011', 'GW200225_060421', 'GW200311_115853', 'GW191105_143521', 'GW191103_012549', 'GW200316_215756', 'GW200224_222234', 'GW200129_065458', 'GW191129_134029', 'GW191109_010717', 'GW200216_220804', 'GW200209_085452']
+list_O1O2_events   = ['GW150914', 'GW170729', 'GW170814', 'GW170809', 'GW151226', 'GW170104', 'GW170818', 'GW151012', 'GW170823', 'GW170608']
+list_O3a_events    = ['GW190701_203306', 'GW190413_134308', 'GW190720_000836', 'GW190527_092055', 'GW190708_232457', 'GW190503_185404', 'GW190924_021846', 'GW190413_052954', 
+                      'GW190514_065416', 'GW190731_140936', 'GW190828_065509', 'GW190706_222641', 'GW190930_133541', 'GW190408_181802', 'GW190803_022701', 'GW190915_235702', 
+                      'GW190728_064510', 'GW190727_060333', 'GW190707_093326', 'GW190828_063405', 'GW190602_175927', 'GW190421_213856', 'GW190521', 'GW190521_074359', 'GW190910_112807', 
+                      'GW190519_153544', 'GW190412', 'GW190512_180714', 'GW190630_185205', 'GW190517_055101', 'GW190513_205428', 'GW190929_012149', 'GW190620_030421']
+list_O3b_events    = ['GW191222_033537', 'GW200112_155838', 'GW200202_154313', 'GW191216_213338', 'GW191204_171526', 'GW200208_130117', 'GW191230_180458', 'GW200302_015811', 
+                      'GW200219_094415', 'GW191215_223052', 'GW191127_050227', 'GW200128_022011', 'GW200225_060421', 'GW200311_115853', 'GW191105_143521', 'GW191103_012549', 
+                      'GW200316_215756', 'GW200224_222234', 'GW200129_065458', 'GW191129_134029', 'GW191109_010717', 'GW200216_220804', 'GW200209_085452']
 
 # All confident events with SNR>11 and FAR>1
 list_O1O2_events11 = ['GW150914', 'GW170814', 'GW170809', 'GW151226', 'GW170104', 'GW170818', 'GW170823', 'GW170608']
-list_O3a_events11  = ['GW190701_203306', 'GW190720_000836', 'GW190708_232457', 'GW190503_185404', 'GW190924_021846', 'GW190828_065509', 'GW190706_222641', 'GW190408_181802', 'GW190915_235702', 'GW190728_064510', 'GW190727_060333', 'GW190707_093326', 'GW190828_063405', 'GW190602_175927', 'GW190521', 'GW190521_074359', 'GW190910_112807', 'GW190519_153544', 'GW190412', 'GW190512_180714', 'GW190630_185205', 'GW190513_205428']
-list_O3b_events11  = ['GW191222_033537', 'GW200112_155838', 'GW191216_213338', 'GW191204_171526', 'GW191215_223052', 'GW200225_060421', 'GW200311_115853', 'GW200224_222234', 'GW200129_065458', 'GW191129_134029', 'GW191109_010717']
-
-list_all_SNR11 = ['GW150914', 'GW170814', 'GW170809', 'GW151226', 'GW170104', 'GW170818', 'GW170823', 'GW170608',
-                  'GW190701_203306', 'GW190720_000836', 'GW190708_232457', 'GW190503_185404', 'GW190924_021846', 'GW190828_065509', 'GW190706_222641', 'GW190408_181802', 'GW190915_235702', 'GW190728_064510', 'GW190727_060333', 'GW190707_093326', 'GW190828_063405', 'GW190602_175927', 'GW190521', 'GW190521_074359', 'GW190910_112807', 'GW190519_153544', 'GW190412', 'GW190512_180714', 'GW190630_185205', 'GW190513_205428',
-                  'GW191222_033537', 'GW200112_155838', 'GW191216_213338', 'GW191204_171526', 'GW191215_223052', 'GW200225_060421', 'GW200311_115853', 'GW200224_222234', 'GW200129_065458', 'GW191129_134029', 'GW191109_010717']
-
-list_NSBH = ['GW190814', 'GW200210'] 
+list_O3a_events11  = ['GW190701_203306', 'GW190720_000836', 'GW190708_232457', 'GW190503_185404', 'GW190924_021846', 'GW190828_065509', 'GW190706_222641', 'GW190408_181802', 
+                      'GW190915_235702', 'GW190728_064510', 'GW190727_060333', 'GW190707_093326', 'GW190828_063405', 'GW190602_175927', 'GW190521', 'GW190521_074359', 
+                      'GW190910_112807', 'GW190519_153544', 'GW190412', 'GW190512_180714', 'GW190630_185205', 'GW190513_205428']
+list_O3b_events11  = ['GW191222_033537', 'GW200112_155838', 'GW191216_213338', 'GW191204_171526', 'GW191215_223052', 'GW200225_060421', 'GW200311_115853', 'GW200224_222234', 
+                      'GW200129_065458', 'GW191129_134029', 'GW191109_010717']
+list_all_SNR11     = ['GW150914', 'GW170814', 'GW170809', 'GW151226', 'GW170104', 'GW170818', 'GW170823', 'GW170608',
+                      'GW190701_203306', 'GW190720_000836', 'GW190708_232457', 'GW190503_185404', 'GW190924_021846', 'GW190828_065509', 'GW190706_222641', 'GW190408_181802', 
+                      'GW190915_235702', 'GW190728_064510', 'GW190727_060333', 'GW190707_093326', 'GW190828_063405', 'GW190602_175927', 'GW190521', 'GW190521_074359', 'GW190910_112807', 
+                      'GW190519_153544', 'GW190412', 'GW190512_180714', 'GW190630_185205', 'GW190513_205428',
+                      'GW191222_033537', 'GW200112_155838', 'GW191216_213338', 'GW191204_171526', 'GW191215_223052', 'GW200225_060421', 'GW200311_115853', 'GW200224_222234', 
+                      'GW200129_065458', 'GW191129_134029', 'GW191109_010717']
+# NSBH events
+list_NSBH          = ['GW190814', 'GW200210'] 
 
 
 ###########################
@@ -225,6 +234,49 @@ def healpixelize(nside, ra, dec, nest=False):
 # Other functions
 ###################
 
+def get_Neff_log(log_weights, log_norm):
+    """Compute Neff as in Farr+2019 with log_weigths
+
+    Args:
+        log_weights (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    log_s2      = np.logaddexp.reduce(2.*log_weights) - 2.*np.log(len(log_weights)) 
+    log_sig2    = logdiffexp(log_s2, 2.*log_norm-np.log(len(log_weights)))
+   
+    return np.exp(2.*log_norm - log_sig2)
+
+def get_Neff(weights, norm):
+    s2 = np.sum(weights**2) / len(weights)
+    sig2 = s2 - norm**2
+
+    return norm**2 / sig2
+
+def logdiffexp(x, y):
+    return x + np.log1p(-np.exp(y-x))
+
+
+def log1m_exp(x):
+
+    arr_x = 1.0 * np.array(x)
+    oob = arr_x < np.log(np.finfo(arr_x.dtype).smallest_normal)
+    mask = arr_x > -0.6931472  # appox -log(2)
+    more_val = np.log(-np.expm1(arr_x))
+    less_val = np.log1p(-np.exp(arr_x))
+
+    return np.where(oob,0.,np.where(mask,more_val,less_val))
+
+def log_diff_exp(a, b):
+    mask = a > b
+    masktwo = (a == b) & (a < np.inf)
+    return np.where(mask, 1.0 * a + log1m_exp(1.0 * b - 1.0 * a), np.where(masktwo,-np.inf,np.nan))
+
+
+def nanaverage(A,weights,axis):
+    return np.nansum(A*weights,axis=axis) /((~np.isnan(A))*weights).sum(axis=axis)
+    
 def load_data_h5(fname):
     """Generic function to load data from h5 files
 
@@ -244,12 +296,12 @@ def load_data_h5(fname):
 def remapMinMax(value, a=0, b=1):
     return (value - value.min()) / (value.max() - value.min()) * (b - a) + a
 
+import time
 
 class Stopwatch:
     """
     Simple stopwatch class
     """
-
     def __init__(self):
         import time
 
@@ -266,7 +318,7 @@ class Stopwatch:
 
 
 # Temporary 
-def load_data(events, run, nSamplesUse=None, verbose=False, BBH_only=True, SNR_th = 12, FAR_th = 1):
+def load_data_LVK(events, run, nSamplesUse=None, verbose=False, BBH_only=True, SNR_th = 12, FAR_th = 1):
     import MGCosmoPop
     from MGCosmoPop.dataStructures.O1O2data import O1O2Data
     from MGCosmoPop.dataStructures.O3adata import O3aData
@@ -286,7 +338,7 @@ def load_data(events, run, nSamplesUse=None, verbose=False, BBH_only=True, SNR_t
     # dt          = []
     new_data    = {"m1z" : data.m1z,
                    "m2z" : data.m2z,
-                   "dL"  : 1000 * data.dL, #Mpc
+                   "dL"  : data.dL, # Gpc
                    "ra"  : data.ra,
                    "dec" : data.dec}
 
@@ -315,10 +367,12 @@ def Mag2lum(M, band='K'):
         M_sun = 4.72
     elif band == 'W1':
         M_sun = 3.24
+    elif band == 'K':
+        M_sun = 3.28
     else:
         ValueError("Not supported")
 
-    return np.power(10, (M_sun-M)/2.5)
+    return np.power(10, 0.4*(M_sun-M))
 
 
 def lum2Mag(L, band='K'):
@@ -353,6 +407,12 @@ def lum2Mag(L, band='K'):
 import numpy as np
 from scipy.integrate import quad
 
+def Lstar_default(band):
+    if band=="B":
+        Lstar = 2.45e10
+    elif band=="K":
+        Lstar = 1.1e11 
+    return Lstar
 
 
 def lambda_default(band):
@@ -380,7 +440,7 @@ def lambda_default(band):
 # phistar does not affect the analysis, (cancels in numerator and denominator of the main analysis, as for H0)
 
 
-def phiM(M, args_Sch, args_cosmo):
+def log_phiM(M, args_Sch, args_cosmo):
     """Compute Schechter function (in log)
 
     Args:
@@ -392,19 +452,18 @@ def phiM(M, args_Sch, args_cosmo):
         _type_: _description_
     """    
     alpha, M_star, phi_star = args_Sch.values()
-    h07                     = args_cosmo["H0"]/70.
+    h                       = args_cosmo["H0"]/100.
 
-    M_star   = M_star + 5.*np.log10(h07)
-    phi_star = phi_star * h07**3
-    factor   = 10**(0.4*(M-M_star))
+    M_star   = M_star + 5.*np.log10(h)
+    phi_star = phi_star * h**3
+    factor   = np.power(10., 0.4*(M-M_star))
 
     return 0.4 * np.log(10.0) * phi_star * factor**(1.+alpha) * np.exp(-factor)
     
 
 
-
-def phi_norm(M, Mmin, Mmax, args_Sch, args_cosmo):
-    """Compute normalized Schechter function
+def log_phiM_normalized(M, Mmin, Mmax, args_Sch, args_cosmo):
+    """Compute Schechter function normalized in [Mmin, Mmax]
 
     Args:
         M (np.array, float): detector frame absolute magnitudes
@@ -416,6 +475,10 @@ def phi_norm(M, Mmin, Mmax, args_Sch, args_cosmo):
     Returns:
         np.array: Normalized Schechter function 
     """
+    h     = args_cosmo["H0"]/100.
+    Mmin  = Mmin + 5.*np.log10(h)
+    Mmax  = Mmax + 5.*np.log10(h)
+
     return phiM(M,args_Sch,args_cosmo)/quad(phiM, Mmin, Mmax, args=(args_Sch, args_cosmo))[0]
 
 
