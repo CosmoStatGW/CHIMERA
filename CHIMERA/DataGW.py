@@ -3,14 +3,17 @@ import numpy as np
 import h5py, os, json, requests
 
 
+import logging
+log = logging.getLogger(__name__)
+
+import CHIMERA.chimeraUtils as chimeraUtils
+
 
 class DataGW(ABC):
     
     def __init__(self, **kwargs):
         
         pass
-
-
 
     @abstractmethod
     def load():
@@ -25,9 +28,72 @@ class DataGW(ABC):
 
             self.data[name] = {k: v[subsample] for k,v in posteriors.items()}
 
+    def medians(self):
+        """Return the median values of the parameters."""
+        return {k:np.median(v, axis=1) for k,v in self.data_array.items()}
 
 
 
+class DataGWMock(DataGW):
+
+    """ 
+        Class to handle mock GW data.
+    """
+    
+    def __init__(self,
+                 dir_catalog):
+        
+        self._file = dir_catalog
+
+
+    def load(self, 
+             Nevents   = None,
+             Nsamples  = None,
+             keys_load = ["m1det", "m2det", "chi1z", "phi", "dL", "theta", "chi2z", "iota"],
+             ):
+        
+        """Load mock GW catalog calculating (RA,DEC) values.
+
+        Args:
+            Nevents (int, optional): number of events to load. Defaults to all events.
+            Nsamples (int, optional): number of samples to load for each event. Defaults to all samples.
+            keys_load (list, optional): list of keys to be loaded. Defaults to ["m1det", "m2det", "phi", "dL", "theta"].
+
+        Returns:
+            dict: dictionary of arrays containing the mock GW data.
+        """
+
+        data = {}
+
+        log.info("Loading mock GW catalog...")
+
+        with h5py.File(self._file, 'r') as f:
+
+            Nevents_max, Nsamples_max = f["posteriors"][keys_load[0]].shape
+
+            if Nevents is None: Nevents = Nevents_max
+            if Nsamples is None: Nsamples = Nsamples_max
+
+            for f_key in keys_load:
+                if f_key not in f['posteriors'].keys(): 
+                    log.warning(" > key {:s} not available".format(f_key))
+                else:
+                    data[f_key] = np.array(f["posteriors"][f_key])[:Nevents, :Nsamples]
+
+        self.Nevents  = Nevents
+        self.Nsamples = Nsamples
+
+        log.info(" > loaded {:d} events with {:d} posterior samples each".format(self.Nevents, self.Nsamples))
+        log.info(" > converting (theta,phi) to (RA,DEC) [rad] and dL [Gpc]")
+
+        ra, dec      = chimeraUtils.ra_dec_from_th_phi(data["theta"], data["phi"])
+        data["ra"]    = ra
+        data["dec"]   = dec
+
+        self.data_array = data
+
+        return data
+    
 
 
 
