@@ -217,6 +217,21 @@ def plot_2Dcoring_like(like, event=0,
     return fig
 
 
+def ax_sky_datashader(ax, ra, dec, size=[100, 60]):
+    # Datashader
+    Nra, Ndec = (np.array(size)).astype(np.int64)
+    ra_lims   = np.min(ra), np.max(ra)
+    dec_lims  = np.min(dec), np.max(dec)
+    sky_bins  = [np.linspace(*ra_lims, Nra),
+                np.linspace(*dec_lims, Ndec)]
+
+    H, xedges,yedges = np.histogram2d(ra,dec,bins=sky_bins)
+    cax = (ax.imshow(H.T, extent=[*ra_lims,*dec_lims],
+        interpolation='none', origin='lower', aspect=Ndec/Nra, cmap="Blues", alpha=.9))#, norm=colors.LogNorm()))
+    
+    return cax
+
+
 
 
 def quick_corner(data, parnames=None, smooth=False, **kwargs):
