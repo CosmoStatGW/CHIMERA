@@ -49,6 +49,9 @@ def logpdf_PL(m1, m2, lambda_m):
                     # return zero probability
                     -np.inf)
 
+def pdf_PL(m1, m2, lambda_m):
+    return np.exp(logpdf_PL(m1, m2, lambda_m))
+
 
 ######################################################
 ###################################################### Broken PL
@@ -76,6 +79,7 @@ def _logC_SPL(m1, beta, delta_m, ml, res=200):
     mmid = ml + delta_m + delta_m/10.
     mm   = np.concatenate([np.linspace(ml, mmid, 200),
                            np.linspace(mmid + 1e-1, np.max(m1), res)])
+    mm   = np.sort(mm)
     p2   = np.exp(_logpdfm2_SPL(mm, beta, delta_m, ml))
     cdf  = np.cumsum(0.5*(p2[:-1] + p2[1:]) * np.diff(mm))
 
@@ -111,10 +115,13 @@ def _logN_PLP(lambda_peak, alpha, delta_m, ml, mh, mu_g, sigma_g, res=200):
                                np.linspace(mmid+1e-1, mu_g-5*sigma_g, int(res/2)),            # before gaussian peak
                                np.linspace(mu_g-5*sigma_g+1e-1, mu_g+5*sigma_g, int(res/2)),  # gaussian peak
                                np.linspace(mu_g+5*sigma_g+1e-1, mmax+mmax/2, int(res/2)) ])   # after gaussian peak
-    
+        
+        mm   = np.sort(mm) # sort to avoid interpolation errors (e.g. when mu-5sigma < ml)
+
         p1   = np.exp(_logpdfm1_PLP(mm, lambda_peak, alpha, delta_m, ml, mh, mu_g, sigma_g))
         
     return np.log(np.trapz(p1,mm))
+
 
 def logpdf_PLP(m1, m2, lambda_m):
     """Power-law+Peak mass distribution, p(m1,m2|lambda_m) normalized
@@ -139,6 +146,10 @@ def logpdf_PLP(m1, m2, lambda_m):
 
                     # return zero probability
                     -np.inf)
+
+
+def pdf_PLP(m1, m2, lambda_m):
+    return np.exp(logpdf_PLP(m1, m2, lambda_m))
 
 
 ######################################################
@@ -171,6 +182,8 @@ def _logN_PL2P(lp, l1, alpha, dm, ml, mh, mu1, s1, mu2, s2, res=200):
                                np.linspace(mu2-5*s2+1e-1, mu2+5*s2, int(res/2)),        # 2nd gaussian peak
                                np.linspace(mu2+5*s2+1e-1, mmax+mmax/2, int(res/2)) ])   # after 1st gaussian peak
     
+        mm   = np.sort(mm) # sort to avoid interpolation errors (e.g. when mu1-5s1 < ml)
+
         p1   = np.exp(_logpdfm1_PL2P(mm, lp, l1, alpha, dm, ml, mh, mu1, s1, mu2, s2))
         
     return np.log(np.trapz(p1,mm))
@@ -201,6 +214,10 @@ def logpdf_PL2P(m1, m2, lambda_m):
                     -np.inf)
 
 
+def pdf_PL2P(m1, m2, lambda_m):
+    return np.exp(logpdf_PL2P(m1, m2, lambda_m))
+
+
 ######################################################
 ###################################################### FLAT (for BNSs)
 ######################################################
@@ -215,6 +232,8 @@ def logpdf_FLAT(m1, m2, lambda_m):
     return np.where( (ml<m2) & (m2<m1) & (m1<mh), -np.log(mh-ml), -np.inf )
 
 
+def pdf_FLAT(m1, m2, lambda_m):
+    return np.exp(logpdf_FLAT(m1, m2, lambda_m))
 
 
 ######################################################

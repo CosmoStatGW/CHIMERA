@@ -16,9 +16,9 @@ import CHIMERA.plotting as plotting
 import CHIMERA.chimeraUtils as chimeraUtils
 import matplotlib.pyplot as plt
 from CHIMERA.Completeness import MaskCompleteness_v2, SkipCompleteness
-from CHIMERA.GLADE import GLADEPlus_v2, GLADEPlus_v3
+from software.CHIMERA.CHIMERA.rmGLADE import GLADEPlus_v2, GLADEPlus_v3
 from CHIMERA.GW import GW
-from CHIMERA.Mock import MockGalaxiesMICEv2
+from software.CHIMERA.CHIMERA.DataEM import MockGalaxiesMICEv2
 
 
     

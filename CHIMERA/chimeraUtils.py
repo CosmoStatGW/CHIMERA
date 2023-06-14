@@ -235,7 +235,7 @@ def healpixelize(nside, ra, dec, nest=False):
 ###################
 
 def get_Neff_log(log_weights, log_norm):
-    """Compute Neff as in Farr+2019 with log_weigths
+    """Compute Neff as in Farr+2019 arXiv:1904.10879 with log_weigths
 
     Args:
         log_weights (_type_): _description_
@@ -249,6 +249,7 @@ def get_Neff_log(log_weights, log_norm):
     return np.exp(2.*log_norm - log_sig2)
 
 def get_Neff(weights, norm):
+    # arXiv:1904.10879
     s2 = np.sum(weights**2) / len(weights)
     sig2 = s2 - norm**2
 

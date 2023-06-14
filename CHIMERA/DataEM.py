@@ -11,7 +11,7 @@ import h5py
 import numpy as np
 
 
-from CHIMERA.Galaxies import GalCat
+from software.CHIMERA.CHIMERA.EM import GalCat
 import CHIMERA.chimeraUtils as chimeraUtils
 
 import logging

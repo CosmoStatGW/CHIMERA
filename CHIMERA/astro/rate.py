@@ -27,7 +27,7 @@ def phi_MD(z, lambda_rate):
     """
     gamma, kappa, zp = lambda_rate["gamma"], lambda_rate["kappa"], lambda_rate["zp"]
 
-    return 1.e-9 * (z+1.)**gamma / ( 1. + ((z+1.)/(zp+1.))**(gamma+kappa) )
+    return (z+1.)**gamma / ( 1. + ((z+1.)/(zp+1.))**(gamma+kappa) )
 
 
 def phi_MD_norm(z, lambda_rate):
@@ -45,7 +45,7 @@ def phi_MD_norm(z, lambda_rate):
     return (1. + (zp + 1.)**(-gamma-kappa)) * R0 * phi_MD(z, lambda_rate)
 
 
-def log_phi_MD(z, lambda_rate):  # slower than non-log
+def logphi_MD(z, lambda_rate):  # slower than non-log
     """Logarithm of Madau-Dickinson-like star formation rate density in [Mpc-3 yr-1]
 
     Args:

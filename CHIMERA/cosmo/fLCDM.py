@@ -53,6 +53,16 @@ def log_ddL_dz(z, args, dL=None):
     """log of the differential luminosity distance [Mpc] at redshift ``z``."""
     return np.log(ddL_dz(z, args, dL=dL))
 
+# def log_ddL_dz(z, args, dL=None):
+#     """Logarithm of the differential luminosity distance [Mpc] at redshift ``z``."""
+
+#     if dL is not None:
+#         # raise Exception("Not implemented")
+#         return np.log(dL/(1+z)) + np.log(c_light/args["H0"]) + np.log(1+z) + log_E_inv(z, args["Om0"], 1.-args["Om0"])
+
+#     return np.log(dC(z, args)) + np.log(c_light/args["H0"]) + np.log(1+z) + log_E_inv(z, args["Om0"], 1.-args["Om0"])
+
+
 
 ##########################
 #######  Volumes  ########
@@ -65,6 +75,13 @@ def V(z, args):
 def dV_dz(z, args):
     """Differential comoving volume at redshift ``z``."""
     return 4*np.pi*c_light/args["H0"] * (dC(z, args) ** 2) * E_inv(z, args["Om0"], 1.-args["Om0"])
+
+# def log_dV_dz(z, args):
+#     """Differential comoving volume at redshift ``z``."""
+#     return np.log(4*np.pi*c_light/args["H0"]) + 2*np.log(dC(z, args)) + np.log(E_inv(z, args["Om0"], 1.-args["Om0"]))
+
+def log_dV_dz(z, args):
+    return np.log(dV_dz(z, args))
 
 
 #########################
