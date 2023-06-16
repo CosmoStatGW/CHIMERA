@@ -9,6 +9,10 @@ def phi_PL(z,lambda_rate):
     If gamma=0, merger rate density is uniform in comoving volume and source-frame time"""
     return (1. + z)**lambda_rate["gamma"]
 
+def logphi_PL(z,lambda_rate):
+    """Logarithm of PowerLaw CBCs rate density in [Mpc-3 yr-1].
+    If gamma=0, merger rate density is uniform in comoving volume and source-frame time"""
+    return lambda_rate["gamma"]*np.log1p(z)
 
 ######################################################
 ###################################################### Callister+20/Madau+14

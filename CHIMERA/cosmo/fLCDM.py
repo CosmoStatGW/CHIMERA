@@ -3,7 +3,9 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.special import hyp2f1
 
-from astropy.cosmology import scalar_inv_efuncs
+# from astropy.cosmology import scalar_inv_efuncs
+from astropy.cosmology.flrw import scalar_inv_efuncs
+
 E_inv = np.vectorize(scalar_inv_efuncs.flcdm_inv_efunc_norel, otypes=[np.float64])
 
 c_light = 299792.458 # km/s

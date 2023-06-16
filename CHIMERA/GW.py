@@ -6,19 +6,13 @@
 #   All rights reserved. Use of this source code is governed by the license that can be found in the LICENSE file.
 #
 
-import logging
-from copy import deepcopy
-
 import healpy as hp
-import matplotlib.pyplot as plt
 import numpy as np
-from astropy.table import Table
 from scipy.stats import gaussian_kde
-from tqdm import tqdm
-from numpy.linalg import LinAlgError
 
-import CHIMERA.chimeraUtils as chimeraUtils
+from CHIMERA.utils import (angles, misc)
 
+import logging
 log = logging.getLogger(__name__)
 
 __all__ = ['GW']
@@ -65,15 +59,17 @@ class GW(object):
         if not np.all([i in data for i in keys_check]):
             raise ValueError("'data' dictionary must contain the following keys: "+", ".join(keys_check))
 
-        self.data         = deepcopy(data)
-        self.data_names   = data_names
+        self.data         = data.copy()
+        self.data_names   = np.atleast_1d(data_names)
         self.data_smooth  = data_smooth
+        self.data_Neff    = 1
 
         self.Nevents      = self.data["dL"].shape[0]
         self.Nsamples     = self.data["dL"].shape[1]
 
         self.model_mass   = model_mass
         self.model_rate   = model_rate
+        self.modefl_spin  = model_spin
         self.model_cosmo  = model_cosmo
 
         self.nest         = nest
@@ -99,21 +95,21 @@ class GW(object):
 
         for n in nside_list:
             log.info(f"Precomputing Healpix pixels for the GW events (NSIDE={n}, NEST={self.nest})")
-            self.data[f"pix{n}"] = chimeraUtils.find_pix_RAdec(self.data["ra"], self.data["dec"], n, self.nest)
+            self.data[f"pix{n}"] = angles.find_pix_RAdec(self.data["ra"], self.data["dec"], n, self.nest)
 
         log.info(f"Finding optimal pixelization for each event (~{npix_event} pix/event)")
 
         mat   = np.array([[len(self.compute_sky_conf_event(e,n)) for n in nside_list] for e in range(self.Nevents)])
         ind   = np.argmin(np.abs(mat - npix_event), axis=1)
         nside = np.array(nside_list)[ind]
-        print(nside)
+        # print(nside)
         u, c  = np.unique(nside, return_counts=True)
 
         log.info(" > NSIDE: " + " ".join(f"{x:4d}" for x in u))
         log.info(" > counts:" + " ".join(f"{x:4d}" for x in c))
 
         pixels  = [self.compute_sky_conf_event(e,nside[e]) for e in range(self.Nevents)]
-        ra, dec = zip(*[chimeraUtils.find_ra_dec(pixels[e], nside=nside[e]) for e in range(self.Nevents)])
+        ra, dec = zip(*[angles.find_ra_dec(pixels[e], nside=nside[e]) for e in range(self.Nevents)])
 
         return nside, pixels, ra, dec
 
@@ -202,9 +198,9 @@ class GW(object):
 
         log_weights = np.nan_to_num(models - jacD2S - priors, nan=-np.inf)
         log_norm    = np.logaddexp.reduce(log_weights) - np.log(len(log_weights))
-        Neff        = chimeraUtils.get_Neff_log(log_weights, log_norm)
+        Neff        = misc.get_Neff_log(log_weights, log_norm)
 
-        if (Neff < 5) or (np.isfinite(log_weights).sum() < 5):
+        if (Neff < self.data_Neff) or (np.isfinite(log_weights).sum() < 5):
             log.warning(f"Neff={Neff:.0f} < 5 for event {event}. Returned -np.inf logprob")
             return None, log_norm
         
@@ -265,9 +261,9 @@ class GW(object):
 
         weights = models / jacD2S / priors
         norm    = np.mean(weights, axis=0)
-        Neff    = chimeraUtils.get_Neff(weights, norm)
+        Neff    = misc.get_Neff(weights, norm)
 
-        if (Neff < 5) or ((weights>=0).sum() < 5):
+        if (Neff < self.data_Neff) or ((weights>=0).sum() < 5):
             log.warning(f"Neff = {Neff:.1f} < 5 for event {event}. Returning zero prob.")
             return None, norm
         
@@ -351,7 +347,3 @@ class GW(object):
 
         return np.linspace(z_min, z_max, z_res, axis=1)
     
-
-
-    
-

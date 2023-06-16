@@ -1,18 +1,15 @@
 from abc import ABC, abstractmethod
 import numpy as np
 import h5py, os, json, requests
-
-
 import logging
 log = logging.getLogger(__name__)
 
-import CHIMERA.chimeraUtils as chimeraUtils
+from CHIMERA.utils import angles
 
 
 class DataGW(ABC):
     
     def __init__(self, **kwargs):
-        
         pass
 
     @abstractmethod
@@ -40,9 +37,7 @@ class DataGWMock(DataGW):
         Class to handle mock GW data.
     """
     
-    def __init__(self,
-                 dir_catalog):
-        
+    def __init__(self, dir_catalog):
         self._file = dir_catalog
 
 
@@ -86,16 +81,14 @@ class DataGWMock(DataGW):
         log.info(" > loaded {:d} events with {:d} posterior samples each".format(self.Nevents, self.Nsamples))
         log.info(" > converting (theta,phi) to (RA,DEC) [rad] and dL [Gpc]")
 
-        ra, dec      = chimeraUtils.ra_dec_from_th_phi(data["theta"], data["phi"])
-        data["ra"]    = ra
-        data["dec"]   = dec
+        ra, dec      = angles.ra_dec_from_th_phi(data["theta"], data["phi"])
+        data["ra"]   = ra
+        data["dec"]  = dec
 
         self.data_array = data
 
         return data
     
-
-
 
 
 
@@ -110,12 +103,10 @@ class DataLVK(DataGW):
         self.data       = None
         self.data_array = None
 
-        
-
 
     def load(self, event_list, subsample=None):
 
-        self.names = event_list
+        self.names = np.atleast_1d(event_list)
         self.data  = {n:self.load_event(n) for n in self.names}
 
         if subsample is not None:
@@ -135,14 +126,14 @@ class DataLVK(DataGW):
 
         obs_run, _  = self._get_run_properties(name)
 
-        print("Loading " + name + " from " + obs_run)
+        log.info(f"Loading {name} from {obs_run}...")
 
         if obs_run == "O1O2":
             keysLVK    =  ['m1_detector_frame_Msun', 'm2_detector_frame_Msun', 'luminosity_distance_Mpc', 
                            'right_ascension', 'declination']
             name_ext   = name + "_GWTC-1.hdf5"
             dir_file   = os.path.join(self.dir_file, obs_run, name_ext)
-
+            
             with h5py.File(dir_file, 'r') as f:
                 posterior_samples = f['Overall_posterior']
                 event = {keysCHIMERA[i]: posterior_samples[k] for i,k in enumerate(keysLVK)}
@@ -207,13 +198,6 @@ class DataLVK(DataGW):
                 raise NotImplementedError()
         
         return event
-
-
-
-
-
-
-
 
 
     def _get_LVK_table(self, filename):

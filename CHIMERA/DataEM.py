@@ -1,27 +1,30 @@
 #
-#   This module handles I/O and computations related to the mock catalogs.
+#   This module handles I/O and preliminary computations related to the EM data.
 #
 #   Copyright (c) 2023 Nicola Borghi <nicola.borghi6@unibo.it>, Michele Mancarella <michele.mancarella@unimib.it>               
 #
 #   All rights reserved. Use of this source code is governed by the license that can be found in the LICENSE file.
 #
 
-
 import h5py
 import numpy as np
-
-
-from software.CHIMERA.CHIMERA.EM import GalCat
-import CHIMERA.chimeraUtils as chimeraUtils
-
 import logging
 log = logging.getLogger(__name__)
+
+from CHIMERA.EM import Galaxies
+from CHIMERA.utils import (magnitudes, presets)
 from CHIMERA.cosmo import fLCDM
 
 
+__all__ = [
+    "MockGalaxiesMICEv2",
+    "GLADEPlus",
+]
 
 
-class MockGalaxiesMICEv2(GalCat):
+
+
+class MockGalaxiesMICEv2(Galaxies):
 
     def __init__(self, 
                  dir_catalog, 
@@ -63,8 +66,7 @@ class MockGalaxiesMICEv2(GalCat):
 
 
 
-
-class GLADEPlus_v3(GalCat):
+class GLADEPlus(Galaxies):
 
     def __init__(self,
                  dir_cat,
@@ -74,7 +76,7 @@ class GLADEPlus_v3(GalCat):
         self.dir_cat  = dir_cat
         self.all_keys = ['ra', 'dec', 'z', 'sigmaz', 'm_B', 'm_K', 'm_W1', 'm_bJ']
         
-        GalCat.__init__(self, nside, **kwargs)
+        Galaxies.__init__(self, nside=nside, **kwargs)
 
 
     def load(self, 
@@ -86,15 +88,37 @@ class GLADEPlus_v3(GalCat):
         if keys is None:
             keys = self.all_keys
 
-
         # Load data from a hdf5 file in the most efficient and less memory consuming way (do not use pandas)
         with h5py.File(self.dir_cat, 'r') as f:
             data = {key: np.array(f[key]) for key in keys}
 
+
         if Lcut is not None:
-            mask = self.get_mask_Lcut(band, Lcut)
+            log.info("Applying luminosity cut...")
+            colm = "m_"+band
+            colL = "L_"+band
+
+            if colm not in data.keys():
+                ValueError("ERROR, band not present in the catalog")
+
+            if colL not in data.keys():
+
+                dL   = fLCDM.dL(data["z"], presets.lambda_cosmo_GLADE)
+                Mabs = data[colm] - 5 * np.log10(dL) - 25  # dL in [Mpc]
+                L    = magnitudes.Mag2lum(Mabs, band)
+                data[colL] = L
+                keys.append(colL)
+
+    
+            L_th = Lcut * magnitudes.Lstar_default(band)
+
+            mask = data[colL] > L_th
             for key in keys:
                 data[key] = data[key][mask]
+
+            log.info(" > L_{} cut, L > {:.1e}Lo: kept {:d} galaxies ({:.1f}%)".format(band, L_th, mask.sum(), 100*mask.sum()/len(mask)))
+
+
 
         
         if "sigmaz" in data: data["z_err"] = data.pop("sigmaz")
@@ -103,26 +127,7 @@ class GLADEPlus_v3(GalCat):
 
        
 
-    def get_mask_Lcut(self, band, level):
+    # def get_mask_Lcut(self, band, level):
 
-        colm = "m_"+band
-        colL = "L_"+band
 
-        if colm not in self.data.keys():
-            ValueError("ERROR, band not present in the catalog")
-
-        if colL not in self.data.keys():
-
-            dL   = fLCDM.dL(self.data["z"], chimeraUtils.lambda_cosmo_GLADE)
-            Mabs = self.data[colm] - 5 * np.log10(dL) - 25  # dL in [Mpc]
-            L    = chimeraUtils.Mag2lum(Mabs, band)
-            self.data.update({colL: L})
-
- 
-        L_th = level * chimeraUtils.Lstar_default(band)
-
-        mask = self.data[colL] > L_th
-        # log.info(" > applied Lcut on band {} at L > {:.1e}".format(band, L_th))
-        print(" > L_{} cut, L > {:.1e}Lo: kept {:d} galaxies ({:.1f}%)".format(band, L_th, mask.sum(), 100*mask.sum()/len(mask)))
-
-        return mask
+        # return mask

@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 # from software.CHIMERA.CHIMERA._keelin import bounded_keelin_3_discrete_probabilities_between
 # from globals import *
 
-import CHIMERA.chimeraUtils as chimeraUtils
+# from CHIMERA.utils.misc as misc
 
 import logging
 log = logging.getLogger(__name__)
@@ -25,21 +25,6 @@ import healpy as hp
 
 from CHIMERA.cosmo import fLCDM
 lambda_cosmo = {"H0":70.0, "Om0":0.3}
-
-
-def get_SchNorm(phistar, Lstar, alpha, Lcut):
-        '''
-        
-        Input:  - Schechter function parameters L_*, phi_*, alpha
-                - Lilit of integration L_cut in units of 10^10 solar lum.
-        
-        Output: integrated Schechter function up to L_cut in units of 10^10 solar lum.
-        '''
-        from scipy.special import gammaincc
-        from scipy.special import gamma
-                
-        norm= phistar*Lstar*gamma(alpha+2)*gammaincc(alpha+2, Lcut)
-        return norm
 
         
 class Completeness(ABC):
@@ -246,7 +231,7 @@ class MaskCompleteness_v2(Completeness):
         log.info('    > batch number: ' + str(nBatches))
             
         for i in np.arange(self._nMasks):   
-            coarseden.append(sum(chimeraUtils.parmap(lambda b : g(gr, maskId=i, batchId=b, nBatches=nBatches), range(nBatches))))
+            coarseden.append(sum(misc.parmap(lambda b : g(gr, maskId=i, batchId=b, nBatches=nBatches), range(nBatches))))
        
         log.info("Final computations for completeness")
        

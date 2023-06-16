@@ -1,35 +1,18 @@
-#
-#   This Temporary module contains classes for the completeness correction.
-#   Makes intensive use of MGCosmoPop/SelectionBias module <https://github.com/CosmoStatGW/MGCosmoPop> (Mancarella+2021).
-#
-
-# %%
-
-# import sys
-# dir_CHIMERA     = "/home/debian/software/CHIMERA"
-# sys.path.append(dir_CHIMERA)
-
-
 import os, sys
 import numpy as np
-import CHIMERA.chimeraUtils as chimeraUtils
-
-
 import logging
 log = logging.getLogger(__name__)
 
+from CHIMERA.utils import misc
 
-def logdiffexp(x, y):
-    '''
-    computes log( e^x - e^y)
-    '''
-    return x + np.log1p(-np.exp(y-x))
+__all__ = ['Bias']
 
-class SelectionEffects():
+
+class Bias():
 
     def __init__(self, 
                  dir_file, 
-                 N_gen, 
+                 N_inj, 
                  model_mass,
                  model_rate,
                  model_cosmo,
@@ -41,7 +24,7 @@ class SelectionEffects():
                  check_Neff   = False):
 
         self.dir_file    = dir_file
-        self.N_gen       = N_gen
+        self.N_inj       = N_inj
         self.snr_th      = snr_th  
 
         self.model_mass  = model_mass
@@ -59,7 +42,7 @@ class SelectionEffects():
 
     def load(self):
         
-        data_inj = chimeraUtils.load_data_h5(self.dir_file)
+        data_inj = misc.load_data_h5(self.dir_file)
 
         log_weights_sel = data_inj['log_p_draw_nospin']
 
@@ -134,10 +117,10 @@ class SelectionEffects():
 
         dN   = self.get_likelihood(lambda_mass, lambda_cosmo, lambda_rate)
 
-        mu   = np.sum(dN) / self.N_gen
+        mu   = np.sum(dN) / self.N_inj
 
-        s2   = np.sum(dN**2) / self.N_gen**2
-        sig2 = s2 - mu**2 / self.N_gen
+        s2   = np.sum(dN**2) / self.N_inj**2
+        sig2 = s2 - mu**2 / self.N_inj
         Neff = mu**2 / sig2
 
         if (Neff < 5) and self.check_Neff:
@@ -190,10 +173,10 @@ class SelectionEffects():
 
         log_dN   = self.get_loglikelihood(lambda_mass, lambda_cosmo, lambda_rate)
 
-        log_mu   = np.logaddexp.reduce(log_dN) - np.log(self.N_gen)
+        log_mu   = np.logaddexp.reduce(log_dN) - np.log(self.N_inj)
 
-        log_s2   = np.logaddexp.reduce(2*log_dN) - 2*np.log(self.N_gen)
-        log_sig2 = logdiffexp(log_s2, 2.0*log_mu-np.log(self.N_gen))
+        log_s2   = np.logaddexp.reduce(2*log_dN) - 2*np.log(self.N_inj)
+        log_sig2 = misc.logdiffexp(log_s2, 2.0*log_mu-np.log(self.N_inj))
         Neff     = np.exp(2.0*log_mu - log_sig2)
 
         #if Nobs is not None:# and verbose:
@@ -201,8 +184,8 @@ class SelectionEffects():
             #SigmaSq = np.exp(logSigmaSq)
 
         
-        # s2   = np.sum(dN**2) / self.N_gen**2
-        # sig2 = s2 - mu**2 / self.N_gen
+        # s2   = np.sum(dN**2) / self.N_inj**2
+        # sig2 = s2 - mu**2 / self.N_inj
         # Neff = mu**2 / sig2
 
         if (Neff < 5) and self.check_Neff:
@@ -306,7 +289,7 @@ class SelectionBias():
 
         self.SelectionBiasInjections = SelectionBiasInjections
 
-        injections_load = chimeraUtils.load_data_h5(fname_inj)
+        injections_load = misc.load_data_h5(fname_inj)
         self.injMock    = MockGWInjectionsGWFAST(injections_load,  N_gen = N_gen_tot, snr_th=snr_th)
 
         self.allPopsMD  = AllPopulations(Cosmo(dist_unit))

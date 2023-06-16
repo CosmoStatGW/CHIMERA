@@ -9,16 +9,11 @@
 import h5py, sys
 import numpy as np
 from tqdm import tqdm
-
-
-
-import CHIMERA.plotting as plotting
-import CHIMERA.chimeraUtils as chimeraUtils
 import matplotlib.pyplot as plt
-from CHIMERA.Completeness import MaskCompleteness_v2, SkipCompleteness
-from software.CHIMERA.CHIMERA.rmGLADE import GLADEPlus_v2, GLADEPlus_v3
+
 from CHIMERA.GW import GW
-from software.CHIMERA.CHIMERA.DataEM import MockGalaxiesMICEv2
+from CHIMERA.DataEM import (MockGalaxiesMICEv2, GLADEPlus)
+from CHIMERA.utils import (misc, plotting)
 
 
     
@@ -171,7 +166,7 @@ class MockLike():
 
 
 
-class IndividualLike():
+class LikeLVK():
 
     def __init__(self, 
                  
@@ -185,7 +180,6 @@ class IndividualLike():
                  data_GW_names,
                  data_GW_smooth,
                  data_GAL_dir,
-                 data_GAL_zerr,
 
                  # Parameters for pixelization
                  nside_list,
@@ -212,49 +206,56 @@ class IndividualLike():
         
         self.z_det_range = z_det_range
         
-        self.gal     = GLADEPlus_v3(data_GAL_dir, 
-                                    nside = self.gw.nside,
-                                    Lcut=Lcut,
-                                    band=band)
+        self.gal     = GLADEPlus(data_GAL_dir, nside = self.gw.nside, Lcut=Lcut, band=band)
         
         self.p_gal, self.p_gal_w = self.gal.precompute(self.gw.nside, self.gw.pix_conf, self.z_grids, self.gw.data_names)
 
+        self.p_gw        = []
+        self.p_rate      = []
+        self.p_z         = []
+        self.like_allpix = []
 
-    def compute(self, lambda_cosmo, lambda_mass, lambda_rate, sel_eff, return_full=False):
+
+
+
+    def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
         def nanaverage(A,weights,axis):
             return np.nansum(A*weights,axis=axis) /((~np.isnan(A))*weights).sum(axis=axis)
 
         like_event = np.empty(self.gw.Nevents)
 
         # Compute overall rate normalization given lambda_rate
-        if self.z_det_range:
+        if self.z_det_range is None:
             p_rate_norm = 1.
         else:
             z_det       = np.linspace(*self.z_det_range, 1000)
-            p_rate_norm = self.gw.model_rate(z_det, lambda_rate)/(1.+z_det)*self.gw.model_cosmo.dV_dz(z_det, lambda_cosmo)#/(1.+z_det)
+            p_rate_norm = self.gw.model_rate(z_det, lambda_rate)/(1.+z_det)*self.gw.model_cosmo.dV_dz(z_det, lambda_cosmo)
             p_rate_norm = np.trapz(p_rate_norm, z_det, axis=0)
 
-        if return_full: like_allpix_ev, p_gw_ev, p_rate_ev = [], [], []
 
         for e in range(self.gw.Nevents):
             p_gw     = self.gw.compute_event(e, self.z_grids[e], lambda_cosmo, lambda_mass, lambda_rate=None)
             p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])#*self.gw.model_cosmo.dV_dz(self.z_grids[e], lambda_cosmo)
             p_gal    = self.p_gal[e]
-            p_z      = (p_rate/p_rate_norm)[:,np.newaxis] * p_gal
+            # p_z      = (p_rate/p_rate_norm)[:,np.newaxis] * p_gal
 
-            like_pix      = np.trapz(p_gw*p_z, self.z_grids[e], axis=0)/sel_eff
+            p_z      = (p_rate)[:,np.newaxis] * p_gal
+
+            # p_z      = p_rate[:,np.newaxis] * p_gal
+            # p_z     /= np.trapz(p_z, self.z_grids[e], axis=0)
+
+            like_pix      = np.trapz(p_gw*p_z, self.z_grids[e], axis=0)
             # like_event[e] = nanaverage(like_pix, weights=self.p_gal_w[e], axis=0)
             like_event[e] = np.nanmean(like_pix, axis=0)
 
-            if return_full:
-                like_allpix_ev.append(like_pix)
-                p_gw_ev.append(p_gw)
-                p_rate_ev.append(p_rate)
+            if inspect:
+                self.p_gw.append([p_gw])
+                self.p_rate.append([p_rate])
+                self.p_z.append([p_z])
+                self.like_allpix.append([like_pix])
+
         
-        if return_full:
-            return like_event, like_allpix_ev, p_gw_ev, p_rate
-        else:
-            return like_event
+        return like_event
 
 
 
@@ -271,10 +272,10 @@ class IndividualLikelihoods_old():
 
 
         if kind == "BBH":
-            self.dataGW = chimeraUtils.load_data(self.event_list, obs_run, conf["GW_Nsamples"], BBH_only=True, SNR_th=11)
+            self.dataGW = misc.load_data(self.event_list, obs_run, conf["GW_Nsamples"], BBH_only=True, SNR_th=11)
         
         elif kind == "other":
-            self.dataGW = chimeraUtils.load_data(self.event_list, obs_run, conf["GW_Nsamples"], BBH_only=False)
+            self.dataGW = misc.load_data(self.event_list, obs_run, conf["GW_Nsamples"], BBH_only=False)
         else:
             print("ERROR")
     
