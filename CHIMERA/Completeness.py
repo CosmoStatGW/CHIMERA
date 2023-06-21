@@ -1,6 +1,6 @@
 #
 #   This Temporary module contains classes for the completeness correction.
-#   Taken from DarkSirensStat <https://github.com/CosmoStatGW/DarkSirensStat> with some modifications.
+#   Adapted from DarkSirensStat <https://github.com/CosmoStatGW/DarkSirensStat>
 #
 
 
@@ -10,17 +10,16 @@
 
 from abc import ABC, abstractmethod
 
-# from software.CHIMERA.CHIMERA._keelin import bounded_keelin_3_discrete_probabilities_between
-# from globals import *
-
-# from CHIMERA.utils.misc as misc
+from CHIMERA.utils import angles, presets
+from sklearn.cluster import AgglomerativeClustering
+import healpy as hp
+from scipy import interpolate, signal
 
 import logging
 log = logging.getLogger(__name__)
 
+
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 import healpy as hp
 
 from CHIMERA.cosmo import fLCDM
@@ -29,9 +28,8 @@ lambda_cosmo = {"H0":70.0, "Om0":0.3}
         
 class Completeness(ABC):
     
-    def __init__(self, comovingDensityGoal, **kwargs):
+    def __init__(self):
         self._computed = False
-        self._comovingDensityGoal = comovingDensityGoal
        
     def compute(self, galdata, useDirac = False): 
         log.info('Computing completeness')
@@ -39,7 +37,7 @@ class Completeness(ABC):
         self._computed = True
     
     @abstractmethod
-    def compute_implementation(self, galdata, useDirac):
+    def compute_implementation(self, galdata):
         pass
         
     @abstractmethod
@@ -118,295 +116,319 @@ class SkipCompleteness(Completeness):
         
 
 
- 
 
+class MaskCompleteness():
 
-
-
-class MaskCompleteness_v2(Completeness):
-
-    def __init__(self, comovingDensityGoal, zRes, nMasks=2, **kwargs):
+    def __init__(self, N_z_bins, N_masks=2, N_bar=None):
       
-        assert(nMasks >= 1)
-        self._nMasks        = nMasks
-        self._zRes          = zRes
-        
-        # for the resolution of the masks
+        assert(N_masks >= 1)
+        self.N_masks        = N_masks
+        self.N_z_bins       = N_z_bins
+        self.N_bar          = N_bar
+
         self._nside         = 32
         self._npix          = hp.nside2npix(self._nside)
         self._pixarea       = hp.nside2pixarea(self._nside)
+
         # integer mask
         self._mask          = None
 
-        self.zedges         = []
-        self.zcenters       = []
-        self.areas          = []
-        self._compl         = []
-        self._interpolators = []
+        self.z_edges        = []
+        self.z_centers      = []
+        self._areas         = []
+        self._interp        = []
         self._zstar         = []
           
-          
-        Completeness.__init__(self, comovingDensityGoal, **kwargs)
-          
-    def zstar(self, theta, phi):
-        return self._zstar[ self._mask[hp.ang2pix(self._nside, theta, phi)] ]
-          
-      
-    def compute_implementation(self, galdata, useDirac):
-    
-        ### MAKE MASKS ###
-        # the only feature we use is number of galaxies in a pixel
 
-        X           = np.zeros((self._npix, 1))
-        avgweight   = np.mean(galdata.completenessGoal.to_numpy())
 
-        galdata.set_index(keys=['pix'], drop=False, inplace=True)
-        foo         = galdata.groupby(level=0).completenessGoal.sum()/avgweight
-        X[foo.index.to_numpy(), 0] = foo.to_numpy()
-        X           = np.log(X+10)  # this improves the clustering (at least for GLADE)
+    def _compute_avg_mask(self):
+        # Compute the mean luminosity for each pixel
+        unique_pixels, inverse_indices = np.unique(self.gal_pix, return_inverse=True)
+        avg_val = np.bincount(inverse_indices, weights=self.compl_vals) / np.bincount(inverse_indices)
+        # Create an array of mean luminosities for all pixels
+        avg_mask = np.zeros(self._npix)
+        avg_mask[unique_pixels] = avg_val
 
-        log.info(" > making {:d} masks...".format(self._nMasks))
-        clusterer   = cluster.AgglomerativeClustering(self._nMasks, linkage='ward')
-        self._mask  = clusterer.fit(X).labels_.astype(np.int)
-        
-        galdata.loc[:,'component'] = self._mask[galdata['pix'].to_numpy()]
-        galdata.set_index(keys=['component'], drop=False, inplace=True)
-        gr          = galdata.groupby(level=0)
-        
-        for i in np.arange(self._nMasks):
+        return avg_mask
 
-            try:
-                galcomp = gr.get_group(i)
 
-                #zmax = 1.0001*np.max(galcomp.z.to_numpy())
-                zmax = 1.5*np.quantile(galcomp.z.to_numpy(), 0.9)
-                self.zedges.append(np.linspace(0, zmax, self._zRes+1))
-                self.zcenters.append(0.5*(self.zedges[i][:-1] + self.zedges[i][1:]))
-                self.areas.append(np.sum(self._mask == i)*self._pixarea)
+    def _compute_z_grids(self):
+        edges   = []
+        centers = []
 
-            except KeyError as e: 
-                # label i was never put into the map, or it is the component without any galaxies.
-                # fill in some irrelevant but non-breaking stuff
-                #catparts.append(pd.DataFrame())
-                self.zedges.append(np.array([0,1,2]))
-                self.zcenters.append(np.array([0.5,1.5]))
-                self.areas.append([1,1])
-        
-        log.info(" > computing in parallel")
-       
+        for i in range(self.N_masks):
+            # Select galaxies in the current mask group
+            gal_in_mask = self.gal_mask == i
 
-        def g(galgroups, maskId, batchId, nBatches):
-       
-            zedges   = self.zedges[maskId]
+            if np.sum(gal_in_mask):
+                # Compute the redshift bins for this mask
+                zmax      = 1.5 * np.quantile(self.gal_z[gal_in_mask], 0.9)
+                z_edges   = np.linspace(0., zmax, self.N_z_bins)
+                z_centers = 0.5 * (z_edges[1:] + z_edges[:-1])
+
+                edges.append(z_edges)
+                centers.append(z_centers)
+            else:
+                edges.append(None)
+                centers.append(None)
+
+        return edges, centers
+
+
+
+    def _compute_coarse_density(self):
+
+        def hist(mask_id):
+            in_gal = (self.gal_mask == mask_id)
+            z_edges = self.z_edges[mask_id]
+
+            if z_edges is None:
+                return np.zeros(self.N_z_bins)
             
-            try:
-                gals = galgroups.get_group(maskId)
-            
-            except KeyError as e: #if len(galpixel) == 0:
-                return np.zeros(len(zedges)-1)
-            
-            N      = len(gals)
-            n      = int(N/nBatches)
-            start  = n*batchId
-            stop   = n*(1+batchId) 
-            if batchId == nBatches-1:
-                stop = N
-
-            batch = gals.iloc[start:stop]
-
-            if useDirac:
-                res, _ = np.histogram(a=batch.z.to_numpy(), bins=zedges, weights=batch.completenessGoal.to_numpy())
+            else:
+                res, _ = np.histogram(self.gal_z[in_gal], bins=z_edges, weights=self.compl_vals[in_gal])
                 return res.astype(float)
+
+        rho_coarse = [np.sum(hist(i)) for i in range(self.N_masks)]     
+
+        return rho_coarse
+
+    # def _compute_coarse_density(self):
+    #     # Initialize a 2D array to store histograms for all mask groups
+    #     histograms = np.zeros((self.N_masks, self.N_z_bins))
+
+    #     # Get bin indices for each galaxy's z value in corresponding z_edges
+    #     bin_indices = np.array([np.digitize(self.gal_z[i], self.z_edges[self.gal_mask[i]]) for i in range(len(self.gal_z))])
+
+    #     # Use np.add.at to compute the histograms
+    #     np.add.at(histograms, (self.gal_mask, bin_indices), self.compl_vals)
+
+    #     return histograms
+
+
+    def _compute_Nbar(self):
+        # TB checked
+        rho_max = 0
+        for i in range(self.N_masks):
+            
+            if self.z_edges[i] is not None:
+                z1, z2 = self.z_edges[i][:-1], self.z_edges[i][1:]
+                area = np.sum(self.mask == i) * self._pixarea
+                vol = area * (fLCDM.dC(z2, presets.lambda_cosmo_737)**3 - fLCDM.dC(z1, presets.lambda_cosmo_737)**3)/3
+
+                vol[vol < 10000] = 1e30  # spurious values, ignored by reducing the density
+                rho_near = np.max(self.rho_coarse[i]/vol)
+
+                print(rho_max, rho_near, z1, z2, vol)
+
+                if rho_near > rho_max:
+                    rho_max = rho_near
+        
+        print("Comoving density of galaxies: ", rho_max, "Mpc^-3")
+
+        return rho_max
+    
+
+    def _compute_interpolants(self):
+
+        for i in range(self.N_masks):
+            area = np.sum(self.mask == i) * self._pixarea
+            self._areas.append(area)
+
+            if self.z_edges[i] is None:
+                self._interp.append(None)
+                self._zstar.append(None)
+
             else:
-                # TBD
-                weights = bounded_keelin_3_discrete_probabilities_between(zedges, 0.16, batch.z_lower, batch.z, batch.z_upper, batch.z_lowerbound, batch.z_upperbound, N=100)
-                            
-                if weights.ndim == 1:  # if there is 1 galaxy only, weights won't be a matrix - fix
-                    weights = weights[np.newaxis, :]
-                
-                return np.sum(weights * batch.completenessGoal[:, np.newaxis], axis=0)
-                
-        coarseden   = []  
-        nBatches    = int(60.*len(galdata)/1000000.)
-        log.info('    > batch number: ' + str(nBatches))
-            
-        for i in np.arange(self._nMasks):   
-            coarseden.append(sum(misc.parmap(lambda b : g(gr, maskId=i, batchId=b, nBatches=nBatches), range(nBatches))))
-       
-        log.info("Final computations for completeness")
-       
-        if self._comovingDensityGoal == 'auto':
-            maxden = 0 
-            for i in np.arange(self._nMasks):
+                z1, z2 = self.z_edges[i][:-1], self.z_edges[i][1:]
+                vol = area * (fLCDM.dC(z2, presets.lambda_cosmo_737)**3 - fLCDM.dC(z1, presets.lambda_cosmo_737)**3)/3
 
-                z1 = self.zedges[i][:-1]
-                z2 = self.zedges[i][1:]
-                vol = self.areas[i] * (fLCDM.dC(z2, lambda_cosmo)**3 - fLCDM.dC(z1, lambda_cosmo)**3)/3
-                # too small volumes can be spurious. Ignore these by reducing the density so they won't be picked 
-                vol[vol < 10000] = 1e30
-                nearden = np.max(coarseden[i]/vol)
-                
-                log.info("auto density goal: {:.2f}, {:.2f}, {:.3f}, {:.3f}".format(maxden, nearden, z1, z2, vol))
-
-                if nearden > maxden:
-                    import copy
-                    maxden = copy.copy(nearden)
-
-            self._comovingDensityGoal = maxden
-
-            log.info("Comoving density goal is set to " + str(self._comovingDensityGoal) )
+                self.rho_coarse[i] /= vol
 
 
-        for i in np.arange(self._nMasks):
-            z1 = self.zedges[i][:-1]
-            z2 = self.zedges[i][1:]
-            vol = self.areas[i] * (fLCDM.dC(z2, lambda_cosmo)**3 - fLCDM.dC(z1, lambda_cosmo)**3)/3
-        
-            coarseden[i] /= vol
-            
-            from scipy import interpolate
-            # first, make a 1000 pt linear interpolation
-           
-            zmax = self.zedges[i][-1]*1.001
-            zFine = np.linspace(0, zmax, 1000)
-            
-            coarseden_interp = np.interp(zFine, self.zcenters[i], coarseden[i], right=None)
-            
-            # now filter our fluctuations.
-            from scipy.signal import savgol_filter
-            # with 251 points (must be odd) there are effectively 4 independent points left
-            # to describe the decay in the intervall adjusted to the part of the mask
-            coarseden_filtered      = np.zeros(coarseden_interp.shape)
-            n                       = 0
-            coarseden_filtered[n:]  = savgol_filter(coarseden_interp[n:], 251, 2)
-            
-            # build a quadratic interpolator. A subseet of points is enough (will be faster to evaluate).
-            coarseden_filtered_sampled = np.interp(self.zcenters[i], zFine, coarseden_filtered)
-            
-            # save this just in case
-            self._compl.append(coarseden_filtered_sampled.copy()/self._comovingDensityGoal)
-        
-            # interpolator
-            if self.zcenters[i].size > 3:
-                self._interpolators.append(interpolate.interp1d(self.zcenters[i], self._compl[i], kind='linear', bounds_error=False, fill_value=(1,0)))
-            else:
-                self._interpolators.append(lambda x: np.squeeze(np.zeros(np.atleast_1d(x).shape)))
-        
-        
-            # find the point where the interpolated result crosses 1 for the last time
-            zFine = np.linspace(0, self.zcenters[i][-1]*0.999, 10000)
-            zFine = zFine[::-1]
-            evals = self._interpolators[i](zFine)
-        
-            # argmax returns "first" occurence of maximum, which is True in a boolean array. we search starting at large z due to the flip
-            idx = np.argmax(evals >= 1)
-            # however, if all enries are False, argmax returns 0, which would be the largest redshift, while we want 0 in that case
-            # if all entries are True, we want indeed the largest 
-            if idx == 0:
-                if evals[1] < 1:
-                    self._zstar.append(0)
-                    log.info(" - catalog nowhere overcomplete in region {}".format(i))
+                # 1. Make higher resolution grid
+                z_hires   = np.linspace(0, self.z_centers[i][-1], 1000)
+                rho_hires = np.interp(z_hires, self.z_centers[i], self.rho_coarse[i], right=None)
+
+                # 2. Filter the fluctuations
+                rho_filtered = signal.savgol_filter(rho_hires, window_length=251, polyorder=2)
+                rho_filtered_sampled = np.interp(self.z_edges[i], z_hires, rho_filtered)
+                rho_filtered_sampled/= self.N_bar
+
+                # 3. Save interpolator
+                if self.z_edges[i].size > 3:
+                    self._interp.append(interpolate.interp1d(self.z_edges[i], rho_filtered_sampled, kind='linear', 
+                                                                    bounds_error=False, fill_value=(1, 0)))
                 else:
-                    self._zstar.append(zFine[idx])
-                    log.warning(" - WARNING: overcomplete catalog {} region even at largest redshift {}".format(i, zmax))
-            else:
-                self._zstar.append(zFine[idx])
-                log.info(" - catalog overcomplete in region {} up to z={:.3f}".format(i, zFine[idx]))
+                    self._interp.append(lambda x: np.squeeze(np.zeros(np.atleast_1d(x).shape)))
 
-            
+                # 4. Find the point where the interpolated result crosses 1 for the last time
+                zmax    = self.z_edges[i][-1]
+                z_hires = np.linspace(0, zmax, 10000)[::-1]
+                evals   = self._interp[i](z_hires)
+                idx     = np.argmax(evals >= 1)
+
+                # 5. Determine the value of zstar
+                if idx.size == 0 or (idx.size == 1 and evals[1] < 1):
+                    self._zstar.append(0)
+                    print(f"Completeness.py: catalog nowhere overcomplete in region {i}")
+                else:
+                    self._zstar.append(z_hires[idx])
+                    if idx.size == 1:
+                        print(f"Completeness.py: overcomplete catalog {i} region even at largest redshift {zmax:.3f}")
+                    else:
+                        print(f"Completeness.py: catalog overcomplete in region {i} up to redshift {z_hires[idx]}")
+
         self._zstar = np.array(self._zstar)
 
-        log.info("Completeness done!")
+
+    def compute_implementation(self, data_gal, compl_key):
+
+        self._nsidecol      = f"pix{self._nside}"
+
+        self.data_gal       = data_gal
+
+        if not self._nsidecol in self.data_gal:
+            self.data_gal[self._nsidecol] = angles.find_pix_RAdec(data_gal['ra'], data_gal['dec'], self._nside)
+
+        self.gal_z          = data_gal['z']
+        self.gal_pix        = data_gal[self._nsidecol]
+        self.compl_vals     = data_gal[compl_key]
+
+
+        log.info("Computing average mask")
+        avg_mask = self._compute_avg_mask()
+
+        # to improve clustering
+        avg_mask = np.log(avg_mask+10)
+
+        log.info("Computing clustering")
+        clusterer     = AgglomerativeClustering(self.N_masks, linkage='ward')
+        self.mask     = clusterer.fit(avg_mask.reshape(-1,1)).labels_.astype(int)
+        self.gal_mask = self.mask[self.gal_pix]
         
+
+        log.info("Computing z grids")
+        self.z_edges, self.z_centers = self._compute_z_grids()
+
+        log.info("Computing coarse density")
+        self.rho_coarse  = self._compute_coarse_density()
+
+
+        if self.N_bar is None:
+            self.N_bar = self._compute_Nbar()
+
+        log.info("Computing interpolants")
+        self._compute_interpolants()
+
+
+
+class PixelizedCompleteness():
+    
+    def __init__(self, nside, N_z_bins, N_bar, interpolateOmega=False):
+
+        self._nside    = nside
+        self._npix     = hp.nside2npix(self._nside)
+        self._pixarea  = hp.nside2pixarea(self._nside)
+
+        self.N_z_bins  = N_z_bins
+        self.N_bar     = N_bar
+        self._interpolateOmega = interpolateOmega
+
+        self.z_edges   = None
+        self.z_centers = None
+        self._zstar    = None
+        self._interp   = np.zeros((self._npix, self.N_z_bins), dtype=float)
+
+        super().__init__()
+
+
+    def load(self, dir_file):
+
+        self.dir_file = dir_file
         
+        f = open(dir_file)
+        header = f.readline()
+        f.close()
         
-    # z is a number
+        self._nside = int(header.split(',')[3].split('=')[1])
+        self.N_z_bins = int(header.split(',')[4].split('=')[1])
+                
+        zcentermin = float(header.split(',')[1].split('=')[1])
+        zcentermax = float(header.split(',')[2].split('=')[1])
+        
+        self.z_centers = np.linspace(zcentermin, zcentermax, self.N_z_bins)
+        deltaz = self.z_centers[1]-self.z_centers[0]
+        self.zMin = self.z_centers[0] - deltaz*0.5
+        self.zMax = self.z_centers[-1] + deltaz*0.5
+        
+        self.z_edges = np.linspace(self.zMin, self.zMax, self.N_z_bins + 1)
+
+        self.compute_implementation = self.precomputed_implementation
+
+
+    def precomputed_implementation(self):
+        self._map = np.loadtxt(self.dir_file).T
+
+        zFine = np.linspace(0, self.zMax, 3000)[::-1]
+        evals = self.get_implementation(*hp.pix2ang(self._nside, np.arange(self._npix)), zFine)
+
+        idx = np.argmax(evals >= 1, axis=1)
+
+        self._zstar = np.where(idx == 0, 0, zFine[idx])
+
+        log.info('Completeness done.')
+
+    def zstar(self, theta, phi):
+        pix_index = hp.ang2pix(self._nside, theta, phi)
+        return self._zstar[pix_index] if not self._interpolateOmega else hp.get_interp_val(self._zstar, theta, phi)
+
+    def compute_implementation(self, data_gal, weight=None):
+
+        self.gal_z   = data_gal['z']
+        self.gal_pix = angles.find_pix_RAdec(data_gal['ra'], data_gal['dec'], self._nside)
+        self.gal_w   = data_gal[weight] if weight is not None else np.ones_like(self.gal_z)
+
+        coarseden = self._interp.copy()
+        zmax = 1.5*np.quantile(self.gal_z, 0.9)
+        self.z_edges  = np.linspace(0, zmax, self.N_z_bins)
+        z1, z2 = self.z_edges[:-1], self.z_edges[1:]
+        self.z_centers = 0.5*(z1 + z2)
+
+        def hist(i):
+            in_gal = (self.gal_pix == i)
+
+            if in_gal.sum() == 0:
+                return np.zeros(self.N_z_bins-1)
+            else:
+                res, _ = np.histogram(self.gal_z[in_gal], bins=self.z_edges, weights=self.gal_w[in_gal])
+                return res.astype(float)
+            
+        coarseden = np.vstack([hist(idx) for idx in range(self._npix)])
+        
+        vol = self._pixarea * (fLCDM.dC(z2, presets.lambda_cosmo_737)**3 - fLCDM.dC(z1, presets.lambda_cosmo_737)**3)/3
+        self._interp = coarseden / vol / self.N_bar
+        
+        zFine = np.linspace(0, zmax, 3000)[::-1]
+        evals = self.get_implementation(*hp.pix2ang(self._nside, np.arange(self._npix)), zFine)
+        idx = np.argmax(evals >= 1, axis=1)
+        self._zstar = np.where(idx == 0, 0, zFine[idx])
+
     def get_at_z_implementation(self, theta, phi, z):
+        pix_index = hp.ang2pix(self._nside, theta, phi)
+        f = interpolate.interp1d(self.z_centers, self._interp[pix_index, :], kind='linear',
+                                 bounds_error=False, fill_value=(1,0))
+        return f(z)
 
-        from scipy import interpolate
-
-        # if only one point, things are pretty clear
-        if np.isscalar(theta):
-            
-            component = self._mask[hp.ang2pix(self._nside, theta, phi)]
-            return self._interpolators[component](z)
-            
-        else:
-            components = self._mask[hp.ang2pix(self._nside, theta, phi)]
-            
-            ret = np.zeros(len(theta))
-            
-            for i in np.arange(self._nMasks):
-                # select arguments in this component
-                compMask = (components == i)
-                
-                if np.sum(compMask) > 0:
-                    
-                    # do a single calculation
-                    
-                    res = self._interpolators[i](z)
-                    
-                    # put it into all relevant outputs
-                    ret[compMask] = res
-                    
-            return ret
-                
     def get_many_implementation(self, theta, phi, z):
-        
-        tensorProductThresh = 4000 # copied from SuperpixelCompletenss, ideally recheck
-        
-        if (len(z) < tensorProductThresh):
-        
-            res = self.get_implementation(theta, phi, z)
-            return np.diag(res)
-        
-        
-        ret = np.zeros(len(z))
-                
-        components = self._mask[hp.ang2pix(self._nside, theta, phi)]
-
-        for i in np.arange(self._nMasks):
-            # select arguments in this component
-            compMask = (components == i)
-            
-            if np.sum(compMask) > 0:
-                
-                # res is a vector here
-                res = self._interpolators[i](z[compMask])
-                
-                # put it into all relevant outputs
-                ret[compMask] = res
-                
-        return ret
-        
-    def get_implementation(self, theta, phi, z):
-        
-        from scipy import interpolate
-        
-        components = self._mask[hp.ang2pix(self._nside, theta, phi)]
-        
-        if not np.isscalar(theta):
-            ret = np.zeros((len(theta), len(z)))
+        tensorProductThresh = 4000
+        if len(z) < tensorProductThresh:
+            return np.diag(self.get_implementation(theta, phi, z))
         else:
-            ret = np.zeros(len(z))
-        
-        for i in np.arange(self._nMasks):
-            # select arguments in this component
-            compMask = (components == i)
-            
-            if np.sum(compMask) > 0:
-                
-                # do a single calculation
-                
-                res = self._interpolators[i](z)
-                
-                # put it into all relevant outputs
-                if not np.isscalar(theta):
-                    ret[compMask, :] = res
-                else:
-                    ret = res
-                
-        return ret
+            return np.array([self.get_at_z_implementation(theta[i], phi[i], z[i]) for i in range(len(z))])
 
-
-
+    def get_implementation(self, theta, phi, z):
+        pix_indices = hp.ang2pix(self._nside, theta, phi)
+        f = interpolate.interp1d(self.z_centers, self._interp, kind='linear', bounds_error=False, fill_value=(1,0))
+        buf = f(z)
+        return buf[pix_indices, :]
