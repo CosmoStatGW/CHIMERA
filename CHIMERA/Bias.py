@@ -13,11 +13,10 @@ class Bias():
     def __init__(self, 
                  dir_file, 
                  N_inj, 
+                 model_cosmo,
                  model_mass,
                  model_rate,
-                 model_cosmo,
                  snr_th       = None, 
-                 normalized   = False, 
                  Tobs         = 1,
                  z_int_res    = 1000,
                  z_det_range  = [0,1.3],
@@ -27,12 +26,12 @@ class Bias():
         self.N_inj       = N_inj
         self.snr_th      = snr_th  
 
+        self.model_cosmo = model_cosmo
         self.model_mass  = model_mass
         self.model_rate  = model_rate
-        self.model_cosmo = model_cosmo
 
-        self.normalized  = normalized
-        self.Tobs        = Tobs if ~normalized else 1.
+        self.normalized  = False if z_det_range is None else True
+        self.Tobs        = Tobs if ~self.normalized else 1.
         self.z_int_res   = z_int_res
         self.z_det_range = z_det_range
         self.check_Neff  = check_Neff
@@ -75,7 +74,7 @@ class Bias():
         return self.data_inj
     
 
-    def get_likelihood(self, lambda_mass, lambda_cosmo, lambda_rate):
+    def get_likelihood(self, lambda_cosmo, lambda_mass, lambda_rate):
 
         z      = self.model_cosmo.z_from_dL(self.data_inj["dL"]*1000., lambda_cosmo)
         m1, m2 = self.data_inj["m1det"]/(1.+z),  self.data_inj["m2det"]/(1.+z)
@@ -113,9 +112,9 @@ class Bias():
         return np.trapz(dN_dz, zz)
 
     
-    def Ndet(self, lambda_mass, lambda_cosmo, lambda_rate):
+    def compute(self, lambda_cosmo, lambda_mass, lambda_rate):
 
-        dN   = self.get_likelihood(lambda_mass, lambda_cosmo, lambda_rate)
+        dN   = self.get_likelihood(lambda_cosmo, lambda_mass, lambda_rate)
 
         mu   = np.sum(dN) / self.N_inj
 
@@ -132,7 +131,7 @@ class Bias():
     
 
 
-    def get_loglikelihood(self, lambda_mass, lambda_cosmo, lambda_rate):
+    def get_loglikelihood(self, lambda_cosmo, lambda_mass, lambda_rate):
 
         z          = self.model_cosmo.z_from_dL(self.data_inj["dL"]*1000., lambda_cosmo)
         m1, m2     = self.data_inj["m1det"]/(1.+z), self.data_inj["m2det"]/(1.+z)
@@ -169,9 +168,9 @@ class Bias():
         return np.log(np.trapz(np.exp(dN_dz), zz))
 
 
-    def logNdet(self, lambda_mass, lambda_cosmo, lambda_rate):
+    def compute_log(self, lambda_cosmo, lambda_mass, lambda_rate):
 
-        log_dN   = self.get_loglikelihood(lambda_mass, lambda_cosmo, lambda_rate)
+        log_dN   = self.get_loglikelihood(lambda_cosmo, lambda_mass, lambda_rate)
 
         log_mu   = np.logaddexp.reduce(log_dN) - np.log(self.N_inj)
 
