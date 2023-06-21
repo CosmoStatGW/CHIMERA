@@ -2,6 +2,7 @@ import numpy as np
 from scipy.special import erf
 
 
+
 def _logpdf_TPL(x, alpha, mmin, mmax):
     norm_const = (1 - alpha) / (mmax**(1 - alpha) - mmin**(1 - alpha))
     return -alpha*np.log(x) + np.log(norm_const)
@@ -16,6 +17,14 @@ def _logSmoothing(m, delta_m, ml):
     conditions = [maskL, maskU, ~(maskL | maskU)]
     functions  = [-np.inf, 0., lambda x: -np.logaddexp(0., (delta_m/(x-ml) + delta_m/(x-ml-delta_m)))]
     return np.piecewise(m, conditions, functions)
+
+
+######################################################
+###################################################### Dummy
+######################################################
+
+def dummy_mass(m1, m2, lambda_m):
+    return np.ones_like(m1)
 
 ######################################################
 ###################################################### PL
@@ -260,3 +269,38 @@ def logpdf_Gm1Gm2(m1,m2, lambda_m):
     return np.where(m2<m1, logpdfm1+logpdfm2, -np.inf)
 
 
+
+######################################################
+###################################################### PL + Peak NSBH
+######################################################
+
+
+def logpdf_PLP_NSBH(m1, m2, lambda_m):
+    """Power-law+Peak mass distribution, p(m1,m2|lambda_m) normalized
+
+    Args:
+        m1 (np.ndarray): primary mass
+        m2 (np.ndarray): secondary mass
+        lambda_m (dict): parameters of the mass function with keys: 
+                         ["lambda_peak", "alpha", "beta", "delta_m", "ml1", "mh1", "ml2", "mh2", "mu_g", "sigma_g"]
+    """
+
+    # Unpack parameters
+    lpar = ["lambda_peak", "alpha", "beta", "delta_m", "ml1", "mh1", "ml2", "mh2", "mu_g", "sigma_g"]
+    lambda_peak, alpha, beta, delta_m, ml1, mh1, ml2, mh2, mu_g, sigma_g = [lambda_m[p] for p in lpar]
+
+    return np.where((ml2 < m2) & (m2 < mh2) & (m2 < m1) & (ml1 < m1) & (m1 < max(mh1, mu_g+10*sigma_g)),
+                    
+                    # compute logprob
+                    _logpdfm1_PLP(m1, lambda_peak, alpha, delta_m, ml1, mh1, mu_g, sigma_g) + \
+                    _logpdfm2_SPL(m2, beta, delta_m, ml2) + _logC_SPL(m1, beta, delta_m, ml2) - \
+                    _logN_PLP(lambda_peak, alpha, delta_m, ml1, mh1, mu_g, sigma_g) , 
+
+                    # return zero probability
+                    -np.inf)
+
+
+def pdf_PLP_NSBH(m1, m2, lambda_m):
+    # print(np.exp(logpdf_PLP_NSBH(m1, m2, lambda_m)))
+    # print()
+    return np.exp(logpdf_PLP_NSBH(m1, m2, lambda_m))

@@ -139,6 +139,7 @@ def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k",
 
     if kde is not None:
         N_samples = 10**6
+        post /= np.sum(post)
         samples   = np.random.choice(grid, size=N_samples, replace=True, p=post)
         post      = gaussian_kde(samples,bw_method=kde).evaluate(grid)
 
@@ -211,3 +212,5 @@ def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k",
 #             return [None, xs[startIndex], None]
     
 #     return [x1, xs[startIndex], x2]
+
+

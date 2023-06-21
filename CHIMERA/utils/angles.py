@@ -116,9 +116,8 @@ def healpixelize(nside, ra, dec, nest=False):
     # Taken from gwcosmo
 
     # Convert (RA, DEC) to (theta, phi)
-    theta = np.pi/2. - dec
-    phi   = ra
-
+    theta, phi = th_phi_from_ra_dec(ra, dec)
+    
     # Hierarchical Equal Area isoLatitude Pixelation and corresponding sorted indices
     healpix             = hp.ang2pix(nside, theta, phi, nest=nest)
     healpix_idx_sort    = np.argsort(healpix)

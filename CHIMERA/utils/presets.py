@@ -4,15 +4,16 @@
 #########################
 
 # MASS: lambdaPeak, alpha, beta, deltam, ml, mh, muMass, sigmaMass 
-lambda_mass_PLP_mock_v1   = [0.039, 3.4, 1.1, 4.8, 5.1, 87., 34., 3.6]
+lambda_mass_PLP_mock_v1   = {"lambda_peak":0.039, "alpha":3.4, "beta":1.1, "delta_m":4.8, "ml":5.1, "mh":87., "mu_g":34., "sigma_g":3.6}
 
 # RATE: R0, alphaRedshift , betaRedshift, zp 
-lambda_rate_Madau_mock_v1 = {"gamma":1.9,"kappa":3.4,"zp":2.4,"R0":17,}  
+lambda_rate_Madau_mock_v1 = {"gamma":1.9,"kappa":3.4,"zp":2.4,}  
 
 # COSMOLOGY: H0, Om0
 lambda_cosmo_mock_v1      = {"H0":67.66, "Om0":0.30966}
 lambda_cosmo_GLADE        = {"H0":70., "Om0":0.27}
-lambda_cosmo_MICEv2       = {"H0":70, "Om0":0.25}
+lambda_cosmo_MICEv2       = {"H0":70., "Om0":0.25}
+lambda_cosmo_737          = {"H0":70., "Om0":0.3}
 
 #############################
 # Lists of observed events

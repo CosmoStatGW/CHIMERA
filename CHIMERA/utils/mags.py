@@ -3,6 +3,9 @@
 # Magnitudes
 ###################
 
+from scipy.special import gammaincc, gamma
+
+
 def Mag2lum(M, band='K'):
     """Converts magnitudes to solar luminosities
 
@@ -62,9 +65,9 @@ from scipy.integrate import quad
 
 def Lstar_default(band):
     if band=="B":
-        Lstar = 2.45e10
+        Lstar = 2.45e10   # Gehrels et al. (2016), Arcavi et al. (2017)
     elif band=="K":
-        Lstar = 1.1e11 
+        Lstar = 1.1e11    # Gehrels et al. (2016), Arcavi et al. (2017)
     return Lstar
 
 
@@ -83,6 +86,9 @@ def lambda_default(band):
     elif band=="K_GLADE_2.4":
         # used in Fischbach 2019
         return {"alpha":-1.02, "M_star":-23.55, "phi_star":5.5e-3} 
+
+    elif band=="B_DSS":
+        return {"alpha":-1.07, "L_star":2.45, "phi_star":5.5e-3}
 
     else:
         raise ValueError("{band} band not implemented")
@@ -135,16 +141,58 @@ def log_phiM_normalized(M, Mmin, Mmax, args_Sch, args_cosmo):
     return phiM(M,args_Sch,args_cosmo)/quad(phiM, Mmin, Mmax, args=(args_Sch, args_cosmo))[0]
 
 
-def get_SchNorm(phistar, Lstar, alpha, Lcut):
-        '''
-        
-        Input:  - Schechter function parameters L_*, phi_*, alpha
-                - Lilit of integration L_cut in units of 10^10 solar lum.
-        
-        Output: integrated Schechter function up to L_cut in units of 10^10 solar lum.
-        '''
-        from scipy.special import gammaincc
-        from scipy.special import gamma
-                
-        norm= phistar*Lstar*gamma(alpha+2)*gammaincc(alpha+2, Lcut)
-        return norm
+
+
+def phiSchL(L, lambda_mag):
+    phi_star, L_star, alpha = [lambda_mag[i] for i in ["phi_star", "L_star", "alpha"]]
+
+    Lx = L/L_star
+
+    return (phi_star/L_star) * (Lx)**alpha * np.exp(-Lx) 
+
+
+
+def phiSchL_normL(lambda_mag):
+    """
+    Calculate the normalization factor for the Schechter function based on magnitude parameters.
+
+    Parameters:
+        lambda_mag (dict): Dictionary containing the Schechter function magnitude parameters.
+            Required keys: "phistar", "Lstar", "alpha", "Lcut"
+
+    Returns:
+        float: The normalization factor for the Schechter function.
+
+    Notes:
+        The function uses the gammaincc and gamma functions from scipy.special module.
+        The normalization factor is calculated using the formula:
+            norm = phistar * Lstar * gamma(alpha + 2) * gammaincc(alpha + 2, Lcut)
+        where gammaincc is the complemented incomplete gamma function.
+    """
+    
+    phi_star, L_star, alpha, L_cut = [lambda_mag[i] for i in ["phi_star", "L_star", "alpha", "L_cut"]]
+
+    return phi_star * L_star * gamma(alpha + 2) * gammaincc(alpha + 2, L_cut)
+
+
+def phiSchL_normN(lambda_mag):
+    """
+    Calculate the normalization factor for the Schechter function based on magnitude parameters.
+
+    Parameters:
+        lambda_mag (dict): Dictionary containing the Schechter function magnitude parameters.
+            Required keys: "phistar", "Lstar", "alpha", "Lcut"
+
+    Returns:
+        float: The normalization factor for the Schechter function.
+
+    Notes:
+        The function uses the gammaincc and gamma functions from scipy.special module.
+        The normalization factor is calculated using the formula:
+            norm = phistar * Lstar * gamma(alpha + 2) * gammaincc(alpha + 2, Lcut)
+        where gammaincc is the complemented incomplete gamma function.
+    """
+    
+    phi_star, alpha, L_cut = [lambda_mag[i] for i in ["phi_star", "alpha", "L_cut"]]
+
+    return phi_star * gamma(alpha + 1) * gammaincc(alpha + 1, L_cut)

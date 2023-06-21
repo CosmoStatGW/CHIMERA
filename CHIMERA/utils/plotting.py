@@ -109,7 +109,7 @@ def plot_2Dcoring(like,
     ax[0].set_xlabel("RA")
     ax[0].set_ylabel("DEC")
     ax[1].set_xlabel(r"$z$")
-    ax[1].set_ylabel(r"$p(z)$")
+    ax[1].set_ylabel(r"$p(z)~\textit{renormalized}$" if renorm_all else r"$p(z)$")
     ax[1].set_xlim(*z_lims)
     ax[0].legend()
     ax[1].legend()
@@ -176,61 +176,61 @@ def plot_conf(ax, x, y, perc_val=[0.1,0.5,0.9], key="$H_0$"):
 
 
 
-def plot_2Dcoring_like(like, event=0, 
-                       lambda_cosmo = presets.lambda_cosmo_mock_v1, 
-                       lambda_mass  = presets.lambda_mass_PLP_mock_v1):
+# def plot_2Dcoring_like(like, event=0, 
+#                        lambda_cosmo = presets.lambda_cosmo_mock_v1, 
+#                        lambda_mass  = presets.lambda_mass_PLP_mock_v1):
     
-    z_min, z_max = like.z_grids[event][0], like.z_grids[event][-1]
-    z_grid       = np.linspace(z_min, z_max, 2000)
-    pix_conf     = like.gw.pix_conf[event]
-    nside        = like.gw.nside[event]
-    Npix         = len(pix_conf)
+#     z_min, z_max = like.z_grids[event][0], like.z_grids[event][-1]
+#     z_grid       = np.linspace(z_min, z_max, 2000)
+#     pix_conf     = like.gw.pix_conf[event]
+#     nside        = like.gw.nside[event]
+#     Npix         = len(pix_conf)
     
-    # Cut catalog around the event
-    gal_selected = like.gal.select_event_region(z_min, z_max, pix_conf, nside)
-    N_gal_pix    = np.array([sum(gal_selected["pix"+str(nside)] == p) for p in pix_conf])
+#     # Cut catalog around the event
+#     gal_selected = like.gal.select_event_region(z_min, z_max, pix_conf, nside)
+#     N_gal_pix    = np.array([sum(gal_selected["pix"+str(nside)] == p) for p in pix_conf])
 
-    ########## PLOTTING
-    fig, ax = plt.subplots(1,2,figsize=(20,7))
-    ax[0].set_xlabel("RA"); ax[0].set_ylabel("DEC")
-    ax[1].set_xlabel("z"); ax[1].set_ylabel("N")
-    fig.suptitle("Event {:d}:   Npix = {:d},  Ngal_tot = {:d},  mean(gal/pix) ~ {:.1f} ".format(event,Npix,len(gal_selected),np.mean(N_gal_pix)))
+#     ########## PLOTTING
+#     fig, ax = plt.subplots(1,2,figsize=(20,7))
+#     ax[0].set_xlabel("RA"); ax[0].set_ylabel("DEC")
+#     ax[1].set_xlabel("z"); ax[1].set_ylabel("N")
+#     fig.suptitle("Event {:d}:   Npix = {:d},  Ngal_tot = {:d},  mean(gal/pix) ~ {:.1f} ".format(event,Npix,len(gal_selected),np.mean(N_gal_pix)))
 
-    # Plot pixels boundaries
-    for jpix in pix_conf:
-        boundaries = hp.boundaries(nside, jpix, step=10)
-        b_theta, b_phi = hp.vec2ang(boundaries.T)
-        ax[0].plot(b_phi, np.pi/2 - b_theta, c='silver', lw=0.5, zorder=0, label="Healpixels" if jpix==pix_conf[0] else None)
+#     # Plot pixels boundaries
+#     for jpix in pix_conf:
+#         boundaries = hp.boundaries(nside, jpix, step=10)
+#         b_theta, b_phi = hp.vec2ang(boundaries.T)
+#         ax[0].plot(b_phi, np.pi/2 - b_theta, c='silver', lw=0.5, zorder=0, label="Healpixels" if jpix==pix_conf[0] else None)
 
-    # Plot galaxies
-    ax[0].scatter(gal_selected["ra"], gal_selected["dec"], marker='x', c='red', s=30, label="all galaxies", 
-                  alpha=misc.remapMinMax(-gal_selected["z"], a=.2, b=.7))
-    ax[1].hist(gal_selected["z"], bins=np.linspace(z_min, z_max, 70), color='k', alpha=0.2, label="all galaxies", density=True)
+#     # Plot galaxies
+#     ax[0].scatter(gal_selected["ra"], gal_selected["dec"], marker='x', c='red', s=30, label="all galaxies", 
+#                   alpha=misc.remapMinMax(-gal_selected["z"], a=.2, b=.7))
+#     ax[1].hist(gal_selected["z"], bins=np.linspace(z_min, z_max, 70), color='k', alpha=0.2, label="all galaxies", density=True)
 
-    # Plot p_GW
-    like.gw.like(lambda_cosmo, lambda_mass, bw_method=[0.5]*Nevents)
+#     # Plot p_GW
+#     like.gw.like(lambda_cosmo, lambda_mass, bw_method=[0.5]*Nevents)
 
-    args    =  np.array(  [np.tile(z_grid, Npix),
-                           np.hstack([ np.full_like(z_grid, gw.ra_conf_finite[event][pix])  for pix in range(Npix)]),
-                           np.hstack([ np.full_like(z_grid, gw.dec_conf_finite[event][pix]) for pix in range(Npix)])] )
-    p_gw    = gw.eventKDEs[event](args).reshape(Npix,len(z_grid)).T
-    p_gw   /= np.trapz(p_gw,z_grid, axis=0)
+#     args    =  np.array(  [np.tile(z_grid, Npix),
+#                            np.hstack([ np.full_like(z_grid, gw.ra_conf_finite[event][pix])  for pix in range(Npix)]),
+#                            np.hstack([ np.full_like(z_grid, gw.dec_conf_finite[event][pix]) for pix in range(Npix)])] )
+#     p_gw    = gw.eventKDEs[event](args).reshape(Npix,len(z_grid)).T
+#     p_gw   /= np.trapz(p_gw,z_grid, axis=0)
 
-    ax[1].plot(z_grid, p_gw, color="steelblue", alpha=1, label=r"$p_{{GW}}^{{pix}}~(H_0={:.0f})$".format(H0))
+#     ax[1].plot(z_grid, p_gw, color="steelblue", alpha=1, label=r"$p_{{GW}}^{{pix}}~(H_0={:.0f})$".format(H0))
 
 
-    # Plot p_GAL
-    p_gal = np.vstack([sum_Gaussians(z_grid,
-                                     gal.selectedData["z"][gal.selectedData["pix"+str(NSIDE)] == pix],
-                                     gal.selectedData["z_err"][gal.selectedData["pix"+str(NSIDE)] == pix]) for pix in pix_conf]).T
-    p_gal /= np.trapz(p_gal,z_grid, axis=0)
-    p_gal[~np.isfinite(p_gal)] = 0.  # pb. if falls in an empty pixel
+#     # Plot p_GAL
+#     p_gal = np.vstack([sum_Gaussians(z_grid,
+#                                      gal.selectedData["z"][gal.selectedData["pix"+str(NSIDE)] == pix],
+#                                      gal.selectedData["z_err"][gal.selectedData["pix"+str(NSIDE)] == pix]) for pix in pix_conf]).T
+#     p_gal /= np.trapz(p_gal,z_grid, axis=0)
+#     p_gal[~np.isfinite(p_gal)] = 0.  # pb. if falls in an empty pixel
 
-    ax[1].plot(z_grid, p_gal, label=r"$p_{CAT}^{pix}$", color='red', alpha=0.2)
+#     ax[1].plot(z_grid, p_gal, label=r"$p_{CAT}^{pix}$", color='red', alpha=0.2)
     
-    legend_unique(ax[0]); legend_unique(ax[1])
+#     legend_unique(ax[0]); legend_unique(ax[1])
 
-    return fig
+#     return fig
 
 
 

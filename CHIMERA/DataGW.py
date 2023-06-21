@@ -6,6 +6,11 @@ log = logging.getLogger(__name__)
 
 from CHIMERA.utils import angles
 
+__all__ = [
+    "DataGWMock",
+    "DataLVK",
+]
+
 
 class DataGW(ABC):
     
@@ -104,13 +109,13 @@ class DataLVK(DataGW):
         self.data_array = None
 
 
-    def load(self, event_list, subsample=None):
+    def load(self, event_list, Nsamples=None):
 
         self.names = np.atleast_1d(event_list)
         self.data  = {n:self.load_event(n) for n in self.names}
 
-        if subsample is not None:
-            self.subsample_posteriors(subsample)
+        if Nsamples is not None:
+            self.subsample_posteriors(Nsamples)
 
         # convert to dict of parameters with arrays of shape (Nevent, Nsamples)
         param_names     = list(self.data[self.names[0]].keys())

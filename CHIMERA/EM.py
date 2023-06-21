@@ -50,7 +50,6 @@ class Galaxies(ABC):
 
         if completeness is not None:
             self._completeness = deepcopy(completeness)
-            self._useDirac     = useDirac
             self._completeness.compute(self.data, self._useDirac)
 
         if nside is not None:
@@ -69,7 +68,7 @@ class Galaxies(ABC):
             log.info(f"Precomputing Healpixels for the galaxy catalog (NSIDE={n}, NEST={self.nest})")
             self.data[f"pix{n}"] = angles.find_pix_RAdec(self.data['ra'], self.data['dec'], n, self.nest)
 
-    def precompute(self, nside, pix_todo, z_grid, names=None, weights_kind="N"):
+    def precompute(self, nside, pix_todo, z_grid, names=None, weights=None):
         """Pre-compute pixelized p_gal for many events.
 
         Args:
@@ -80,7 +79,7 @@ class Galaxies(ABC):
             weights_kind (str, optional): weights_kind for p_gal. Defaults to "N".
 
         Returns:
-            [p_gal], [p_gal_w]: probability p_gal and associated weigths
+            [p_gal], [N_gal]: probability p_gal and associated weigths
         """        
         Nevents = len(nside)
         assert Nevents == len(pix_todo) == len(z_grid)
@@ -88,12 +87,19 @@ class Galaxies(ABC):
 
         log.info(f"Precomputing p_GAL for {Nevents} events...")
 
-        p_gal, p_gal_w = zip(*[self.precompute_event(nside[e], pix_todo[e], z_grid[e], names[e], weights_kind) for e in range(Nevents)])
+        if weights is None:
+            log.info(f"Setting uniform weights")
+            self.data["w"] = np.ones_like(self.data["z"])
+        else:
+            log.info(f"Setting weights to {weights}")
+            self.data["w"] = 1/(self.data[weights]/np.mean(self.data[weights]))
 
-        return p_gal, p_gal_w 
+        p_gal, N_gal = zip(*[self.precompute_event(nside[e], pix_todo[e], z_grid[e], names[e]) for e in range(Nevents)])
+
+        return p_gal, N_gal 
 
 
-    def precompute_event(self, nside, pix_todo, z_grid, name, weights_kind="N"):
+    def precompute_event(self, nside, pix_todo, z_grid, name):
         """Pre-compute pixelized p_gal for one event.
 
         Args:
@@ -110,18 +116,18 @@ class Galaxies(ABC):
 
         data   = self.select_event_region(z_grid[0], z_grid[-1], pix_todo, nside)
         pixels = data[f"pix{nside}"]
-        p_gal  = np.vstack([sum_Gaussians_UCV(z_grid, data["z"][pixels == p], data["z_err"][pixels == p]) for p in pix_todo]).T
+        
+        p_gal  = np.vstack([sum_Gaussians_UCV(z_grid, data["z"][pixels == p], 
+                                                      data["z_err"][pixels == p],
+                                                      weights=data["w"][pixels == p]) for p in pix_todo]).T
 
-        p_gal /= hp.pixelfunc.nside2pixarea(nside,degrees=False) # for the integral in dOmega
+        # p_gal /= hp.pixelfunc.nside2pixarea(nside,degrees=False) # for the integral in dOmega
 
         p_gal[~np.isfinite(p_gal)] = 0.  # pb. if falls into an empty pixel
 
-        if weights_kind == "N":
-            p_gal_w = np.sum(data[f"pix{nside}"][None, :] == np.array(pix_todo)[:, None], axis=1)
-        else:
-            p_gal_w = np.ones_like(p_gal)
+        N_gal = np.sum(data[f"pix{nside}"][None, :] == np.array(pix_todo)[:, None], axis=1)
 
-        return p_gal, p_gal_w
+        return p_gal, N_gal
 
 
     def select_event_region(self, z_min, z_max, pixels, nside):
@@ -153,6 +159,7 @@ class Galaxies(ABC):
 
         return selected
     
+        # keep_from_dataGW(dataGAL, dataGWi, init_sky_cut=4, dL_cut=4, H0_prior_range=[20,200])
 
     def keep_in_dataGW(self, dataGWi, conf_level_KDE=0.9):
 
@@ -182,6 +189,11 @@ class Galaxies(ABC):
 
 
 
+
+
+
+
+
 def Gaussian(x,mu,sigma):
     return np.power(2*np.pi*(sigma**2), -0.5) * np.exp(-0.5*np.power((x-mu)/sigma,2.))
 
@@ -206,10 +218,12 @@ def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None):
     if weights is None:
         weights = np.ones(len(mu))
 
-    num  = weights * Gaussian(z_grid, mu, sigma) * fLCDM.dV_dz(z_grid, {"H0":70,"Om0":0.3})
+    num  = Gaussian(z_grid, mu, sigma) * fLCDM.dV_dz(z_grid, {"H0":70,"Om0":0.3})
     den  = np.trapz(num, z_grid, axis=0)
 
-    return np.sum(num/den, axis=1)
+    # print(np.sum(num/den, axis=1))
+
+    return np.sum(weights*num/den, axis=1)/np.sum(weights)
 
 
 
