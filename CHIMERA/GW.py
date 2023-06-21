@@ -8,7 +8,13 @@
 
 import healpy as hp
 import numpy as np
-from scipy.stats import gaussian_kde
+
+# from scipy.stats import gaussian_kde
+
+from jax.scipy.stats import gaussian_kde
+from jax.config import config
+config.update("jax_enable_x64", True)
+
 
 from CHIMERA.utils import (angles, misc)
 
@@ -38,15 +44,16 @@ class GW(object):
                  npix_event = 15,
                  nside_list = 32,
                  nest       = False,
-                 sky_conf   = 0.9):
+                 sky_conf   = 0.9,
+                 check_Neff = True,):
 
         """Class for handling GW events posteriors
 
         Args:
-            data (list): list fwrom MGCosmopop (TBD) with following keys: ["m1det", "m2det", "dL", "ra", "dec"]
+            data (list): list with following keys: ["m1det", "m2det", "dL", "ra", "dec"]
             names (list): events names
-            model_mass (MGCosmoPop.population.astro.astromassfuncribution): TYPE population from MGCosmoPop
-            model_cosmo (MGCosmoPop.cosmology.cosmo): cosmo : TYPE cosmo from MGCosmoPop
+            model_mass : TYPE population from 
+            model_cosmo cosmo : TYPE cosmo from
             pixelize (bool, optional): Defaults to True.
             nside (int, optional): nside parameter for Healpix. Defaults to 2**8.
             nest (bool, optional): nest parameter for Healpix. Defaults to False.
@@ -73,7 +80,8 @@ class GW(object):
         self.model_cosmo  = model_cosmo
 
         self.nest         = nest
-        self.sky_conf     = sky_conf     
+        self.sky_conf     = sky_conf   
+        self.check_Neff   = check_Neff  
 
         if pixelize:
             self.nside, self.pix_conf, self.ra_conf, self.dec_conf = self.prepixelize(nside_list, npix_event)
@@ -200,7 +208,7 @@ class GW(object):
         log_norm    = np.logaddexp.reduce(log_weights) - np.log(len(log_weights))
         Neff        = misc.get_Neff_log(log_weights, log_norm)
 
-        if (Neff < self.data_Neff) or (np.isfinite(log_weights).sum() < 5):
+        if ((Neff < self.data_Neff) or (np.isfinite(log_weights).sum() < 5)) & self.check_Neff:
             log.warning(f"Neff={Neff:.0f} < 5 for event {event}. Returned -np.inf logprob")
             return None, log_norm
         
@@ -263,7 +271,7 @@ class GW(object):
         norm    = np.mean(weights, axis=0)
         Neff    = misc.get_Neff(weights, norm)
 
-        if (Neff < self.data_Neff) or ((weights>=0).sum() < 5):
+        if ((Neff < self.data_Neff) or ((weights>=0).sum() < 5)) & self.check_Neff:
             log.warning(f"Neff = {Neff:.1f} < 5 for event {event}. Returning zero prob.")
             return None, norm
         
@@ -273,7 +281,7 @@ class GW(object):
 
 
     def compute_catalog(self, lambda_cosmo, lambda_mass, lambda_rate):
-        """Compute the KDE for the entire catalog.
+        """TBD. Compute the KDE for the entire catalog.
 
         Args:
             event (int): number of the event
@@ -346,4 +354,3 @@ class GW(object):
         z_max  = self.model_cosmo.z_from_dL(dL_max*1000, {"H0":H0_prior_range[1], "Om0":0.3})
 
         return np.linspace(z_min, z_max, z_res, axis=1)
-    

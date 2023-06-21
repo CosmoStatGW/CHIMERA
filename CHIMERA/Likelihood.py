@@ -11,10 +11,13 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
+
 from CHIMERA.GW import GW
 from CHIMERA.DataEM import (MockGalaxiesMICEv2, GLADEPlus)
 from CHIMERA.utils import (misc, plotting)
 
+
+from jax import jit
 
     
 class MockLike():
@@ -43,23 +46,41 @@ class MockLike():
                  z_int_sigma,
                  z_int_res,
                  z_det_range,
+
+                 # Other parameters
+                 pixelize = True,
+                 data_GAL_weights = None,
+                 check_Neff = True
                  ):
 
+        self.pixelize = pixelize
+        self.data_GAL_weights = data_GAL_weights
+        self.check_Neff = check_Neff
         self.z_det_range = z_det_range
 
         # Initialize GW and Galaxies classes, load data and precompute redshift grids
-        self.gw          = GW(data=data_GW, data_names=data_GW_names,  data_smooth=data_GW_smooth,
-                              model_mass=model_mass, model_rate=model_rate, model_spin="", model_cosmo=model_cosmo, 
-                              npix_event=npix_event, nside_list=nside_list, sky_conf=sky_conf)
-        self.z_grids     = self.gw.compute_z_grids(z_int_H0_prior, z_int_sigma, z_int_res)
-        self.gal         = MockGalaxiesMICEv2(data_GAL_dir, z_err = data_GAL_zerr, nside = self.gw.nside)
+        self.gw      = GW(data=data_GW, data_names=data_GW_names,  data_smooth=data_GW_smooth,
+                          model_mass=model_mass, model_rate=model_rate, model_spin="", model_cosmo=model_cosmo, 
+                          npix_event=npix_event, nside_list=nside_list, sky_conf=sky_conf, check_Neff=check_Neff)
+        
+        self.z_grids = self.gw.compute_z_grids(z_int_H0_prior, z_int_sigma, z_int_res)
+
+        self.gal     = MockGalaxiesMICEv2(data_GAL_dir, z_err = data_GAL_zerr, nside = self.gw.nside)
         
         # Precompute p_gal and associated weights
-        self.p_gal, self.p_gal_w = self.gal.precompute(self.gw.nside, self.gw.pix_conf, self.z_grids, self.gw.data_names)
+        self.p_gal, self.N_gal = self.gal.precompute(self.gw.nside, self.gw.pix_conf, self.z_grids, self.gw.data_names, self.data_GAL_weights)
 
-        self.Ngal = np.array([np.sum(self.p_gal_w[e]) for e in range(self.gw.Nevents)])
+        self.p_gw        = []
+        self.p_rate      = []
+        self.p_z         = []
+        self.like_allpix = []
 
-    def compute_all_log(self, lambda_cosmo, lambda_mass, lambda_rate, return_full=False):
+        if self.pixelize is False:
+            for e in range(self.gw.Nevents):
+                self.p_gal = np.mean(self.p_gal[e], axis=1, keepdims=True)
+
+
+    def compute_log(self, lambda_cosmo, lambda_mass, lambda_rate, return_full=False):
 
         log_like_event = np.empty(self.gw.Nevents)
 
@@ -100,43 +121,43 @@ class MockLike():
 
 
 
-    def compute(self, lambda_cosmo, lambda_mass, lambda_rate, return_full=False):
+    def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
+        def nanaverage(A,weights,axis):
+            return np.nansum(A*weights,axis=axis) /((~np.isnan(A))*weights).sum(axis=axis)
 
         like_event = np.empty(self.gw.Nevents)
 
-        # Overall rate normalization
-        z_det       = np.linspace(*self.z_det_range, 1000)
-        p_rate_norm = self.gw.model_rate(z_det, lambda_rate)/(1.+z_det)*self.gw.model_cosmo.dV_dz(z_det, lambda_cosmo)
-        p_rate_norm = np.trapz(p_rate_norm, z_det, axis=0)
-
-
-        # if return_full:
-        #     like_allpix_ev, p_gw_ev, p_rate_ev = [], [], []
-
+        # Compute overall rate normalization given lambda_rate
+        if self.z_det_range is None:
+            p_rate_norm = 1.
+        else:
+            z_det       = np.linspace(*self.z_det_range, 1000)
+            p_rate_norm = self.gw.model_rate(z_det, lambda_rate)/(1.+z_det)*self.gw.model_cosmo.dV_dz(z_det, lambda_cosmo)
+            p_rate_norm = np.trapz(p_rate_norm, z_det, axis=0)
 
         for e in range(self.gw.Nevents):
+            p_gw     = self.gw.compute_event(e, self.z_grids[e], lambda_cosmo, lambda_mass, lambda_rate=None)
+            p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])
+            p_gal    = self.p_gal[e]
 
-            p_gw   = self.gw.compute_event(e, self.z_grids[e], lambda_cosmo, lambda_mass, lambda_rate=None)
-            p_rate = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])
-            p_gal  = self.p_gal[e]
-
-            p_z    = p_gal * (p_rate/p_rate_norm)[:,np.newaxis]
-
-            like_event_pix = np.trapz(p_gw*p_z, self.z_grids[e], axis=0)
-            like_event[e]  = np.mean(like_event_pix, axis=0)
+            if self.pixelize is False:
+                p_gw  = np.mean(p_gw, axis=1, keepdims=True)
             
-        return np.log(like_event)
+            p_z      = (p_rate/p_rate_norm)[:,np.newaxis] * p_gal
+
+            like_pix      = np.trapz(p_gw*p_z, self.z_grids[e], axis=0)
+            # like_event[e] = nanaverage(like_pix, weights=self.p_gal_w[e], axis=0)
+            like_event[e] = np.nanmean(like_pix, axis=0)
+
+            if inspect:
+                self.p_gw.append([p_gw])
+                self.p_rate.append([p_rate])
+                self.p_z.append([p_z])
+                self.like_allpix.append([like_pix])
+
+        return like_event
     
 
-        #     if return_full:
-        #         like_allpix_ev.append(like_pix)
-        #         p_gw_ev.append(p_gw)
-        #         p_rate_ev.append(p_rate)
-        
-        # if return_full:
-        #     return like_event, like_allpix_ev, p_gw_ev, p_rate
-
-        # else:
 
 
 
@@ -195,26 +216,36 @@ class LikeLVK():
                  # Parameters for the galaxy catalog
                  Lcut,
                  band,
+                 pixelize=True,
+                 data_GAL_weights=None,
+
+                 # Other
+                 check_Neff = True
                  ):
 
+        self.pixelize = pixelize
+        self.data_GAL_weights = data_GAL_weights
+        self.check_Neff = check_Neff
+        self.z_det_range = z_det_range
 
         self.gw      = GW(data=data_GW, data_names=data_GW_names,  data_smooth=data_GW_smooth,
                           model_mass=model_mass, model_rate=model_rate, model_spin="", model_cosmo=model_cosmo, 
-                          npix_event=npix_event, nside_list=nside_list, sky_conf=sky_conf)
+                          npix_event=npix_event, nside_list=nside_list, sky_conf=sky_conf, check_Neff=check_Neff)
         
-        self.z_grids   = self.gw.compute_z_grids(z_int_H0_prior, z_int_sigma, z_int_res)
-        
-        self.z_det_range = z_det_range
+        self.z_grids = self.gw.compute_z_grids(z_int_H0_prior, z_int_sigma, z_int_res)
         
         self.gal     = GLADEPlus(data_GAL_dir, nside = self.gw.nside, Lcut=Lcut, band=band)
         
-        self.p_gal, self.p_gal_w = self.gal.precompute(self.gw.nside, self.gw.pix_conf, self.z_grids, self.gw.data_names)
+        self.p_gal, self.N_gal = self.gal.precompute(self.gw.nside, self.gw.pix_conf, self.z_grids, self.gw.data_names, self.data_GAL_weights)
 
         self.p_gw        = []
         self.p_rate      = []
         self.p_z         = []
         self.like_allpix = []
 
+        if self.pixelize is False:
+            for e in range(self.gw.Nevents):
+                self.p_gal = np.mean(self.p_gal[e], axis=1, keepdims=True)
 
 
 
@@ -237,6 +268,12 @@ class LikeLVK():
             p_gw     = self.gw.compute_event(e, self.z_grids[e], lambda_cosmo, lambda_mass, lambda_rate=None)
             p_rate   = self.gw.model_rate(self.z_grids[e], lambda_rate)/(1.+self.z_grids[e])#*self.gw.model_cosmo.dV_dz(self.z_grids[e], lambda_cosmo)
             p_gal    = self.p_gal[e]
+
+
+            if self.pixelize is False:
+                p_gw  = np.mean(p_gw, axis=1, keepdims=True)
+            
+
             # p_z      = (p_rate/p_rate_norm)[:,np.newaxis] * p_gal
 
             p_z      = (p_rate)[:,np.newaxis] * p_gal
