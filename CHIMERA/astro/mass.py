@@ -1,14 +1,18 @@
 import numpy as np
 from scipy.special import erf
 
-
+from CHIMERA.utils import misc
+from scipy.integrate import cumtrapz
 
 def _logpdf_TPL(x, alpha, mmin, mmax):
-    norm_const = (1 - alpha) / (mmax**(1 - alpha) - mmin**(1 - alpha))
-    return -alpha*np.log(x) + np.log(norm_const)
+    # norm_const_inv = (1 - alpha) / (np.power(mmax, 1 - alpha) - np.power(mmin, 1 - alpha)) this must be added
+    log_norm_cost =  -np.log(alpha-1)+misc.logdiffexp(  (1-alpha)*np.log(mmin), (1-alpha)*np.log(mmax) )
+    return np.where((mmin < x) & (x < mmax), -alpha*np.log(x) - log_norm_cost, -np.inf)
+
 
 def _logpdf_G(x, mu, sigma):
     return -0.5*np.log(2 * np.pi) -np.log(sigma) - (x-mu)**2/(2. *sigma**2)
+
 
 def _logSmoothing(m, delta_m, ml):
     # Smoothing function
@@ -84,15 +88,15 @@ def _logpdfm2_SPL(m2, beta, delta_m, ml):
 
 def _logC_SPL(m1, beta, delta_m, ml, res=200):
     # Inverse log integral of PL p(m1, m2) dm2 (i.e. log C(m1) in the LVC notation)
-
     mmid = ml + delta_m + delta_m/10.
-    mm   = np.concatenate([np.linspace(ml, mmid, 200),
-                           np.linspace(mmid + 1e-1, np.max(m1), res)])
+    mm   = np.concatenate([np.linspace(ml, mmid, res),
+                           np.linspace(mmid + 1e-1, np.nanmax(m1), res)])
+
     mm   = np.sort(mm)
     p2   = np.exp(_logpdfm2_SPL(mm, beta, delta_m, ml))
-    cdf  = np.cumsum(0.5*(p2[:-1] + p2[1:]) * np.diff(mm))
+    cdf  = cumtrapz(p2, mm)
 
-    return -np.log(np.interp(m1, mm[1:], cdf))
+    return np.where(np.isnan(m1), -np.inf, -np.log(np.interp(m1, mm[1:], cdf)))
 
 
 # TBD logpdf
@@ -107,7 +111,7 @@ def _logpdfm1_PLP(m1, lambda_peak, alpha, delta_m, ml, mh, mu_g, sigma_g):
     P = np.exp(_logpdf_TPL(m1, alpha, ml, mh))
     G = np.exp(_logpdf_G(m1, mu_g, sigma_g))
 
-    return np.where((m1 >= ml) & (m1 <= max(mh, mu_g+10*sigma_g)), 
+    return np.where((m1 >= ml) & (m1 <= max(mh, mu_g+10*sigma_g)),
                     np.log((1-lambda_peak)*P + lambda_peak*G) + _logSmoothing(m1, delta_m, ml), 
                     -np.inf)
 
@@ -145,12 +149,16 @@ def logpdf_PLP(m1, m2, lambda_m):
     # Unpack parameters
     lpar = ["lambda_peak", "alpha", "beta", "delta_m", "ml", "mh", "mu_g", "sigma_g"]
     lambda_peak, alpha, beta, delta_m, ml, mh, mu_g, sigma_g = [lambda_m[p] for p in lpar]
+    
+    compute = (ml < m2) & (m2 < m1) & (m1 < max(mh, mu_g+10*sigma_g))
+    m1_int  = np.array(m1)
+    m1_int[~compute] = np.nan
 
-    return np.where((ml < m2) & (m2 < m1) & (m1 < max(mh, mu_g+10*sigma_g)),
+    return np.where(compute,
                     
                     # compute logprob
                     _logpdfm1_PLP(m1, lambda_peak, alpha, delta_m, ml, mh, mu_g, sigma_g) + \
-                    _logpdfm2_SPL(m2, beta, delta_m, ml) + _logC_SPL(m1, beta, delta_m, ml) - \
+                    _logpdfm2_SPL(m2, beta, delta_m, ml) + _logC_SPL(m1_int, beta, delta_m, ml) - \
                     _logN_PLP(lambda_peak, alpha, delta_m, ml, mh, mu_g, sigma_g) , 
 
                     # return zero probability
