@@ -15,11 +15,12 @@ from jax.scipy.stats import gaussian_kde
 from jax.config import config
 config.update("jax_enable_x64", True)
 
+import logging
+log = logging.getLogger(__name__)
+
 
 from CHIMERA.utils import (angles, misc)
 
-import logging
-log = logging.getLogger(__name__)
 
 __all__ = ['GW']
 

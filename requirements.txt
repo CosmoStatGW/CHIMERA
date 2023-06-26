@@ -2,6 +2,8 @@ numpy
 scipy
 astropy
 h5py
+emcee
 healpy
-sklearn
+scikit-learn
+schwimmbad
 jax[cpu]
