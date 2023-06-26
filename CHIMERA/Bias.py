@@ -70,22 +70,22 @@ class Bias():
         print('Total used injections: %s' %self.keep.sum())
 
         self.data_inj = {"m1det":m1z[self.keep], "m2det":m2z[self.keep], "dL":dL[self.keep],  "log_w":log_weights_sel[self.keep]}
+        self.data_inj["w"] = np.exp(self.data_inj["log_w"])
 
         return self.data_inj
     
 
     def get_likelihood(self, lambda_cosmo, lambda_mass, lambda_rate):
 
-        z      = self.model_cosmo.z_from_dL(self.data_inj["dL"]*1000., lambda_cosmo)
+        z      = self.model_cosmo.z_from_dL(self.data_inj["dL"], lambda_cosmo)
         m1, m2 = self.data_inj["m1det"]/(1.+z),  self.data_inj["m2det"]/(1.+z)
-        p_draw = np.exp(self.data_inj["log_w"])
 
         dN_dm1dm2dz    = self.Tobs * self.model_mass(m1, m2, lambda_mass) *\
-                         1e-9*self.model_cosmo.dV_dz(z, lambda_cosmo) * self.model_rate(z, lambda_rate)/(1.+z)
+                         self.model_cosmo.dV_dz(z, lambda_cosmo) * self.model_rate(z, lambda_rate)/(1.+z)
         
-        dN_dm1zdm2zddL = dN_dm1dm2dz / ((1.+z)**2 * 1e-3*self.model_cosmo.ddL_dz(z, lambda_cosmo, self.data_inj["dL"]*1000.))
+        dN_dm1zdm2zddL = dN_dm1dm2dz / ((1.+z)**2 * self.model_cosmo.ddL_dz(z, lambda_cosmo, self.data_inj["dL"]))
 
-        dN             = dN_dm1zdm2zddL/p_draw
+        dN             = dN_dm1zdm2zddL/self.data_inj["w"] 
 
         if self.normalized: 
             norm   = self.Nexp(lambda_cosmo, lambda_rate)
@@ -107,7 +107,7 @@ class Bias():
         """
 
         zz    = np.linspace(*self.z_det_range, self.z_int_res)
-        dN_dz = 1e-9*self.model_cosmo.dV_dz(zz, lambda_cosmo) *  self.model_rate(zz, lambda_rate)/(1.+zz) 
+        dN_dz = self.model_cosmo.dV_dz(zz, lambda_cosmo) *  self.model_rate(zz, lambda_rate)/(1.+zz) 
 
         return np.trapz(dN_dz, zz)
 
@@ -133,14 +133,14 @@ class Bias():
 
     def get_loglikelihood(self, lambda_cosmo, lambda_mass, lambda_rate):
 
-        z          = self.model_cosmo.z_from_dL(self.data_inj["dL"]*1000., lambda_cosmo)
+        z          = self.model_cosmo.z_from_dL(self.data_inj["dL"], lambda_cosmo)
         m1, m2     = self.data_inj["m1det"]/(1.+z), self.data_inj["m2det"]/(1.+z)
         log_p_draw = self.data_inj["log_w"]
 
         dN_dm1dm2dz    = np.log(self.Tobs) + self.model_mass(m1, m2, lambda_mass) +\
-                         self.model_cosmo.log_dV_dz(z, lambda_cosmo)-9*np.log(10) + self.model_rate(z, lambda_rate) - np.log(1.+z)
+                         self.model_cosmo.log_dV_dz(z, lambda_cosmo) + self.model_rate(z, lambda_rate) - np.log(1.+z)
         
-        dN_dm1zdm2zddL = dN_dm1dm2dz - 2*np.log(1+z) - self.model_cosmo.log_ddL_dz(z, lambda_cosmo, self.data_inj["dL"]*1000.)+3*np.log(10)
+        dN_dm1zdm2zddL = dN_dm1dm2dz - 2*np.log(1+z) - self.model_cosmo.log_ddL_dz(z, lambda_cosmo, self.data_inj["dL"])
 
         dN             = dN_dm1zdm2zddL - log_p_draw
 
@@ -163,7 +163,7 @@ class Bias():
         """
 
         zz    = np.linspace(*self.z_det_range, self.z_int_res)
-        dN_dz = self.model_cosmo.log_dV_dz(zz, lambda_cosmo)-9*np.log(10) + self.model_rate(zz, lambda_rate) - np.log(1.+zz) 
+        dN_dz = self.model_cosmo.log_dV_dz(zz, lambda_cosmo) + self.model_rate(zz, lambda_rate) - np.log(1.+zz) 
 
         return np.log(np.trapz(np.exp(dN_dz), zz))
 

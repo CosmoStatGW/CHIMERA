@@ -49,7 +49,7 @@ def lum2Mag(L, band='K'):
     else:
         ValueError("Not supported")
 
-    return -2,5*np.log10(L) + M_sun
+    return -2.5*np.log10(L) + M_sun
 
 
 

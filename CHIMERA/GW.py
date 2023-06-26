@@ -196,13 +196,13 @@ class GW(object):
         """
 
         dL     = self.data["dL"][event]
-        z      = self.model_cosmo.z_from_dL(dL*1000., lambda_cosmo)
+        z      = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
         loc3D  = np.array([z, self.data["ra"][event], self.data["dec"][event]])
         m1, m2 = self.data["m1det"][event]/(1.+z),  self.data["m2det"][event]/(1.+z)
 
         models = self.model_mass(m1, m2, lambda_mass)
-        jacD2S = 2*np.log1p(z) + self.model_cosmo.log_ddL_dz(z, lambda_cosmo, dL*1000.) - 3*np.log(10)
-        priors = 2*np.log(dL) + 2*3*np.log(10)
+        jacD2S = 2*np.log1p(z) + self.model_cosmo.log_ddL_dz(z, lambda_cosmo, dL)
+        priors = 2*np.log(dL)
 
         log_weights = np.nan_to_num(models - jacD2S - priors, nan=-np.inf)
         log_norm    = np.logaddexp.reduce(log_weights) - np.log(len(log_weights))
@@ -259,12 +259,12 @@ class GW(object):
         """
 
         dL      = self.data["dL"][event]
-        z       = self.model_cosmo.z_from_dL(dL*1000., lambda_cosmo)
+        z       = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
         loc3D   = np.array([z, self.data["ra"][event], self.data["dec"][event]])
         m1, m2  = self.data["m1det"][event]/(1.+z), self.data["m2det"][event]/(1.+z)
 
         models  = self.model_mass(m1, m2, lambda_mass)
-        jacD2S  = np.power(1+z, 2) * self.model_cosmo.ddL_dz(z, lambda_cosmo, dL*1000.)
+        jacD2S  = np.power(1+z, 2) * self.model_cosmo.ddL_dz(z, lambda_cosmo, dL)
         priors  = np.power(dL, 2)
 
         weights = models / jacD2S / priors
@@ -293,15 +293,15 @@ class GW(object):
         """
 
         dL  = self.data["dL"]
-        z   = self.model_cosmo.z_from_dL(dL*1000., lambda_cosmo)
+        z   = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
         ra  = self.data["ra"]
         dec = self.data["dec"]
         m1  = self.data["m1det"]/(1.+z)
         m2  = self.data["m2det"]/(1.+z)
 
         models = self.model_mass(m1, m2, lambda_mass)
-        jacD2S = 2*np.log1p(z) + self.model_cosmo.log_ddL_dz(z, lambda_cosmo, dL*1000.) - 3*np.log(10)
-        priors = 2*np.log(dL) + 2*3*np.log(10)
+        jacD2S = 2*np.log1p(z) + self.model_cosmo.log_ddL_dz(z, lambda_cosmo, dL)
+        priors = 2*np.log(dL)
 
         # models = self.model_rate(z, lambda_rate)/(1.+z) * self.model_mass(m1, m2, lambda_mass) * self.model_cosmo.dV_dz(z, lambda_cosmo)
 
@@ -350,7 +350,7 @@ class GW(object):
         dL_min[dL_min<1.e-6] = 1.e-6
         # dL_min[dL_min<0.073] = 0.073
 
-        z_min  = self.model_cosmo.z_from_dL(dL_min*1000, {"H0":H0_prior_range[0], "Om0":0.3})
-        z_max  = self.model_cosmo.z_from_dL(dL_max*1000, {"H0":H0_prior_range[1], "Om0":0.3})
+        z_min  = self.model_cosmo.z_from_dL(dL_min, {"H0":H0_prior_range[0], "Om0":0.3})
+        z_max  = self.model_cosmo.z_from_dL(dL_max, {"H0":H0_prior_range[1], "Om0":0.3})
 
         return np.linspace(z_min, z_max, z_res, axis=1)

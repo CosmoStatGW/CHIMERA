@@ -106,7 +106,7 @@ class GLADEPlus(Galaxies):
             if colL not in data.keys():
 
                 dL   = fLCDM.dL(data["z"], presets.lambda_cosmo_GLADE)
-                Mabs = data[colm] - 5 * np.log10(dL) - 25  # dL in [Mpc]
+                Mabs = data[colm] - 5 * np.log10(dL) - 40  # dL in [Gpc]
                 L    = mags.Mag2lum(Mabs, band)
                 data[colL] = L
                 keys.append(colL)

@@ -211,12 +211,14 @@ def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None):
         np.ndarray: sum of Gaussians
     """
 
+    if len(mu)==0:
+        return np.zeros_like(z_grid)
+    
     z_grid = np.array(z_grid)[:, np.newaxis]
     mu     = np.array(mu)
     sigma  = np.array(sigma)
 
-    if weights is None:
-        weights = np.ones(len(mu))
+    if weights is None: weights = np.ones(len(mu))
 
     num  = Gaussian(z_grid, mu, sigma) * fLCDM.dV_dz(z_grid, {"H0":70,"Om0":0.3})
     den  = np.trapz(num, z_grid, axis=0)
@@ -240,6 +242,9 @@ def sum_Gaussians(z_grid, mu, sigma, weights=None):
         np.ndarray: sum of Gaussians
     """
 
+    if len(mu)==0:
+        return np.array([])
+    
     z_grid = np.array(z_grid)[:, np.newaxis]
     mu     = np.array(mu)
     sigma  = np.array(sigma)

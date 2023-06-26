@@ -31,28 +31,28 @@ def _int_dC_hyperbolic(z, Om0):
 ##########################
 
 def dC(z, args):
-    """Comoving distance [Mpc] at redshift ``z``."""
-    return c_light/args["H0"] * _int_dC_hyperbolic(z, args["Om0"])
+    """Comoving distance [Gpc] at redshift ``z``."""
+    return c_light/(1e3*args["H0"]) * _int_dC_hyperbolic(z, args["Om0"])
 
 def dL(z, args):
-    """Luminosity distance [Mpc] at redshift ``z``."""
+    """Luminosity distance [Gpc] at redshift ``z``."""
     return (z+1.0)*dC(z, args)
 
 def dA(z, args):
-    """Angular diameter distance [Mpc] at redshift ``z``."""
+    """Angular diameter distance [Gpc] at redshift ``z``."""
     return dC(z, args)/(z+1.0)
 
 def ddL_dz(z, args, dL=None):
-    """Differential luminosity distance [Mpc] at redshift ``z``."""
+    """Differential luminosity distance [Gpc] at redshift ``z``."""
 
     if dL is not None:
         # raise Exception("Not implemented")
-        return dL/(1+z) + c_light/args["H0"] * (1+z) * E_inv(z, args["Om0"], 1.-args["Om0"])
+        return dL/(1+z) + c_light/(1e3*args["H0"]) * (1+z) * E_inv(z, args["Om0"], 1.-args["Om0"])
 
-    return dC(z, args) + c_light/args["H0"] * (1+z) * E_inv(z, args["Om0"], 1.-args["Om0"])
+    return dC(z, args) + c_light/(1e3*args["H0"]) * (1+z) * E_inv(z, args["Om0"], 1.-args["Om0"])
 
 def log_ddL_dz(z, args, dL=None):
-    """log of the differential luminosity distance [Mpc] at redshift ``z``."""
+    """log of the differential luminosity distance [Gpc] at redshift ``z``."""
     return np.log(ddL_dz(z, args, dL=dL))
 
 # def log_ddL_dz(z, args, dL=None):
@@ -71,12 +71,12 @@ def log_ddL_dz(z, args, dL=None):
 ##########################
 
 def V(z, args):
-    """Comoving volume in [Mpc^3] at redshift ``z``."""
+    """Comoving volume in [Gpc^3] at redshift ``z``."""
     return 4.0 / 3.0 * np.pi * dC(z, args)**3
 
 def dV_dz(z, args):
     """Differential comoving volume at redshift ``z``."""
-    return 4*np.pi*c_light/args["H0"] * (dC(z, args) ** 2) * E_inv(z, args["Om0"], 1.-args["Om0"])
+    return 4*np.pi*c_light/(1e3*args["H0"]) * (dC(z, args) ** 2) * E_inv(z, args["Om0"], 1.-args["Om0"])
 
 # def log_dV_dz(z, args):
 #     """Differential comoving volume at redshift ``z``."""
@@ -94,7 +94,6 @@ def z_from_dL(dL_vec, args):
     z_grid  = np.concatenate([np.logspace(-15, np.log10(9.99e-09), base=10, num=10), 
                               np.logspace(-8,  np.log10(7.99), base=10, num=1000),
                               np.logspace(np.log10(8), 5, base=10, num=100)])
-    f_intp  = interp1d(dL(z_grid, args), z_grid, 
-                       kind='cubic', bounds_error=False, 
+    f_intp  = interp1d(dL(z_grid, args), z_grid, kind='cubic', bounds_error=False, 
                        fill_value=(0,np.NaN), assume_sorted=True)
     return f_intp(dL_vec) 

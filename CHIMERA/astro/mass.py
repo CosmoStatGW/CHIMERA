@@ -94,7 +94,7 @@ def _logC_SPL(m1, beta, delta_m, ml, res=200):
 
     mm   = np.sort(mm)
     p2   = np.exp(_logpdfm2_SPL(mm, beta, delta_m, ml))
-    cdf  = cumtrapz(p2, mm)
+    cdf  = np.cumsum(0.5 * (p2[:-1] + p2[1:]) * np.diff(mm))
 
     return np.where(np.isnan(m1), -np.inf, -np.log(np.interp(m1, mm[1:], cdf)))
 
