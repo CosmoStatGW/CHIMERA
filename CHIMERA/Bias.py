@@ -10,19 +10,19 @@ __all__ = ['Bias']
 
 class Bias():
 
-    def __init__(self, 
-                 dir_file, 
-                 N_inj, 
+    def __init__(self,
                  model_cosmo,
                  model_mass,
                  model_rate,
+                 file_inj, 
+                 N_inj        = None, 
                  snr_th       = None, 
                  Tobs         = 1,
                  z_int_res    = 1000,
                  z_det_range  = [0,1.3],
                  check_Neff   = False):
 
-        self.dir_file    = dir_file
+        self.dir_file    = file_inj
         self.N_inj       = N_inj
         self.snr_th      = snr_th  
 
@@ -47,9 +47,15 @@ class Bias():
 
         self.keep = np.full(len(log_weights_sel), True)
 
+        log.info("Loading injections...")
+
+        if self.N_inj is None:
+            log.warning("  > N_inj not given. Assuming the injection files contains all the injections (no SNR cut applied)!")
+            self.N_inj = len(data_inj['dL'])
+
         if self.snr_th is not None:
             self.keep = self.keep & (data_inj['SNR_net'] > self.snr_th)
-            print('Injections SNR threshold set to %s' %self.snr_th)
+            log.info(f"  > Injections SNR threshold set to {self.snr_th}")
 
         if not "m1_det" in data_inj.keys():
             dL   = data_inj['dL'] # Gpc
@@ -66,8 +72,8 @@ class Bias():
         assert (dL > 0).all()
         assert (m2z<=m1z).all()
 
-        print('Total detected injections: %s' %self.keep.shape)
-        print('Total used injections: %s' %self.keep.sum())
+        log.info(f"  > Total detected injections: {self.keep.shape}")
+        log.info(f"  > Total used injections: {self.keep.sum()}")
 
         self.data_inj = {"m1det":m1z[self.keep], "m2det":m2z[self.keep], "dL":dL[self.keep],  "log_w":log_weights_sel[self.keep]}
         self.data_inj["w"] = np.exp(self.data_inj["log_w"])
