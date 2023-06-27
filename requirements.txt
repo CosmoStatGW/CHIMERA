@@ -1,0 +1,9 @@
+numpy
+scipy
+astropy
+h5py
+emcee
+healpy
+scikit-learn
+schwimmbad
+jax[cpu]

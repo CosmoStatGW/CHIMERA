@@ -11,10 +11,10 @@ from copy import deepcopy
 
 import numpy as np
 import healpy as hp
+from scipy.stats import gaussian_kde, norm
 
 from CHIMERA.utils import angles
 from CHIMERA.cosmo import fLCDM
-from scipy.stats import gaussian_kde, norm
 
 import logging
 log = logging.getLogger(__name__)
