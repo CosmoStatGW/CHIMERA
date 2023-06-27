@@ -272,7 +272,7 @@ class GW(object):
         Neff    = misc.get_Neff(weights, norm)
 
         if ((weights>0).sum()<5) or (self.check_Neff & (Neff < self.data_Neff)):
-            log.warning(f"Neff = {Neff:.1f} < {self.data_Neff} / {(weights>0).sum()} non-zero weigths for event {event}: returning zero probability")
+            log.warning(f"Neff = {Neff:.1f} < {self.data_Neff} for event {event}: returning zero probability")
             return None, norm
         
         return gaussian_kde(np.array(loc3D), bw_method=self.data_smooth, weights=weights), norm
