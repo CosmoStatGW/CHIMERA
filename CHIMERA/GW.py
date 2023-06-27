@@ -264,16 +264,15 @@ class GW(object):
         loc3D   = np.array([z, self.data["ra"][event], self.data["dec"][event]])
         m1, m2  = self.data["m1det"][event]/(1.+z), self.data["m2det"][event]/(1.+z)
 
-        models  = self.model_mass(m1, m2, lambda_mass)
-        jacD2S  = np.power(1+z, 2) * self.model_cosmo.ddL_dz(z, lambda_cosmo, dL)
-        priors  = np.power(dL, 2)
-
-        weights = models / jacD2S / priors
+        weights  = self.model_mass(m1, m2, lambda_mass) *\
+                   np.power(1+z, -2) * np.power(self.model_cosmo.ddL_dz(z, lambda_cosmo, dL), -1) *\
+                   np.power(dL, -2)
+        
         norm    = np.mean(weights, axis=0)
         Neff    = misc.get_Neff(weights, norm)
 
-        if ((Neff < self.data_Neff) or ((weights>=0).sum() < 5)) & self.check_Neff:
-            log.warning(f"Neff = {Neff:.1f} < 5 for event {event}. Returning zero prob.")
+        if ((weights>0).sum()<5) or (self.check_Neff & (Neff < self.data_Neff)):
+            log.warning(f"Neff = {Neff:.1f} < {self.data_Neff} / {(weights>0).sum()} non-zero weigths for event {event}: returning zero probability")
             return None, norm
         
         return gaussian_kde(np.array(loc3D), bw_method=self.data_smooth, weights=weights), norm
