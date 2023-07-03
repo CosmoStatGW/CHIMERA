@@ -8,6 +8,7 @@ lambda_mass_PLP_mock_v1   = {"lambda_peak":0.039, "alpha":3.4, "beta":1.1, "delt
 
 # RATE: R0, alphaRedshift , betaRedshift, zp 
 lambda_rate_Madau_mock_v1 = {"gamma":1.9,"kappa":3.4,"zp":2.4,}  
+lambda_rate_Madau_mock_v2 = {"gamma":2.7,"kappa":3.,"zp":2.,}  
 
 # COSMOLOGY: H0, Om0
 lambda_cosmo_mock_v1      = {"H0":67.66, "Om0":0.30966}

@@ -43,10 +43,12 @@ class GW(object):
                  # Healpix parameters
                  pixelize   = True,
                  npix_event = 15,
-                 nside_list = 32,
+                 nside_list = [32],
                  nest       = False,
                  sky_conf   = 0.9,
-                 check_Neff = True,):
+                 check_Neff = True,
+                 data_Neff  = 5,
+                 ):
 
         """Class for handling GW events posteriors
 
@@ -70,7 +72,6 @@ class GW(object):
         self.data         = data.copy()
         self.data_names   = np.atleast_1d(data_names)
         self.data_smooth  = data_smooth
-        self.data_Neff    = 1
 
         self.Nevents      = self.data["dL"].shape[0]
         self.Nsamples     = self.data["dL"].shape[1]
@@ -83,6 +84,7 @@ class GW(object):
         self.nest         = nest
         self.sky_conf     = sky_conf   
         self.check_Neff   = check_Neff  
+        self.data_Neff    = data_Neff
 
         if pixelize:
             self.nside, self.pix_conf, self.ra_conf, self.dec_conf = self.prepixelize(nside_list, npix_event)
@@ -157,7 +159,7 @@ class GW(object):
 
 
 
-    def compute_event_log(self, event, z_grid, lambda_cosmo, lambda_mass, lambda_rate):
+    def compute_event_log(self, event, z_grid, lambda_cosmo, lambda_mass, lambda_rate=None):
         """GW probability for one event pixelized.
 
         Args:
@@ -171,7 +173,7 @@ class GW(object):
         """
 
         Npix = len(self.pix_conf[event])
-        Nz = len(z_grid)
+        Nz   = len(z_grid)
         kde_gw, kde_norm_log = self._kde_event_log(event, lambda_cosmo=lambda_cosmo, lambda_mass=lambda_mass, lambda_rate=lambda_rate)
 
         if kde_gw is None:
@@ -199,27 +201,25 @@ class GW(object):
         dL     = self.data["dL"][event]
         z      = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
         loc3D  = np.array([z, self.data["ra"][event], self.data["dec"][event]])
-        m1, m2 = self.data["m1det"][event]/(1.+z),  self.data["m2det"][event]/(1.+z)
+        m1, m2 = self.data["m1det"][event]/(1.+z), self.data["m2det"][event]/(1.+z)
 
         models = self.model_mass(m1, m2, lambda_mass)
         jacD2S = 2*np.log1p(z) + self.model_cosmo.log_ddL_dz(z, lambda_cosmo, dL)
         priors = 2*np.log(dL)
 
-        log_weights = np.nan_to_num(models - jacD2S - priors, nan=-np.inf)
+        log_weights = models - jacD2S - priors # np.nan_to_num(, nan=-np.inf)
         log_norm    = np.logaddexp.reduce(log_weights) - np.log(len(log_weights))
         Neff        = misc.get_Neff_log(log_weights, log_norm)
 
-        if ((Neff < self.data_Neff) or (np.isfinite(log_weights).sum() < 5)) & self.check_Neff:
-            log.warning(f"Neff={Neff:.0f} < 5 for event {event}. Returned -np.inf logprob")
+        if (np.isfinite(log_weights).sum()<5) or (self.check_Neff & (Neff < self.data_Neff)):
+            log.warning(f"Neff = {Neff:.1f} < {self.data_Neff} for event {event}: returning -inf logprob")
             return None, log_norm
-        
-        weights     = np.exp(log_weights)
 
-        return gaussian_kde(loc3D, bw_method=self.data_smooth, weights=weights), log_norm
+        return gaussian_kde(loc3D, bw_method=self.data_smooth, weights=np.exp(log_weights)), log_norm
 
 
 
-    def compute_event(self, event, z_grid, lambda_cosmo, lambda_mass, lambda_rate):
+    def compute_event(self, event, z_grid, lambda_cosmo, lambda_mass, lambda_rate=None):
         """GW probability for one event pixelized.
 
         Args:
@@ -267,7 +267,7 @@ class GW(object):
         weights  = self.model_mass(m1, m2, lambda_mass) *\
                    np.power(1+z, -2) * np.power(self.model_cosmo.ddL_dz(z, lambda_cosmo, dL), -1) *\
                    np.power(dL, -2)
-        
+
         norm    = np.mean(weights, axis=0)
         Neff    = misc.get_Neff(weights, norm)
 
@@ -277,50 +277,6 @@ class GW(object):
         
         return gaussian_kde(np.array(loc3D), bw_method=self.data_smooth, weights=weights), norm
 
-
-
-
-    def compute_catalog(self, lambda_cosmo, lambda_mass, lambda_rate):
-        """TBD. Compute the KDE for the entire catalog.
-
-        Args:
-            event (int): number of the event
-            lambda_cosmo (dict): cosmology hyperparameters
-            lambda_mass (dict): mass hyperparameters
-
-        Returns:
-            [gaussian_kde, norm]: KDE for one event and its normalization factor.
-        """
-
-        dL  = self.data["dL"]
-        z   = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
-        ra  = self.data["ra"]
-        dec = self.data["dec"]
-        m1  = self.data["m1det"]/(1.+z)
-        m2  = self.data["m2det"]/(1.+z)
-
-        models = self.model_mass(m1, m2, lambda_mass)
-        jacD2S = 2*np.log1p(z) + self.model_cosmo.log_ddL_dz(z, lambda_cosmo, dL)
-        priors = 2*np.log(dL)
-
-        # models = self.model_rate(z, lambda_rate)/(1.+z) * self.model_mass(m1, m2, lambda_mass) * self.model_cosmo.dV_dz(z, lambda_cosmo)
-
-        log_weights = np.nan_to_num(models - jacD2S - priors, nan=-np.inf)
-        
-        # log_norm    = np.logaddexp.reduce(log_weights) - np.log(len(log_weights))
-        # log_s2      = np.logaddexp.reduce(2.*log_weights) - 2.*np.log(len(log_weights)) 
-        # log_sig2    = chimeraUtils.logdiffexp(log_s2, 2.*log_norm-np.log(len(log_weights)))
-        # Neff        = np.exp(2.*log_norm - log_sig2)
-
-        weights     = np.exp(log_weights)
-
-        # if (Neff < 5) or ((weights!=0).sum() < 5):
-        #     log.warning(f"Neff={Neff:.2f} < 5.0 for event {event}.")
-        #     return None, log_norm
-
-        
-
-        return gaussian_kde(np.array([z,ra,dec]), bw_method=self.data_smooth, weights=weights), log_norm
 
 
     def compute_z_grids(self, H0_prior_range, z_conf_range, z_res):
@@ -354,3 +310,50 @@ class GW(object):
         z_max  = self.model_cosmo.z_from_dL(dL_max, {"H0":H0_prior_range[1], "Om0":0.3})
 
         return np.linspace(z_min, z_max, z_res, axis=1)
+
+
+
+
+
+
+    # def compute_catalog(self, lambda_cosmo, lambda_mass, lambda_rate):
+    #     """TBD. Compute the KDE for the entire catalog.
+
+    #     Args:
+    #         event (int): number of the event
+    #         lambda_cosmo (dict): cosmology hyperparameters
+    #         lambda_mass (dict): mass hyperparameters
+
+    #     Returns:
+    #         [gaussian_kde, norm]: KDE for one event and its normalization factor.
+    #     """
+
+    #     dL  = self.data["dL"]
+    #     z   = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
+    #     ra  = self.data["ra"]
+    #     dec = self.data["dec"]
+    #     m1  = self.data["m1det"]/(1.+z)
+    #     m2  = self.data["m2det"]/(1.+z)
+
+    #     models = self.model_mass(m1, m2, lambda_mass)
+    #     jacD2S = 2*np.log1p(z) + self.model_cosmo.log_ddL_dz(z, lambda_cosmo, dL)
+    #     priors = 2*np.log(dL)
+
+    #     # models = self.model_rate(z, lambda_rate)/(1.+z) * self.model_mass(m1, m2, lambda_mass) * self.model_cosmo.dV_dz(z, lambda_cosmo)
+
+    #     log_weights = np.nan_to_num(models - jacD2S - priors, nan=-np.inf)
+        
+    #     # log_norm    = np.logaddexp.reduce(log_weights) - np.log(len(log_weights))
+    #     # log_s2      = np.logaddexp.reduce(2.*log_weights) - 2.*np.log(len(log_weights)) 
+    #     # log_sig2    = chimeraUtils.logdiffexp(log_s2, 2.*log_norm-np.log(len(log_weights)))
+    #     # Neff        = np.exp(2.*log_norm - log_sig2)
+
+    #     weights     = np.exp(log_weights)
+
+    #     # if (Neff < 5) or ((weights!=0).sum() < 5):
+    #     #     log.warning(f"Neff={Neff:.2f} < 5.0 for event {event}.")
+    #     #     return None, log_norm
+
+        
+
+    #     return gaussian_kde(np.array([z,ra,dec]), bw_method=self.data_smooth, weights=weights), log_norm

@@ -13,14 +13,14 @@ def dummy_rate(z,lambda_rate):
 ######################################################
 
 def phi_PL(z,lambda_rate):
-    """PowerLaw CBCs rate density in [Gpc-3 yr-1].
+    """PowerLaw CBCs rate density in [Vol-3 yr-1].
     If gamma=0, merger rate density is uniform in comoving volume and source-frame time"""
-    return 1.e-9*(1. + z)**lambda_rate["gamma"]
+    return (1. + z)**lambda_rate["gamma"]
 
 def logphi_PL(z,lambda_rate):
-    """Logarithm of PowerLaw CBCs rate density in [Gpc-3 yr-1].
+    """Logarithm of PowerLaw CBCs rate density in [Vol-3 yr-1].
     If gamma=0, merger rate density is uniform in comoving volume and source-frame time"""
-    return lambda_rate["gamma"]*np.log1p(z) - 9.*np.log(10)
+    return lambda_rate["gamma"]*np.log1p(z)
 
 ######################################################
 ###################################################### Callister+20/Madau+14
@@ -28,7 +28,7 @@ def logphi_PL(z,lambda_rate):
 
 
 def phi_MD(z, lambda_rate):
-    """Madau-Dickinson-like star formation rate density in [Gpc-3 yr-1]
+    """Madau-Dickinson-like star formation rate density
 
     Args:
         z (np.ndarray): redshift
@@ -70,7 +70,4 @@ def logphi_MD(z, lambda_rate):  # slower than non-log
     gamma, kappa, zp = lambda_rate["gamma"], lambda_rate["kappa"], lambda_rate["zp"]
 
     return gamma*np.log1p(z) - np.log1p( ((z+1.)/(zp+1.))**(gamma+kappa) )
-
-
-
 

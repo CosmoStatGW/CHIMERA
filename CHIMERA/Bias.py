@@ -20,7 +20,8 @@ class Bias():
                  Tobs         = 1,
                  z_int_res    = 1000,
                  z_det_range  = [0,1.3],
-                 check_Neff   = False):
+                 check_Neff   = False,
+                 inj_Neff     = 5):
 
         self.dir_file    = file_inj
         self.N_inj       = N_inj
@@ -35,6 +36,7 @@ class Bias():
         self.z_int_res   = z_int_res
         self.z_det_range = z_det_range
         self.check_Neff  = check_Neff
+        self.inj_Neff    = inj_Neff
 
         self.load()
 
@@ -96,6 +98,10 @@ class Bias():
         if self.normalized: 
             norm   = self.Nexp(lambda_cosmo, lambda_rate)
             dN    /= norm
+
+        # else:
+        #     print("NNorm bias")
+
         
         return dN
         
@@ -113,9 +119,10 @@ class Bias():
         """
 
         zz    = np.linspace(*self.z_det_range, self.z_int_res)
-        dN_dz = self.model_cosmo.dV_dz(zz, lambda_cosmo) *  self.model_rate(zz, lambda_rate)/(1.+zz) 
+        dN_dz = self.model_rate(zz, lambda_rate)/(1.+zz) * self.model_cosmo.dV_dz(zz, lambda_cosmo)
+        res   = np.trapz(dN_dz, zz)
 
-        return np.trapz(dN_dz, zz)
+        return res
 
     
     def compute(self, lambda_cosmo, lambda_mass, lambda_rate):
@@ -184,20 +191,11 @@ class Bias():
         log_sig2 = misc.logdiffexp(log_s2, 2.0*log_mu-np.log(self.N_inj))
         Neff     = np.exp(2.0*log_mu - log_sig2)
 
-        #if Nobs is not None:# and verbose:
-            #muSq = np.exp(2*logMu)
-            #SigmaSq = np.exp(logSigmaSq)
-
+        if (Neff < self.inj_Neff) and self.check_Neff:
+            log.warning(f"Neff = {Neff:.1f} < {self.inj_Neff} for injections. Returning 0 logprob")
+            return 0
         
-        # s2   = np.sum(dN**2) / self.N_inj**2
-        # sig2 = s2 - mu**2 / self.N_inj
-        # Neff = mu**2 / sig2
-
-        if (Neff < 5) and self.check_Neff:
-            log.warning(f"Neff = {Neff:.1f} < 5 for injections. Returning zero prob.")
-            return 0.
-        
-        return np.exp(log_mu)
+        return log_mu
 
 
 #####################################################################################

@@ -33,12 +33,12 @@ def get_Neff_log(log_weights, log_norm):
    
     return np.exp(2.*log_norm - log_sig2)
 
-def get_Neff(weights, norm):
+def get_Neff(weights, mu):
     # arXiv:1904.10879
-    s2 = np.sum(weights**2) / len(weights)
-    sig2 = s2 - norm**2
-
-    return norm**2 / sig2
+    Ndraw = len(weights)
+    s2    = np.sum(weights**2) / Ndraw**2
+    sig2  = s2 - mu**2 / Ndraw
+    return mu**2 / sig2
 
 def logdiffexp(x, y):
     return x + np.log1p(-np.exp(y-x))
