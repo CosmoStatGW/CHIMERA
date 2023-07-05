@@ -197,7 +197,7 @@ class Galaxies(ABC):
 def Gaussian(x,mu,sigma):
     return np.power(2*np.pi*(sigma**2), -0.5) * np.exp(-0.5*np.power((x-mu)/sigma,2.))
 
-def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None):
+def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None, lambda_cosmo={"H0":70,"Om0":0.3}):
     """ Vectorized sum of multiple Gaussians on z_grid each one with its own weight, mean and standard deviation.
     Each Gaussian is weighted by the volume element dV/dz.
 
@@ -220,7 +220,7 @@ def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None):
 
     if weights is None: weights = np.ones(len(mu))
 
-    num  = Gaussian(z_grid, mu, sigma) * fLCDM.dV_dz(z_grid, {"H0":70,"Om0":0.3})
+    num  = Gaussian(z_grid, mu, sigma) * fLCDM.dV_dz(z_grid, lambda_cosmo)
     den  = np.trapz(num, z_grid, axis=0)
 
     # print(np.sum(num/den, axis=1))
@@ -258,10 +258,10 @@ def sum_Gaussians(z_grid, mu, sigma, weights=None):
     return np.sum(num/den, axis=1)
 
 
-def UVC_distribution(z_grid):
+def UVC_distribution(z_grid, lambda_cosmo={"H0":70,"Om0":0.3}):
     """ TBD
     """
-    norm = fLCDM.V(np.max(z_grid), {"H0":70,"Om0":0.3}) - fLCDM.V(np.min(z_grid), {"H0":70,"Om0":0.3})
-    return 4*np.pi*fLCDM.dV_dz(z_grid, {"H0":70,"Om0":0.3}) / norm
+    norm = fLCDM.V(np.max(z_grid), lambda_cosmo) - fLCDM.V(np.min(z_grid), lambda_cosmo)
+    return 4*np.pi*fLCDM.dV_dz(z_grid, lambda_cosmo) / norm
 
 

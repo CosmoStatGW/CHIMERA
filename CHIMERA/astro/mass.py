@@ -1,12 +1,11 @@
 import numpy as np
 from scipy.special import erf
 
-from CHIMERA.utils import misc
-from scipy.integrate import cumtrapz
+from CHIMERA.utils.misc import logdiffexp
 
 def _logpdf_TPL(x, alpha, mmin, mmax):
     # norm_const_inv = (1 - alpha) / (np.power(mmax, 1 - alpha) - np.power(mmin, 1 - alpha)) this must be added
-    log_norm_cost =  -np.log(alpha-1)+misc.logdiffexp(  (1-alpha)*np.log(mmin), (1-alpha)*np.log(mmax) )
+    log_norm_cost =  -np.log(alpha-1) + logdiffexp( (1-alpha)*np.log(mmin), (1-alpha)*np.log(mmax) )
     return np.where((mmin < x) & (x < mmax), -alpha*np.log(x) - log_norm_cost, -np.inf)
 
 
