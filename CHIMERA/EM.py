@@ -194,10 +194,17 @@ class Galaxies(ABC):
 
 
 
-def Gaussian(x,mu,sigma):
-    return np.power(2*np.pi*(sigma**2), -0.5) * np.exp(-0.5*np.power((x-mu)/sigma,2.))
+import jax
+import jax.numpy as jnp
 
-def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None, lambda_cosmo={"H0":70,"Om0":0.3}):
+@jax.jit
+def Gaussian(x, mu, sigma):
+    return jnp.power(2 * jnp.pi * (sigma ** 2), -0.5) * jnp.exp(-0.5 * jnp.power((x - mu) / sigma, 2.))
+
+
+
+@jax.jit
+def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None, lambda_cosmo={"H0": 70, "Om0": 0.3}):
     """ Vectorized sum of multiple Gaussians on z_grid each one with its own weight, mean and standard deviation.
     Each Gaussian is weighted by the volume element dV/dz.
 
@@ -211,26 +218,31 @@ def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None, lambda_cosmo={"H0":70,"Om
         np.ndarray: sum of Gaussians
     """
 
-    if len(mu)==0:
-        return np.zeros_like(z_grid)
-    
-    z_grid = np.array(z_grid)[:, np.newaxis]
-    mu     = np.array(mu)
-    sigma  = np.array(sigma)
+    if len(mu) == 0:
+        return jnp.zeros_like(z_grid)
 
-    if weights is None: weights = np.ones(len(mu))
+    z_grid = jnp.array(z_grid)[:, jnp.newaxis]
+    mu = jnp.array(mu)
+    sigma = jnp.array(sigma)
 
-    num  = Gaussian(z_grid, mu, sigma) * fLCDM.dV_dz(z_grid, lambda_cosmo)
-    den  = np.trapz(num, z_grid, axis=0)
+    if weights is None:
+        weights = jnp.ones(len(mu))
 
-    # print(np.sum(num/den, axis=1))
+    gal = Gaussian(z_grid, mu, sigma)
 
-    return np.sum(weights*num/den, axis=1)/np.sum(weights)
+    gal = jnp.where(z_grid > 1.3, 1, gal)
+
+    num =  gal * fLCDM.dV_dz(z_grid, lambda_cosmo)
+    den = jnp.trapz(num, z_grid, axis=0)
+
+    return jnp.sum(weights * num / den, axis=1) / jnp.sum(weights)
 
 
 
-def sum_Gaussians(z_grid, mu, sigma, weights=None):
+@jax.jit
+def sum_Gaussians(z_grid, mu, sigma, weights=None, lambda_cosmo=None):
     """ Vectorized sum of multiple Gaussians on z_grid each one with its own weight, mean and standard deviation.
+    Each Gaussian is weighted by the volume element dV/dz.
 
     Args:
         z_grid (np.ndarray): redshift grid
@@ -242,20 +254,50 @@ def sum_Gaussians(z_grid, mu, sigma, weights=None):
         np.ndarray: sum of Gaussians
     """
 
-    if len(mu)==0:
-        return np.array([])
-    
-    z_grid = np.array(z_grid)[:, np.newaxis]
-    mu     = np.array(mu)
-    sigma  = np.array(sigma)
+    if len(mu) == 0:
+        return jnp.zeros_like(z_grid)
+
+    z_grid = jnp.array(z_grid)[:, jnp.newaxis]
+    mu = jnp.array(mu)
+    sigma = jnp.array(sigma)
 
     if weights is None:
-        weights = np.ones(len(mu))
+        weights = jnp.ones(len(mu))
 
-    num  = weights * Gaussian(z_grid, mu, sigma)
-    den = np.trapz(num, z_grid, axis=0)
+    num = Gaussian(z_grid, mu, sigma)
+    den = jnp.trapz(num, z_grid, axis=0)
 
-    return np.sum(num/den, axis=1)
+    return jnp.sum(weights * num / den, axis=1) / jnp.sum(weights)
+
+
+
+# def sum_Gaussians(z_grid, mu, sigma, weights=None, lambda_cosmo=None):
+#     """ Vectorized sum of multiple Gaussians on z_grid each one with its own weight, mean and standard deviation.
+
+#     Args:
+#         z_grid (np.ndarray): redshift grid
+#         mu (np.ndarray): mean redshifts
+#         sigma (np.ndarray): redshifts standard deviations
+#         weights (np.ndarray, optional): weigths. Defaults to np.ones(len(mu)).
+
+#     Returns:
+#         np.ndarray: sum of Gaussians
+#     """
+
+#     if len(mu)==0:
+#         return np.array([])
+    
+#     z_grid = np.array(z_grid)[:, np.newaxis]
+#     mu     = np.array(mu)
+#     sigma  = np.array(sigma)
+
+#     if weights is None:
+#         weights = np.ones(len(mu))
+
+#     num  = weights * Gaussian(z_grid, mu, sigma)
+#     den = np.trapz(num, z_grid, axis=0)
+
+#     return np.sum(num/den, axis=1)
 
 
 def UVC_distribution(z_grid, lambda_cosmo={"H0":70,"Om0":0.3}):

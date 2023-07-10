@@ -1,32 +1,35 @@
-import numpy as np 
-# import functools
-from scipy.interpolate import interp1d
+import numpy as onp
 from scipy.special import hyp2f1
 
-# from astropy.cosmology import scalar_inv_efuncs
-
-import astropy 
-
-if float(astropy.__version__[0:3]) < 5:
-    from astropy.cosmology import scalar_inv_efuncs
-else:
-    from astropy.cosmology.flrw import scalar_inv_efuncs
-
-
-E_inv = np.vectorize(scalar_inv_efuncs.flcdm_inv_efunc_norel, otypes=[np.float64])
+import jax.numpy as np
+from jax import jit
+from jax.config import config
+config.update("jax_enable_x64", True)
+import jax.experimental.host_callback as hcb
 
 c_light = 299792.458 # km/s
 
+@jit
+def E_inv_norel(z, Om0, Ode0):
+    return np.power((1. + z)**3 * Om0 + Ode0, -0.5)
 
+def _hyp2f1_lcdm(x):
+    return hyp2f1(1./6, 1./2, 7./6, -x**3)
+
+@jit
+def hyp2f1_lcdm(x):
+  return hcb.call(_hyp2f1_lcdm, x, result_shape=x)
+
+@jit
 def _T_hypergeometric(x):
-    r"""TAKEN FROM ASTROPY 
-    Compute value using Gauss Hypergeometric function 2F1.
+    r"""Compute value using Gauss Hypergeometric function 2F1. Taken from astropy.
     T(x) = 2 \sqrt(x) _{2}F_{1}\left(\frac{1}{6}, \frac{1}{2}; \frac{7}{6}; -x^3 \right)
 
     Ref. [1] Baes, Camps, & Van De Putte (2017). MNRAS, 468(1), 927-930.
     """
-    return 2 * np.sqrt(x) * hyp2f1(1./6, 1./2, 7./6, -x**3)
+    return 2 * np.sqrt(x) * hyp2f1_lcdm(x)
 
+@jit
 def _int_dC_hyperbolic(z, Om0):
     s = ((1 - Om0) / Om0) ** (1./3)
     prefactor = (s * Om0)**(-0.5)
@@ -37,13 +40,16 @@ def _int_dC_hyperbolic(z, Om0):
 ####### Distances ########
 ##########################
 
+
 def dC(z, args):
     """Comoving distance [Gpc] at redshift ``z``."""
     return c_light/(1e3*args["H0"]) * _int_dC_hyperbolic(z, args["Om0"])
 
+
 def dL(z, args):
     """Luminosity distance [Gpc] at redshift ``z``."""
     return (z+1.0)*dC(z, args)
+
 
 def dA(z, args):
     """Angular diameter distance [Gpc] at redshift ``z``."""
@@ -54,22 +60,13 @@ def ddL_dz(z, args, dL=None):
 
     if dL is not None:
         # raise Exception("Not implemented")
-        return dL/(1+z) + c_light/(1e3*args["H0"]) * (1+z) * E_inv(z, args["Om0"], 1.-args["Om0"])
+        return dL/(1+z) + c_light/(1e3*args["H0"]) * (1+z) * E_inv_norel(z, args["Om0"], 1.-args["Om0"])
 
-    return dC(z, args) + c_light/(1e3*args["H0"]) * (1+z) * E_inv(z, args["Om0"], 1.-args["Om0"])
+    return dC(z, args) + c_light/(1e3*args["H0"]) * (1+z) * E_inv_norel(z, args["Om0"], 1.-args["Om0"])
 
 def log_ddL_dz(z, args, dL=None):
     """log of the differential luminosity distance [Gpc] at redshift ``z``."""
     return np.log(ddL_dz(z, args, dL=dL))
-
-# def log_ddL_dz(z, args, dL=None):
-#     """Logarithm of the differential luminosity distance [Mpc] at redshift ``z``."""
-
-#     if dL is not None:
-#         # raise Exception("Not implemented")
-#         return np.log(dL/(1+z)) + np.log(c_light/args["H0"]) + np.log(1+z) + log_E_inv(z, args["Om0"], 1.-args["Om0"])
-
-#     return np.log(dC(z, args)) + np.log(c_light/args["H0"]) + np.log(1+z) + log_E_inv(z, args["Om0"], 1.-args["Om0"])
 
 
 
@@ -83,11 +80,7 @@ def V(z, args):
 
 def dV_dz(z, args):
     """Differential comoving volume at redshift ``z``."""
-    return 4*np.pi*c_light/(1e3*args["H0"]) * (dC(z, args) ** 2) * E_inv(z, args["Om0"], 1.-args["Om0"])
-
-# def log_dV_dz(z, args):
-#     """Differential comoving volume at redshift ``z``."""
-#     return np.log(4*np.pi*c_light/args["H0"]) + 2*np.log(dC(z, args)) + np.log(E_inv(z, args["Om0"], 1.-args["Om0"]))
+    return 4*np.pi*c_light/(1e3*args["H0"]) * (dC(z, args) ** 2) * E_inv_norel(z, args["Om0"], 1.-args["Om0"])
 
 def log_dV_dz(z, args):
     return np.log(dV_dz(z, args))
@@ -98,9 +91,38 @@ def log_dV_dz(z, args):
 #########################
 
 def z_from_dL(dL_vec, args):
-    z_grid  = np.concatenate([np.logspace(-15, np.log10(9.99e-09), base=10, num=10), 
-                              np.logspace(-8,  np.log10(7.99), base=10, num=1000),
-                              np.logspace(np.log10(8), 5, base=10, num=100)])
-    f_intp  = interp1d(dL(z_grid, args), z_grid, kind='cubic', bounds_error=False, 
-                       fill_value=(0,np.NaN), assume_sorted=True)
-    return f_intp(dL_vec) 
+    z_grid  = np.concatenate([np.logspace(-15, np.log10(9.99e-09), base=10, num=100), 
+                              np.logspace(-8, np.log10(7.99), base=10, num=8000),
+                              np.logspace(np.log10(8), 5, base=10, num=5000)])
+    dL_grid = dL(z_grid, args)
+
+    # return cubic_spline_interpolation(dL_grid, z_grid, dL_vec)
+    return  np.interp(dL_vec, dL_grid, z_grid)
+
+# @jit
+# def cubic_spline_interpolation(x_new, x, y):
+#     dx = np.diff(x)
+#     dy = np.diff(y)
+
+#     # Spline matrix
+#     A = np.diag(np.concatenate((np.array([dx[1]]), 2 * (dx[:-1] + dx[1:]), np.array([dx[-2]])))) + \
+#         np.diag(np.concatenate((np.array([-dx[0] - dx[1]]), dx[1:])), k=1) + \
+#         np.diag(np.concatenate((np.array([dx[0]]), np.zeros(len(x) - 3))), k=2) + \
+#         np.diag(np.concatenate((dx[:-1], np.array([-dx[-2] - dx[-1]]))), k=-1) + \
+#         np.diag(np.concatenate((np.zeros(len(x) - 3), np.array([dx[-1]]))), k=-2)
+
+#     # Spline coefficients
+#     coeff = np.linalg.solve(A, np.pad(3 * (dy[1:]/dx[1:]-dy[:-1]/dx[:-1]), (1, 1), mode='constant'))
+
+#     # Compute polynomials
+#     ind = np.clip(np.digitize(x_new, x)-1, 0, len(x) - 2)
+#     t   = x_new - x[ind]
+#     dx  = dx[ind]
+
+#     result = y[ind] + ((y[ind + 1] - y[ind]) / dx - (2 * coeff[ind] + coeff[ind + 1]) * dx / 3.0) * t + \
+#              coeff[ind] * t ** 2 + ((coeff[ind + 1] - coeff[ind]) / (3 * dx)) * t ** 3
+
+#     return result
+
+
+

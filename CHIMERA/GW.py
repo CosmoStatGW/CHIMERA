@@ -199,7 +199,7 @@ class GW(object):
         """
 
         dL     = self.data["dL"][event]
-        z      = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
+        z      = np.array(self.model_cosmo.z_from_dL(dL, lambda_cosmo))
         loc3D  = np.array([z, self.data["ra"][event], self.data["dec"][event]])
         m1, m2 = self.data["m1det"][event]/(1.+z), self.data["m2det"][event]/(1.+z)
 
@@ -260,7 +260,7 @@ class GW(object):
         """
 
         dL      = self.data["dL"][event]
-        z       = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
+        z       = np.array(self.model_cosmo.z_from_dL(dL, lambda_cosmo))
         loc3D   = np.array([z, self.data["ra"][event], self.data["dec"][event]])
         m1, m2  = self.data["m1det"][event]/(1.+z), self.data["m2det"][event]/(1.+z)
 

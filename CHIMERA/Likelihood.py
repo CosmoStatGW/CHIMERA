@@ -10,6 +10,7 @@ import numpy as np
 import healpy as hp
 
 from CHIMERA.GW import GW
+from CHIMERA.EM import UVC_distribution
 from CHIMERA.DataEM import (MockGalaxiesMICEv2, GLADEPlus)
 from CHIMERA.utils import (misc, plotting)
 
@@ -61,14 +62,18 @@ class MockLike():
                           check_Neff=check_Neff, data_Neff=data_Neff)
         
         self.z_grids = self.gw.compute_z_grids(z_int_H0_prior, z_int_sigma, z_int_res)
-
+        self.Npix    = np.array([len(a) for a in self.gw.pix_conf])
+        
         # Load galaxy catalog and precompute p_gal
         if self.data_GAL_dir is not None:
             self.gal     = MockGalaxiesMICEv2(self.data_GAL_dir, z_err = data_GAL_zerr, nside = self.gw.nside)
             self.p_gal, self.N_gal = self.gal.precompute(self.gw.nside, self.gw.pix_conf, self.z_grids, self.gw.data_names, self.data_GAL_weights)
         else:
-            self.p_gal = [np.ones((z_int_res,len(self.gw.pix_conf[e]))) for e in range(self.gw.Nevents)]
-
+            print("No galaxies")
+            self.p_gal = [np.ones((z_int_res,len(self.Npix[e]))) for e in range(self.gw.Nevents)]
+            # self.p_gal = [np.tile(UVC_distribution(self.z_grids[e]), (len(self.gw.pix_conf[e]), 1)).T for e in range(self.gw.Nevents)]
+        
+        
         if self.pixelize is False:
             self.p_gal = [np.mean(self.p_gal[e], axis=1, keepdims=True) for e in range(self.gw.Nevents)]
         
@@ -156,10 +161,12 @@ class MockLike():
             p_gal    = np.array(self.p_gal[e])
             p_gw     = self.gw.compute_event(e, z_grid, lambda_cosmo, lambda_mass)
 
+            # p_gal[z_grid>1.3] = 1.
+
             if self.data_GAL_dir is None:
                 p_rate   = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)*self.gw.model_cosmo.dV_dz(z_grid, lambda_cosmo)
             else:
-                p_rate   = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)
+                p_rate   = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)#*self.gw.model_cosmo.dV_dz(z_grid, lambda_cosmo)
 
 
             if self.pixelize is False: 

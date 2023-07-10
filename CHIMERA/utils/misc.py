@@ -178,6 +178,10 @@ def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k",
 
 
 
+##################################################################
+
+
+
 # def find_maximum_and_interval(xs, ys, desired_area = 0.673):
 #     threshold = 0.003
 #     startIndex = ys.argmax()
