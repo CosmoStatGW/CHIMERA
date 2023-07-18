@@ -12,6 +12,7 @@ from copy import deepcopy
 import numpy as np
 import healpy as hp
 from scipy.stats import gaussian_kde, norm
+from scipy.interpolate import interp1d
 
 from CHIMERA.utils import angles
 from CHIMERA.cosmo import fLCDM
@@ -68,24 +69,24 @@ class Galaxies(ABC):
             log.info(f"Precomputing Healpixels for the galaxy catalog (NSIDE={n}, NEST={self.nest})")
             self.data[f"pix{n}"] = angles.find_pix_RAdec(self.data['ra'], self.data['dec'], n, self.nest)
 
-    def precompute(self, nside, pix_todo, z_grid, names=None, weights=None):
-        """Pre-compute pixelized p_gal for many events.
+    def precompute(self, nside, pix_todo, z_grid, names=None, weights=None, lambda_cosmo={"H0": 70, "Om0": 0.3}):
+        """Pre-compute pixelized p_cat for many events.
 
         Args:
             nside (np.ndarray): nside Healpix parameter for each event
             pix_todo (list): arrays of pixels for each event
             z_grid (np.ndarray): 2D array of the redshift grids with shape (Nevents, z_int_res)
             names (list, optional): names of GW events, for logging purposes. Defaults to None.
-            weights_kind (str, optional): weights_kind for p_gal. Defaults to "N".
+            weights_kind (str, optional): weights_kind for p_cat. Defaults to "N".
 
         Returns:
-            [p_gal], [N_gal]: probability p_gal and associated weigths
+            [p_cat], [N_gal]: probability p_cat and associated weigths
         """        
         Nevents = len(nside)
         assert Nevents == len(pix_todo) == len(z_grid)
         if names is None: names = [f"{i}/{Nevents}" for i in range(Nevents)]
 
-        log.info(f"Precomputing p_GAL for {Nevents} events...")
+        log.info(f"Precomputing p_cat for {Nevents} events...")
 
         if weights is None:
             log.info(f"Setting uniform weights")
@@ -94,40 +95,40 @@ class Galaxies(ABC):
             log.info(f"Setting weights to {weights}")
             self.data["w"] = 1/(self.data[weights]/np.mean(self.data[weights]))
 
-        p_gal, N_gal = zip(*[self.precompute_event(nside[e], pix_todo[e], z_grid[e], names[e]) for e in range(Nevents)])
+        p_cat, N_gal = zip(*[self.precompute_event(nside[e], pix_todo[e], z_grid[e], names[e]) for e in range(Nevents)])
 
-        return p_gal, N_gal 
+        return p_cat, N_gal 
 
 
     def precompute_event(self, nside, pix_todo, z_grid, name):
-        """Pre-compute pixelized p_gal for one event.
+        """Pre-compute pixelized p_cat for one event.
 
         Args:
             nside (int): nside Healpix parameter
             pix_todo (np.ndarray): arrays of pixels for each event
             z_grid (np.ndarray): redshift grid
             name (str): name of the GW event, for logging purposes.
-            weights_kind (str, optional): weights_kind for p_gal. Defaults to "N".
+            weights_kind (str, optional): weights_kind for p_cat. Defaults to "N".
 
         Returns:
-            p_gal, p_gal_w: probability p_gal and associated weigths
+            p_cat, p_cat_w: probability p_cat and associated weigths
         """
         log.info(f"### {name} ###")
 
         data   = self.select_event_region(z_grid[0], z_grid[-1], pix_todo, nside)
         pixels = data[f"pix{nside}"]
         
-        p_gal  = np.vstack([sum_Gaussians_UCV(z_grid, data["z"][pixels == p], 
-                                                      data["z_err"][pixels == p],
-                                                      weights=data["w"][pixels == p]) for p in pix_todo]).T
+        p_cat  = np.vstack([sum_Gaussians_UCV(z_grid, data["z"][pixels == p], 
+                                                  data["z_err"][pixels == p],
+                                                  weights=data["w"][pixels == p]) for p in pix_todo]).T
 
-        # p_gal /= hp.pixelfunc.nside2pixarea(nside,degrees=False) # for the integral in dOmega
+        # p_cat /= hp.pixelfunc.nside2pixarea(nside,degrees=False) # for the integral in dOmega
 
-        p_gal[~np.isfinite(p_gal)] = 0.  # pb. if falls into an empty pixel
+        p_cat[~np.isfinite(p_cat)] = 0.  # pb. if falls into an empty pixel
 
         N_gal = np.sum(data[f"pix{nside}"][None, :] == np.array(pix_todo)[:, None], axis=1)
 
-        return p_gal, N_gal
+        return p_cat, N_gal
 
 
     def select_event_region(self, z_min, z_max, pixels, nside):
@@ -186,8 +187,14 @@ class Galaxies(ABC):
 
         self.data = {k : self.data[k][mask] for k in self.data.keys()}
 
+    def p_bkg(self, lambda_cosmo={"H0": 70, "Om0": 0.3}):
+        zz    = np.linspace(0, 20, 5000)
+        p_bkg = fLCDM.dV_dz(zz, lambda_cosmo)
 
+        def _p_bkg_interp(z, dummy):
+            return interp1d(zz, p_bkg, kind="cubic", bounds_error=False, fill_value=0.0)(z)
 
+        return _p_bkg_interp
 
 
 
@@ -228,21 +235,27 @@ def sum_Gaussians_UCV(z_grid, mu, sigma, weights=None, lambda_cosmo={"H0": 70, "
     if weights is None:
         weights = jnp.ones(len(mu))
 
-    gal = Gaussian(z_grid, mu, sigma)
+    gauss = Gaussian(z_grid, mu, sigma)*fLCDM.dV_dz(z_grid, lambda_cosmo)
+    norm  = jnp.trapz(gauss, z_grid, axis=0)
 
-    gal = jnp.where(z_grid > 1.3, 1, gal)
-
-    num =  gal * fLCDM.dV_dz(z_grid, lambda_cosmo)
-    den = jnp.trapz(num, z_grid, axis=0)
-
-    return jnp.sum(weights * num / den, axis=1) / jnp.sum(weights)
+    return jnp.sum(weights * gauss/norm, axis=1) / jnp.sum(weights)
 
 
+def deconvolve_volume_factor(z_grid, p_cat, lambda_cosmo={"H0": 70, "Om0": 0.3}):
+    """ TBD
+    """
+    z_grid = np.array(z_grid)[:, np.newaxis]
+    p_cat  = np.array(p_cat)
 
+    return np.trapz(p_cat * fLCDM.dV_dz(z_grid, lambda_cosmo), z_grid, axis=0)
+                    
+
+    
+
+ 
 @jax.jit
 def sum_Gaussians(z_grid, mu, sigma, weights=None, lambda_cosmo=None):
     """ Vectorized sum of multiple Gaussians on z_grid each one with its own weight, mean and standard deviation.
-    Each Gaussian is weighted by the volume element dV/dz.
 
     Args:
         z_grid (np.ndarray): redshift grid
@@ -257,17 +270,14 @@ def sum_Gaussians(z_grid, mu, sigma, weights=None, lambda_cosmo=None):
     if len(mu) == 0:
         return jnp.zeros_like(z_grid)
 
-    z_grid = jnp.array(z_grid)[:, jnp.newaxis]
-    mu = jnp.array(mu)
-    sigma = jnp.array(sigma)
+    z_grid  = jnp.array(z_grid)[:, jnp.newaxis]
+    mu      = jnp.array(mu)
+    sigma   = jnp.array(sigma)
+    weights = jnp.array(weights) if weights is not None else jnp.ones(len(mu))
 
-    if weights is None:
-        weights = jnp.ones(len(mu))
+    gauss   = Gaussian(z_grid, mu, sigma)
 
-    num = Gaussian(z_grid, mu, sigma)
-    den = jnp.trapz(num, z_grid, axis=0)
-
-    return jnp.sum(weights * num / den, axis=1) / jnp.sum(weights)
+    return jnp.sum(weights * gauss, axis=1) / jnp.sum(weights)
 
 
 
