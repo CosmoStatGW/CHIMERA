@@ -46,7 +46,6 @@ class GW(object):
                  nside_list = [32],
                  nest       = False,
                  sky_conf   = 0.9,
-                 check_Neff = True,
                  data_Neff  = 5,
                  ):
 
@@ -83,11 +82,13 @@ class GW(object):
 
         self.nest         = nest
         self.sky_conf     = sky_conf   
-        self.check_Neff   = check_Neff  
         self.data_Neff    = data_Neff
+        self.check_Neff   = True if self.data_Neff is not None else False  
 
         if pixelize:
             self.nside, self.pix_conf, self.ra_conf, self.dec_conf = self.prepixelize(nside_list, npix_event)
+            self.npix_event = np.array([len(a) for a in self.pix_conf])
+
 
 
     def prepixelize(self, nside_list, npix_event):
