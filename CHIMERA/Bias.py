@@ -17,26 +17,30 @@ class Bias():
                  file_inj, 
                  N_inj        = None, 
                  snr_th       = None, 
-                 Tobs         = 1,
+                 p_gal        = None,
                  z_int_res    = 1000,
                  z_det_range  = [0,1.3],
-                 check_Neff   = False,
-                 inj_Neff     = 5):
+                 neff_inj_min = 5,
+                 Tobs         = 1,
+                 ):
 
-        self.dir_file    = file_inj
-        self.N_inj       = N_inj
-        self.snr_th      = snr_th  
+        self.dir_file     = file_inj
+        self.N_inj        = N_inj
+        self.snr_th       = snr_th  
 
-        self.model_cosmo = model_cosmo
-        self.model_mass  = model_mass
-        self.model_rate  = model_rate
+        self.model_cosmo  = model_cosmo
+        self.model_mass   = model_mass
+        self.model_rate   = model_rate
 
-        self.normalized  = False if z_det_range is None else True
-        self.Tobs        = Tobs if ~self.normalized else 1.
-        self.z_int_res   = z_int_res
-        self.z_det_range = z_det_range
-        self.check_Neff  = check_Neff
-        self.inj_Neff    = inj_Neff
+        self.p_gal        = p_gal if (p_gal is not None) else model_cosmo.dV_dz
+
+        self.normalized   = False if z_det_range is None else True
+        self.Tobs         = Tobs if ~self.normalized else 1.
+        self.z_int_res    = z_int_res
+        self.z_det_range  = z_det_range
+
+        self.neff_inj_min = neff_inj_min
+        self.check_Neff   = True if self.neff_inj_min is not None else False  
 
         self.load()
 
@@ -89,7 +93,7 @@ class Bias():
         m1, m2 = self.data_inj["m1det"]/(1.+z),  self.data_inj["m2det"]/(1.+z)
 
         dN_dm1dm2dz    = self.Tobs * self.model_mass(m1, m2, lambda_mass) *\
-                         np.array(self.model_cosmo.dV_dz(z, lambda_cosmo)) * self.model_rate(z, lambda_rate)/(1.+z)
+                         np.array(self.p_gal(z, lambda_cosmo)) * self.model_rate(z, lambda_rate)/(1.+z)
         
         dN_dm1zdm2zddL = dN_dm1dm2dz / ((1.+z)**2 * np.array(self.model_cosmo.ddL_dz(z, lambda_cosmo, self.data_inj["dL"])))
 
@@ -119,7 +123,7 @@ class Bias():
         """
 
         zz    = np.linspace(*self.z_det_range, self.z_int_res)
-        dN_dz = self.model_rate(zz, lambda_rate)/(1.+zz) * np.array(self.model_cosmo.dV_dz(zz, lambda_cosmo))
+        dN_dz = self.model_rate(zz, lambda_rate)/(1.+zz) * np.array(self.p_gal(zz, lambda_cosmo))
         res   = np.trapz(dN_dz, zz)
 
         return res
@@ -135,7 +139,7 @@ class Bias():
         sig2 = s2 - mu**2 / self.N_inj
         Neff = mu**2 / sig2
 
-        if (Neff < 5) and self.check_Neff:
+        if (Neff < self.neff_inj_min) and self.check_Neff:
             log.warning(f"Neff = {Neff:.1f} < 5 for injections. Returning zero prob.")
             return 0.
         
