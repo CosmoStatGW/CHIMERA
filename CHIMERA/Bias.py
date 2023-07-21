@@ -17,7 +17,7 @@ class Bias():
                  file_inj, 
                  N_inj        = None, 
                  snr_th       = None, 
-                 p_gal        = None,
+                 p_bkg        = None,
                  z_int_res    = 1000,
                  z_det_range  = [0,1.3],
                  neff_inj_min = 5,
@@ -32,7 +32,7 @@ class Bias():
         self.model_mass   = model_mass
         self.model_rate   = model_rate
 
-        self.p_gal        = p_gal if (p_gal is not None) else model_cosmo.dV_dz
+        self.p_bkg        = p_bkg if (p_bkg is not None) else model_cosmo.dV_dz
 
         self.normalized   = False if z_det_range is None else True
         self.Tobs         = Tobs if ~self.normalized else 1.
@@ -93,8 +93,8 @@ class Bias():
         m1, m2 = self.data_inj["m1det"]/(1.+z),  self.data_inj["m2det"]/(1.+z)
 
         dN_dm1dm2dz    = self.Tobs * self.model_mass(m1, m2, lambda_mass) *\
-                         np.array(self.p_gal(z, lambda_cosmo)) * self.model_rate(z, lambda_rate)/(1.+z)
-        
+                         np.array(self.p_bkg(z, lambda_cosmo)) * self.model_rate(z, lambda_rate)/(1.+z)
+
         dN_dm1zdm2zddL = dN_dm1dm2dz / ((1.+z)**2 * np.array(self.model_cosmo.ddL_dz(z, lambda_cosmo, self.data_inj["dL"])))
 
         dN             = dN_dm1zdm2zddL/self.data_inj["w"] 
@@ -105,7 +105,6 @@ class Bias():
 
         # else:
         #     print("NNorm bias")
-
         
         return dN
         
@@ -123,7 +122,7 @@ class Bias():
         """
 
         zz    = np.linspace(*self.z_det_range, self.z_int_res)
-        dN_dz = self.model_rate(zz, lambda_rate)/(1.+zz) * np.array(self.p_gal(zz, lambda_cosmo))
+        dN_dz = self.model_rate(zz, lambda_rate)/(1.+zz) * np.array(self.p_bkg(zz, lambda_cosmo))
         res   = np.trapz(dN_dz, zz)
 
         return res

@@ -14,81 +14,145 @@ from CHIMERA.utils import angles, presets
 from sklearn.cluster import AgglomerativeClustering
 import healpy as hp
 from scipy import interpolate, signal
+from scipy.special import erf
 
 import logging
 log = logging.getLogger(__name__)
 
-
+import pickle
 import numpy as np
 import healpy as hp
 
 from CHIMERA.cosmo import fLCDM
 lambda_cosmo = {"H0":70.0, "Om0":0.3}
 
-        
+
 class Completeness(ABC):
     
     def __init__(self):
         self._computed = False
-       
+
+    @abstractmethod
     def compute(self, galdata, useDirac = False): 
-        log.info('Computing completeness')
-        self.compute_implementation(galdata, useDirac)
-        self._computed = True
-    
-    @abstractmethod
-    def compute_implementation(self, galdata):
+        """Perform computation and set self._computed to True"""
         pass
+
+    @property
+    def P_compl(self):
+        """Return the completeness as a function of z"""
+        pass
+
+       
+    # @abstractmethod
+    # def compute_implementation(self, galdata):
+    #     pass
         
-    @abstractmethod
-    def zstar(self, theta, phi):
-        pass
-     
-    def get(self, theta, phi, z, oneZPerAngle=False):
-        assert(self._computed)
-        if np.isscalar(z):
-            return np.where(z > self.zstar(theta, phi), self.get_at_z_implementation(theta, phi, z), 1)
-        else:
-            if oneZPerAngle:
-                assert(not np.isscalar(theta))
-                assert(len(z) == len(theta))
-                close = z < self.zstar(theta, phi)
-                ret = np.zeros(len(z))
-                ret[~close] = self.get_many_implementation(theta[~close], phi[~close], z[~close])
-                ret[close] = 1
-                return ret
-            else:
-                if not np.isscalar(theta):
-                    if len(z) == len(theta):
-                        log.info('Completeness::get: number of redshift bins and number of angles agree but oneZPerAngle is not True. This may be a coincidence, or indicate that the flag should be True')
+    # @abstractmethod
+    # def zstar(self, theta, phi):
+    #     pass
+
+    # @abstractmethod
+    # def get_fR(self, lambda_cosmo, z_det_range):
+    #     pass
+
+
+    # def get(self, theta, phi, z, oneZPerAngle=False):
+    #     assert(self._computed)
+    #     if np.isscalar(z):
+    #         return np.where(z > self.zstar(theta, phi), self.get_at_z_implementation(theta, phi, z), 1)
+    #     else:
+    #         if oneZPerAngle:
+    #             assert(not np.isscalar(theta))
+    #             assert(len(z) == len(theta))
+    #             close = z < self.zstar(theta, phi)
+    #             ret = np.zeros(len(z))
+    #             ret[~close] = self.get_many_implementation(theta[~close], phi[~close], z[~close])
+    #             ret[close] = 1
+    #             return ret
+    #         else:
+    #             if not np.isscalar(theta):
+    #                 if len(z) == len(theta):
+    #                     log.info('Completeness::get: number of redshift bins and number of angles agree but oneZPerAngle is not True. This may be a coincidence, or indicate that the flag should be True')
                 
-                    ret = self.get_implementation(theta, phi, z)
-                    close = z[np.newaxis, :] < self.zstar(theta, phi)[:, np.newaxis]
-                    return np.where(close, 1, ret)
-                else:
-                    ret = self.get_implementation(theta, phi, z)
-                    close = z < self.zstar(theta, phi)
-                    return np.where(close, 1, ret)
+    #                 ret = self.get_implementation(theta, phi, z)
+    #                 close = z[np.newaxis, :] < self.zstar(theta, phi)[:, np.newaxis]
+    #                 return np.where(close, 1, ret)
+    #             else:
+    #                 ret = self.get_implementation(theta, phi, z)
+    #                 close = z < self.zstar(theta, phi)
+    #                 return np.where(close, 1, ret)
                     
     
     # z is scalar (theta, phi may or may not be)
     # useful to make maps at fixed z and for single points
-    @abstractmethod
-    def get_at_z_implementation(self, theta, phi, z):
-        pass
+    # @abstractmethod
+    # def get_at_z_implementation(self, theta, phi, z):
+    #     pass
         
-    # z, theta, phi are vectors of same length
-    @abstractmethod
-    def get_many_implementation(self, theta, phi, z):
-        pass
+    # # z, theta, phi are vectors of same length
+    # @abstractmethod
+    # def get_many_implementation(self, theta, phi, z):
+    #     pass
     
-    # z is grid, we want matrix: for each theta,phi compute *each* z
-    @abstractmethod
-    def get_implementation(self, theta, phi, z):
-        pass
-        
-  
+    # # z is grid, we want matrix: for each theta,phi compute *each* z
+    # @abstractmethod
+    # def get_implementation(self, theta, phi, z):
+    #     pass
+
+
+def range(z, z_range):
+    """Return 1 if z is in z_range, 0 otherwise."""
+    return np.where(np.logical_and(z>z_range[0], z<z_range[1]), 1., 0.)
+
+def step_smooth(x, xsig, xthr):
+    """Return a smoothed step function."""
+    t_thr= (xthr-x)/xsig
+    return 0.5*(1+erf(t_thr/np.sqrt(2)))
     
+
+
+class CompletenessMICEv2(Completeness):
+    """Class representing the completeness model for the MICEv2 mock catalog."""
+
+    def __init__(self, z_range = [0.073, 1.3], kind = "range", z_sig = None):
+        """Initialize the class with a threshold, a type of function, and an optional smoothing parameter
+
+        Args:
+            z_range (list, optional): completeness range. Defaults to [0.073, 1.3].
+            kind (str, optional): kind of threshold. Defaults to "step".
+            z_sig (_type_, optional): smoothing parameter. Defaults to None.
+        """
+        super().__init__()
+
+        self.z_range = z_range
+        self.kind = kind
+        self.z_sig = z_sig
+        self.compute()
+
+    def compute(self):
+        if self.kind == "range":
+            self._P_compl = lambda z: range(z, self.z_range)
+        elif self.kind == "step_smooth":
+            self._P_compl = lambda z: step_smooth(z, self.z_sig, self.z_range)
+        else:
+            raise ValueError("kind must be range or step_smooth")
+
+        self._computed = True
+
+    def P_compl(self):
+        """Return the completeness function."""
+        if not self._computed:
+            raise RuntimeError("Must run compute method before accessing P_compl.")
+        return self._P_compl
+    
+
+
+
+
+
+
+
+
 class SkipCompleteness(Completeness):
     
     def __init__(self, **kwargs):

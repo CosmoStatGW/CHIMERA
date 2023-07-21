@@ -73,6 +73,25 @@ class Likelihood():
         p_z_norm = self.gw.model_rate(zz, lambda_rate)/(1.+zz)*self.gw.model_cosmo.dV_dz(zz, lambda_cosmo)
         return np.trapz(p_z_norm, zz, axis=0)
 
+    def get_fR(self, lambda_cosmo, norm=False):
+        """Compute completeness fraction (kind of)
+
+        Args:
+            lambda_cosmo (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        def _fR_integrand(zz, lambda_cosmo):
+            return self.compl(zz)*np.array(self.model_cosmo.dV_dz(zz, lambda_cosmo))
+
+        # res = quad(_fR_integrand, 0, 10, args=({"H0": 70, "Om0": 0.3}))[0]  # general
+        res = float(self.model_cosmo.V(1.3, lambda_cosmo)) # MICEv2
+
+        if norm: res /= self.gw.model_cosmo.V(20, lambda_cosmo)
+
+        return res
+    
     def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
         """Compute the likelihood for the given hyperparameters.
 
@@ -89,23 +108,29 @@ class Likelihood():
         # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
         p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
 
+        # Compute completeness fraction (kind of)
+        fR       = self.get_fR(lambda_cosmo)
+
         # Compute like for each event
         for e in range(self.nevents):
             z_grid    = self.z_grids[e]
             p_cat     = self.p_cat_all[e]
-            p_cat_vol = np.array(self.gw.model_cosmo.dV_dz(z_grid, {"H0":70, "Om0":0.3}))[:,np.newaxis]
 
-            norm1     = np.trapz(p_cat, z_grid, axis=0)
-            norm2     = np.trapz(p_cat_vol, z_grid, axis=0)
+            # OLD (before 2021-05-18)
+            # compl     = self.compl(z_grid)[:,np.newaxis]   
+            # p_cat_vol = np.array(self.model_cosmo.dV_dz(z_grid, {"H0":70, "Om0":0.3}))[:,np.newaxis]
+            # norm1     = np.trapz(p_cat, z_grid, axis=0)
+            # norm2     = np.trapz(p_cat_vol, z_grid, axis=0)
+            # p_gal     = (compl * (norm2/norm1)*p_cat/p_cat_vol + (1.-compl))*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
 
-            compl     = np.where(z_grid<1.3, 1., 0.)[:,np.newaxis]
 
-            p_gal     = (compl * (norm2/norm1)*p_cat/p_cat_vol + (1.-compl))#*np.array(self.gw.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
+            compl     = self.P_compl(z_grid)
+            p_gal     = fR * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)) )[:,np.newaxis]
+
+
             p_rate    = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)
             p_z       = (p_rate/p_z_norm)[:,np.newaxis] * p_gal
-
             p_gw      = self.gw.compute_event(e, z_grid, lambda_cosmo, lambda_mass)
-            
             like_pix = np.trapz(p_gw*p_z, z_grid, axis=0)
 
             # p_z  /= np.trapz(p_z, self.z_grids[e], axis=0)
@@ -142,6 +167,7 @@ class MockLike(Likelihood):
                  data_GW_names,
                  data_GW_smooth,
                  data_GAL_dir,
+                 data_GAL_int_dir,
                  data_GAL_zerr,
 
                  # Parameters for pixelization
@@ -174,6 +200,8 @@ class MockLike(Likelihood):
         self.data_GW_names    = [f"Mock_{i:02d}" for i in range(self.Nevents)] if data_GW_names is None else data_GW_names
         self.data_GW_smooth   = data_GW_smooth
         self.data_GAL_dir     = data_GAL_dir
+        self.data_GAL_int_dir = data_GAL_int_dir
+
         self.data_GAL_weights = data_GAL_weights
         self.data_GAL_zerr    = data_GAL_zerr
 
@@ -190,7 +218,7 @@ class MockLike(Likelihood):
         self.attrs_store      = self.attrs_basesave + self.attrs_mock + self.attrs_compute
 
         # Initialize GW class, then precompute pixels and redshift grids
-        self.gw         = GW(data=data_GW, data_names=self.data_GW_names,  data_smooth=self.data_GW_smooth,
+        self.gw         = GW(data=data_GW, data_names=self.data_GW_names, data_smooth=self.data_GW_smooth,
                              model_mass=self.model_mass, model_rate=self.model_rate, model_spin="", model_cosmo=self.model_cosmo, 
                              npix_event=self.npix_event, nside_list=self.nside_list, sky_conf=self.sky_conf, 
                              data_Neff=self.neff_data_min)
@@ -204,7 +232,10 @@ class MockLike(Likelihood):
         if self.data_GAL_dir is not None:
             self.gal = MockGalaxiesMICEv2(self.data_GAL_dir, z_err = self.data_GAL_zerr, nside = self.nside)
             self.p_cat_all, self.ngal_pix = self.gal.precompute(self.nside, self.pix_conf, self.z_grids, self.data_GW_names, self.data_GAL_weights)
-            self.p_bkg = self.gal.p_bkg()
+            self.gal.compute_completeness()
+            self.P_compl   = self.gal.P_compl
+            self.p_gal_bkg = self.gal.get_interpolant(data_GAL_int_dir)
+            
         else:
             self.p_cat_all = [np.ones((self.z_int_res,self.npix_event[e])) for e in range(self.nevents)]        
         

@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 from CHIMERA.EM import Galaxies
 from CHIMERA.utils import (presets, mags)
 from CHIMERA.cosmo import fLCDM
-
+from CHIMERA.Completeness import CompletenessMICEv2
 
 __all__ = [
     "MockGalaxiesMICEv2",
@@ -29,12 +29,13 @@ class MockGalaxiesMICEv2(Galaxies):
 
     def __init__(self, 
                  dir_catalog, 
-                 nside, 
+                 dir_interpolant = None,
                  **kwargs):
         
-        self._file = dir_catalog
+        self._file        = dir_catalog
+        self._file_interp = dir_interpolant
 
-        super().__init__(nside=nside, **kwargs)
+        super().__init__(**kwargs)
 
 
     def load(self,
@@ -65,7 +66,8 @@ class MockGalaxiesMICEv2(Galaxies):
 
         self.data = cat
 
-
+        self._completeness = CompletenessMICEv2
+        
 
 class GLADEPlus(Galaxies):
 
@@ -118,8 +120,6 @@ class GLADEPlus(Galaxies):
                 data[key] = data[key][mask]
 
             log.info(" > L_{} cut, L > {:.1e}Lo: kept {:d} galaxies ({:.1f}%)".format(band, L_th, mask.sum(), 100*mask.sum()/len(mask)))
-
-
 
         
         if "sigmaz" in data: data["z_err"] = data.pop("sigmaz")
