@@ -221,6 +221,21 @@ class Galaxies(ABC):
         return _p_bkg_fcn
     
 
+    def select_upper_cut(self, key, cut):
+        """Select galaxies with key > cut
+
+        Args:
+            key (str): key of the galaxy catalog
+            cut (float): cut value
+
+        Returns:
+            np.ndarray: mask
+        """
+        mask = self.data[key] > cut
+        log.info(f" > applying cut to {key}>{cut}: kept {np.sum(mask)} galaxies")
+        
+        return {k : self.data[k][mask] for k in self.data.keys()}
+
 
 
 

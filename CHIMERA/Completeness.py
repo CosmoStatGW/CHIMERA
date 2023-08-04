@@ -156,28 +156,20 @@ class CompletenessMICEv2(Completeness):
 class SkipCompleteness(Completeness):
     
     def __init__(self, **kwargs):
-        Completeness.__init__(self, comovingDensityGoal=1, **kwargs)
+        super().__init__()       
         
-        
-    def zstar(self, theta, phi):
-        if np.isscalar(theta):
-            return 0
-        return np.zeros(theta.size)
-        
-    def compute_implementation(self, galdata, useDirac):
-        log.info("SkipCompleteness: nothing to compute")
-        
-    def get_at_z_implementation(self, theta, phi, z):
-        if np.isscalar(theta):
-            return 1
-        return np.ones(theta.size)
-        
-    def get_implementation(self, theta, phi, z):
-        return np.ones((theta.size, z.size))
+    def compute(self):
+        self._P_compl = lambda z: np.ones_like(z)
+        self._computed = True
+
+    def P_compl(self):
+        """Return the completeness function."""
+        if not self._computed:
+            raise RuntimeError("Must run compute method before accessing P_compl.")
+        return self._P_compl
     
-    def get_many_implementation(self, theta, phi, z):
-        return np.ones(theta.size)
-        
+
+    
 
 
 
@@ -257,17 +249,6 @@ class MaskCompleteness():
 
         return rho_coarse
 
-    # def _compute_coarse_density(self):
-    #     # Initialize a 2D array to store histograms for all mask groups
-    #     histograms = np.zeros((self.N_masks, self.N_z_bins))
-
-    #     # Get bin indices for each galaxy's z value in corresponding z_edges
-    #     bin_indices = np.array([np.digitize(self.gal_z[i], self.z_edges[self.gal_mask[i]]) for i in range(len(self.gal_z))])
-
-    #     # Use np.add.at to compute the histograms
-    #     np.add.at(histograms, (self.gal_mask, bin_indices), self.compl_vals)
-
-    #     return histograms
 
 
     def _compute_Nbar(self):
