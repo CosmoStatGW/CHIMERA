@@ -98,13 +98,13 @@ def plot_2Dcoring(like,
         ax[1].hist(zgal, bins=z_bins, color='silver', density=True, label="all galaxies") 
 
     if do_p_gal: # Plot p(z)_gal for each pixel
-        [ax[1].plot(z_grid, pdf(like.p_gal[event][:,pix]), c="darkred", lw=lw, alpha=0.7, label=lab_p_gal if pix==0 else None) for pix in range(len(pixels))]
+        [ax[1].plot(z_grid, pdf(like.p_gal_all[event][:,pix]), c="darkred", lw=lw, alpha=0.7, label=lab_p_gal if pix==0 else None) for pix in range(len(pixels))]
 
     if do_p_gw: # Plot p(z)_gw for each pixel
-        [ax[1].plot(z_grid, pdf(like.p_gw[iteration][event][:,pix]), c="darkblue", lw=lw, alpha=0.7, label=lab_p_gw if pix==0 else None) for pix in range(len(pixels))]
+        [ax[1].plot(z_grid, pdf(like.p_gw_all[iteration][event][:,pix]), c="darkblue", lw=lw, alpha=0.7, label=lab_p_gw if pix==0 else None) for pix in range(len(pixels))]
 
     if do_p_z: # Plot p(z) for each pixel
-        [ax[1].plot(z_grid, pdf(like.p_z[iteration][event][:,pix]), c="teal", lw=lw, alpha=0.7, label=lab_p_z if pix==0 else None) for pix in range(len(pixels))]
+        [ax[1].plot(z_grid, pdf(like.p_z_all[iteration][event][:,pix]), c="teal", lw=lw, alpha=0.7, label=lab_p_z if pix==0 else None) for pix in range(len(pixels))]
 
     ax[0].set_xlabel("RA")
     ax[0].set_ylabel("DEC")

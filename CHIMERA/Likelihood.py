@@ -18,7 +18,7 @@ from CHIMERA.GW import GW
 from CHIMERA.EM import UVC_distribution
 from CHIMERA.DataEM import (MockGalaxiesMICEv2, GLADEPlus)
 from CHIMERA.utils import (misc, plotting)
-from CHIMERA.Completeness import SkipCompleteness
+from CHIMERA.Completeness import SkipCompleteness, MaskCompleteness
 
 class Likelihood():
     attrs_baseline = ["model_cosmo", "model_mass", "model_rate", 
@@ -38,7 +38,7 @@ class Likelihood():
     attrs_mock     = ["data_GAL_zerr"]
 
     attrs_galcat   = ["Lcut", "band"]
-
+    
 
     def __init__(self):
         for attr_name in self.attrs_baseline:
@@ -82,72 +82,11 @@ class Likelihood():
         Returns:
             _type_: _description_
         """
-        def _fR_integrand(zz, lambda_cosmo):
-            return self.compl(zz)*np.array(self.model_cosmo.dV_dz(zz, lambda_cosmo))
 
-        # res = quad(_fR_integrand, 0, 10, args=({"H0": 70, "Om0": 0.3}))[0]  # general
-        res = float(self.model_cosmo.V(1.3, lambda_cosmo)) # MICEv2
-
-        if norm: res /= self.gw.model_cosmo.V(20, lambda_cosmo)
-
-        return res
-    
+        pass
+        
     def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
-        """Compute the likelihood for the given hyperparameters.
-
-        Args:
-            lambda_cosmo (dict): cosmological hyperparameters
-            lambda_mass (dict): mass hyperparameters
-            lambda_rate (dict): rate hyperparameters
-
-        Returns:
-            np.ndarray: likelihood for each event
-        """
-        like_events = np.empty(self.nevents)
-
-        # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
-        p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
-
-        # Compute completeness fraction (kind of)
-        fR       = self.get_fR(lambda_cosmo)
-
-        # Compute like for each event
-        for e in range(self.nevents):
-            z_grid    = self.z_grids[e]
-            p_cat     = self.p_cat_all[e]
-
-            # OLD (before 2021-05-18)
-            # compl     = self.compl(z_grid)[:,np.newaxis]   
-            # p_cat_vol = np.array(self.model_cosmo.dV_dz(z_grid, {"H0":70, "Om0":0.3}))[:,np.newaxis]
-            # norm1     = np.trapz(p_cat, z_grid, axis=0)
-            # norm2     = np.trapz(p_cat_vol, z_grid, axis=0)
-            # p_gal     = (compl * (norm2/norm1)*p_cat/p_cat_vol + (1.-compl))*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
-
-
-            compl     = self.P_compl(z_grid)
-            p_gal     = fR * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)) )[:,np.newaxis]
-            # p_gal    *= (self.npix_event[e]*hp.pixelfunc.nside2pixarea(self.nside[e],degrees=False)) # for the integral in dOmega
-
-            p_rate    = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)
-            p_z       = (p_rate/p_z_norm)[:,np.newaxis] * p_gal
-            p_gw      = self.gw.compute_event(e, z_grid, lambda_cosmo, lambda_mass)
-            like_pix = np.trapz(p_gw*p_z, z_grid, axis=0)
-
-            # p_z  /= np.trapz(p_z, self.z_grids[e], axis=0)
-            # p_gal /= hp.pixelfunc.nside2pixarea(nside,degrees=False) # for the integral in dOmega
-
-            like_events[e] = np.nansum(like_pix, axis=0) / hp.pixelfunc.nside2npix(self.nside[e])
-
-            if inspect:
-                self.p_gw_all.append(onp.array(p_gw))
-                self.p_gal_all.append(onp.array(p_gal))
-                self.compl_all.append(onp.array(compl))
-                self.p_rate_all.append(onp.array(p_rate))
-                self.p_z_all.append(onp.array(p_z))
-                self.like_pix_all.append(onp.array(like_pix))
-
-        return onp.array(like_events)
-
+        pass
 
 
 
@@ -237,14 +176,78 @@ class MockLike(Likelihood):
             
         else:
             self.p_cat_all = [np.ones((self.z_int_res,self.npix_event[e])) for e in range(self.nevents)]        
-            self.P_compl   = lambda z: np.ones_like(z)
+            self.P_compl   = lambda z: np.zeros_like(z)
 
-            def _generic_interpolant(z):
-                p_cat_int = np.where((z>z_range[0])&(z<z_range[1]), fLCDM.dV_dz(z, {"H0": 70, "Om0": 0.3}), 0)
-                p_cat_int /= _fR({"H0": 70, "Om0": 0.3})
-                return p_cat_int
+            # def _generic_interpolant(z):
+            #     p_cat_int = np.where((z>z_range[0])&(z<z_range[1]), fLCDM.dV_dz(z, {"H0": 70, "Om0": 0.3}), 0)
+            #     p_cat_int /= _fR({"H0": 70, "Om0": 0.3})
+            #     return p_cat_int
 
-            self.p_gal_bkg = _generic_interpolant
+            # self.p_gal_bkg = _generic_interpolant
+
+
+    def get_fR(self, lambda_cosmo, normalized=False):
+        norm = float(self.model_cosmo.V(20, lambda_cosmo)) if normalized else 1.
+        return  float(self.model_cosmo.V(1.3, lambda_cosmo))/norm
+    
+
+    def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
+        """Compute the likelihood for the given hyperparameters.
+
+        Args:
+            lambda_cosmo (dict): cosmological hyperparameters
+            lambda_mass (dict): mass hyperparameters
+            lambda_rate (dict): rate hyperparameters
+
+        Returns:
+            np.ndarray: likelihood for each event
+        """
+        like_events = np.empty(self.nevents)
+
+        # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
+        p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
+
+        # Compute completeness fraction (kind of)
+        fR       = self.get_fR(lambda_cosmo)
+
+        # Compute like for each event
+        for e in range(self.nevents):
+            z_grid    = self.z_grids[e]
+            p_cat     = self.p_cat_all[e]
+
+            # OLD (before 2021-05-18)
+            # compl     = self.compl(z_grid)[:,np.newaxis]   
+            # p_cat_vol = np.array(self.model_cosmo.dV_dz(z_grid, {"H0":70, "Om0":0.3}))[:,np.newaxis]
+            # norm1     = np.trapz(p_cat, z_grid, axis=0)
+            # norm2     = np.trapz(p_cat_vol, z_grid, axis=0)
+            # p_gal     = (compl * (norm2/norm1)*p_cat/p_cat_vol + (1.-compl))*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
+
+
+            compl     = self.P_compl(z_grid)
+            p_gal     = fR * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)) )[:,np.newaxis]
+            # p_gal    *= (self.npix_event[e]*hp.pixelfunc.nside2pixarea(self.nside[e],degrees=False)) # for the integral in dOmega
+
+            p_rate    = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)
+            p_z       = (p_rate/p_z_norm)[:,np.newaxis] * p_gal
+            p_gw      = self.gw.compute_event(e, z_grid, lambda_cosmo, lambda_mass)
+            like_pix = np.trapz(p_gw*p_z, z_grid, axis=0)
+
+            # p_z  /= np.trapz(p_z, self.z_grids[e], axis=0)
+            # p_gal /= hp.pixelfunc.nside2pixarea(nside,degrees=False) # for the integral in dOmega
+
+            like_events[e] = np.nansum(like_pix, axis=0) / hp.pixelfunc.nside2npix(self.nside[e])
+
+            if inspect:
+                self.p_gw_all.append(onp.array(p_gw))
+                self.p_gal_all.append(onp.array(p_gal))
+                self.compl_all.append(onp.array(compl))
+                self.p_rate_all.append(onp.array(p_rate))
+                self.p_z_all.append(onp.array(p_z))
+                self.like_pix_all.append(onp.array(like_pix))
+
+        return onp.array(like_events)
+
+
 
 
 
@@ -263,6 +266,7 @@ class LikeLVK(Likelihood):
                  data_GW_smooth,
                  data_GAL_dir,
                  data_GAL_int_dir,
+                 completeness,
 
                  # Parameters for pixelization
                  nside_list,
@@ -303,6 +307,7 @@ class LikeLVK(Likelihood):
         self.data_GAL_weights = data_GAL_weights
         self.band             = band
         self.Lcut             = Lcut 
+        self.completeness     = completeness
 
         self.nside_list       = nside_list
         self.npix_event       = npix_event
@@ -327,148 +332,176 @@ class LikeLVK(Likelihood):
         self.npix_event = self.gw.npix_event
         self.z_grids    = self.gw.compute_z_grids(self.z_int_H0_prior, self.z_int_sigma, self.z_int_res)
 
-        # Load galaxy catalog, precompute p_gal and p_bkg
+        # Load galaxy catalog, precompute p_gal, P_compl, and p_bkg
         if self.data_GAL_dir is not None:
             self.gal = GLADEPlus(data_GAL_dir, nside = self.gw.nside, Lcut=Lcut, band=band)
             self.p_cat_all, self.ngal_pix = self.gal.precompute(self.nside, self.pix_conf, self.z_grids, self.data_GW_names, self.data_GAL_weights)
-            self.gal.compute_completeness()
-            self.P_compl   = self.gal.P_compl
-            self.p_gal_bkg = self.gal.get_interpolant(data_GAL_int_dir)
+
+            # if completeness str load
+            if isinstance(self.completeness, str):
+                dir_compl = self.completeness
+                self.completeness = MaskCompleteness(N_z_bins=30, N_masks=4, compl_goal=0.01) #dull
+                self.completeness.load(dir_compl)
+
+                dir_avg_compl = "/home/debian/software/CHIMERA/data/compl_GLADEp_avg.pkl"
+                self.avg_completeness =  MaskCompleteness(N_z_bins=30, N_masks=4, compl_goal=0.01) #dull
+                self.avg_completeness.load(dir_avg_compl)
+
+                print("Using completeness from "+dir_compl)
+                print("Using average completeness from "+dir_avg_compl)
+
+            elif self.completeness is None:
+                print("No completeness given, assuming completeness = 1")
+                self.completeness = None
+            else:
+                self.completeness.compute(self.gal.data)
+
+            # if interpolant
+
+            with open(data_GAL_int_dir, "rb") as f:
+                p_cat_int = pickle.load(f)
             
+            P_compl_avg = lambda z : self.avg_completeness.P_compl(z, np.array([0]), 32)
+            fR_avg = lambda ll : self.avg_completeness.get_fR(ll)
+            
+            def _p_bkg_fcn(z, lambda_cosmo):
+                return fR_avg(lambda_cosmo)*p_cat_int(z) + (1-P_compl_avg)*np.array(fLCDM.dV_dz(z, lambda_cosmo))  
+
+            self.p_gal_bkg = _p_bkg_fcn
+
         else:
             self.p_cat_all = [np.ones((self.z_int_res,self.npix_event[e])) for e in range(self.nevents)]        
 
 
+    def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
+        """Compute the likelihood for the given hyperparameters.
 
+        Args:
+            lambda_cosmo (dict): cosmological hyperparameters
+            lambda_mass (dict): mass hyperparameters
+            lambda_rate (dict): rate hyperparameters
 
+        Returns:
+            np.ndarray: likelihood for each event
+        """
+        like_events = np.empty(self.nevents)
 
+        # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
+        p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
+        fR       = self.completeness.get_fR(lambda_cosmo)
 
+        # Compute like for each event
+        for e in range(self.nevents):
+            z_grid    = self.z_grids[e]
+            p_cat     = self.p_cat_all[e]
+            p_gal     = np.zeros_like(p_cat)
 
+            idxs_mask = self.completeness.get_pix2mask(self.pix_conf[e], self.nside[e])
+            fR_ev     = fR[idxs_mask]
+            compl     = self.completeness.P_compl(z_grid, self.pix_conf[e], self.nside[e])
 
-    # def compute_log(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
-    #     """Compute the log likelihood for the given hyperparameters.
-
-    #     Args:
-    #         lambda_cosmo (dict): cosmological hyperparameters
-    #         lambda_mass (dict): mass hyperparameters
-    #         lambda_rate (dict): rate hyperparameters
-    #         inspect (bool, optional): append intermediate pdfs. Defaults to False.
-
-    #     Returns:
-    #         np.ndarray: log likelihood for each event
-    #     """
-    #     log_like_event = np.empty(self.gw.Nevents)
-
-    #     # Overall rate normalization given lambda_rate
-    #     if self.z_det_range is None:
-    #         log_p_rate_norm = 0.
-    #     else:
-    #         z_det           = np.linspace(*self.z_det_range, 1000)
-    #         log_p_rate_norm = self.gw.model_rate(z_det, lambda_rate) - np.log1p(z_det) + self.gw.model_cosmo.log_dV_dz(z_det, lambda_cosmo)
-    #         log_p_rate_norm = np.log(np.trapz(np.exp(log_p_rate_norm), z_det, axis=0))
-
-    #     # Compute like for each event
-    #     for e in range(self.gw.Nevents):
-    #         log_p_gw   = self.gw.compute_event_log(e, self.z_grids[e], lambda_cosmo, lambda_mass)
-    #         log_p_rate = self.gw.model_rate(self.z_grids[e], lambda_rate) - np.log1p(self.z_grids[e])
-    #         log_p_gal  = np.log(self.p_gal[e])
-
-    #         if self.pixelize is False:
-    #             log_p_gw = (np.logaddexp.reduce(log_p_gw, axis=1) - np.log(log_p_gw.shape[1]))[:, np.newaxis]
-
-    #         log_p_z            = (log_p_rate - log_p_rate_norm)[:,np.newaxis] + log_p_gal
-
-    #         log_like_pix       = np.log(np.trapz(np.exp(log_p_gw), self.z_grids[e], axis=0))
-    #         log_like_event[e]  = np.logaddexp.reduce(log_like_pix, axis=0) - np.log(log_like_pix.shape[0])
-            
-    #         if inspect:
-    #             self.p_gw_all.append([log_p_gw])
-    #             self.p_rate_all.append([log_p_rate])
-    #             self.p_z_all.append([log_p_z])
-    #             self.like_pix_all.append([log_like_pix])
-
-    #     return log_like_event
+            # # print(fR_ev)
+            # # print(fR_ev.shape)
     
+            # # print(compl.shape)
+            # # print(p_cat.shape)
+            # print(p_gal.shape)
+            # print(compl.shape)
+
+
+            # t = fR_ev * p_cat 
+            # print(t.shape)
+
+            # t1 = (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:, np.newaxis] 
+            # print(t1.shape)
+
+            # t2 = t + t1
+            # print(t2.shape)
+            # # print(t1)
+
+
+            p_gal     = fR_ev * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:, np.newaxis]  )
+
+            # for pix in range(self.npix_event[e]):
+            #     zz         = np.linspace(0, 10, 1000)
+            #     compl      = self.P_compl(z_grid, self.pix_conf[e][pix], self.nside[e])
+            #     # print(compl)
+            #     fR         = np.trapz(self.P_compl(zz, self.pix_conf[e][pix], self.nside[e])*np.array(self.model_cosmo.dV_dz(zz, lambda_cosmo)), zz)
+            #     p_gal[:,pix] = fR * p_cat[:,pix] + (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)) 
+
+
+            p_rate    = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)
+            p_z       = (p_rate/p_z_norm)[:,np.newaxis] * p_gal
+            p_gw      = self.gw.compute_event(e, z_grid, lambda_cosmo, lambda_mass)
+            like_pix = np.trapz(p_gw*p_z, z_grid, axis=0)
 
 
 
-    # def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
-    #     """Compute the likelihood for the given hyperparameters.
+            like_events[e] = np.nansum(like_pix, axis=0) / hp.pixelfunc.nside2npix(self.nside[e])
 
-    #     Args:
-    #         lambda_cosmo (dict): cosmological hyperparameters
-    #         lambda_mass (dict): mass hyperparameters
-    #         lambda_rate (dict): rate hyperparameters
-    #         inspect (bool, optional): append intermediate pdfs. Defaults to False.
+            if inspect:
+                self.p_gw_all.append(onp.array(p_gw))
+                self.p_gal_all.append(onp.array(p_gal))
+                self.compl_all.append(onp.array(compl))
+                self.p_rate_all.append(onp.array(p_rate))
+                self.p_z_all.append(onp.array(p_z))
+                self.like_pix_all.append(onp.array(like_pix))
 
-    #     Returns:
-    #         np.ndarray: likelihood for each event
-    #     """
-    #     like_event = np.empty(self.gw.Nevents)
-
-    #     # Compute overall rate normalization given lambda_rate
-    #     if self.z_det_range is None:
-    #         p_rate_norm = 1.
-    #     else:
-    #         z_det       = np.linspace(*self.z_det_range, 1000)
-    #         p_rate_norm = self.gw.model_rate(z_det, lambda_rate)/(1.+z_det)*self.gw.model_cosmo.dV_dz(z_det, lambda_cosmo)
-    #         p_rate_norm = np.trapz(p_rate_norm, z_det, axis=0)
-
-    #     # Compute like for each event
-    #     for e in range(self.gw.Nevents):
-    #         z_grid   = np.array(self.z_grids[e])
-    #         p_gal    = np.array(self.p_gal_all[e])
-    #         p_gw     = self.gw.compute_event(e, z_grid, lambda_cosmo, lambda_mass)
-
-    #         # p_gal[z_grid>1.3] = 1.
-
-    #         if self.data_GAL_dir is None:
-    #             p_rate   = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)*self.gw.model_cosmo.dV_dz(z_grid, lambda_cosmo)
-    #         else:
-    #             p_rate   = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)#*self.gw.model_cosmo.dV_dz(z_grid, lambda_cosmo)
-
-
-    #         if self.pixelize is False: 
-    #             p_gw = np.mean(p_gw, axis=1, keepdims=True)
-            
-    #         p_z  = (p_rate/p_rate_norm)[:,np.newaxis] * p_gal
-
-    #         # p_z  /= np.trapz(p_z, self.z_grids[e], axis=0)
-    #         # p_gal /= hp.pixelfunc.nside2pixarea(nside,degrees=False) # for the integral in dOmega
-    #         # dOmega = hp.pixelfunc.nside2pixarea(self.gw.nside[e],degrees=False)
-
-    #         like_pix      = np.trapz(p_gw*p_z, z_grid, axis=0)
-    #         like_event[e] = np.nanmean(like_pix, axis=0) #/dOmega
-
-    #         if inspect:
-    #             self.p_gw_all.append([p_gw])
-    #             self.p_rate_all.append([p_rate])
-    #             self.p_z_all.append([p_z])
-    #             self.like_pix_all.append([like_pix])
-
-    #     return like_event
-    
+        return onp.array(like_events)
 
 
 
+    def compute_complete(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
+        """Compute the likelihood for the given hyperparameters.
 
-# Temp
+        Args:
+            lambda_cosmo (dict): cosmological hyperparameters
+            lambda_mass (dict): mass hyperparameters
+            lambda_rate (dict): rate hyperparameters
 
-            # self.z_grids[e] = np.linspace(0.1,1.4,300)
+        Returns:
+            np.ndarray: likelihood for each event
+        """
+        like_events = np.empty(self.nevents)
+
+        # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
+        p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
+
+        # Compute completeness fraction (kind of)
 
 
-            # p_rate  /= np.trapz(p_rate, self.z_grids[e], axis=0)
+        # Compute like for each event
+        for e in range(self.nevents):
+            z_grid    = self.z_grids[e]
+            p_cat     = self.p_cat_all[e]
+            compl     = None
+            # OLD (before 2021-05-18)
+            # compl     = self.compl(z_grid)[:,np.newaxis]   
+            # p_cat_vol = np.array(self.model_cosmo.dV_dz(z_grid, {"H0":70, "Om0":0.3}))[:,np.newaxis]
+            # norm1     = np.trapz(p_cat, z_grid, axis=0)
+            # norm2     = np.trapz(p_cat_vol, z_grid, axis=0)
+            # p_gal     = (compl * (norm2/norm1)*p_cat/p_cat_vol + (1.-compl))*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
 
 
-            # p_gal   /= np.trapz(p_gal, self.z_grids[e], axis=0)
+            p_gal     = p_cat
+            # p_gal    *= (self.npix_event[e]*hp.pixelfunc.nside2pixarea(self.nside[e],degrees=False)) # for the integral in dOmega
 
+            p_rate    = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)
+            p_z       = (p_rate/p_z_norm)[:,np.newaxis] * p_gal
+            p_gw      = self.gw.compute_event(e, z_grid, lambda_cosmo, lambda_mass)
+            like_pix = np.trapz(p_gw*p_z, z_grid, axis=0)
 
-            # p_z      = (p_rate)[:,np.newaxis] * p_gal
+            # p_z  /= np.trapz(p_z, self.z_grids[e], axis=0)
+            # p_gal /= hp.pixelfunc.nside2pixarea(nside,degrees=False) # for the integral in dOmega
 
+            like_events[e] = np.nansum(like_pix, axis=0) / hp.pixelfunc.nside2npix(self.nside[e])
 
-            # like_event[e] = nanaverage(like_pix, weights=self.p_gal_w[e], axis=0)
+            if inspect:
+                self.p_gw_all.append(onp.array(p_gw))
+                self.p_gal_all.append(onp.array(p_gal))
+                self.compl_all.append(onp.array(compl))
+                self.p_rate_all.append(onp.array(p_rate))
+                self.p_z_all.append(onp.array(p_z))
+                self.like_pix_all.append(onp.array(like_pix))
 
-
-            # \int dOmega, then dz
-            # l1 = nanaverage(p_gw*p_z, weights=self.p_gal_w[e], axis=1)
-            # like_event[e] = np.trapz(l1, self.z_grids[e], axis=0)/beta
+        return onp.array(like_events)

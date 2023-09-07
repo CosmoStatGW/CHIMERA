@@ -79,19 +79,15 @@ def lambda_default(band):
         # GWCOSMO
         # https://iopscience.iop.org/article/10.1086/322488/pdf
         # Mmax from  Fig 3 of the above reference 
-        return {"alpha":-1.09, "M_star":-23.39, "phi_star":5.5e-3}  # , "Mmin":-27.0, "Mmax":-19.0
+        return {"alpha":-1.09, "M_star":-23.39, "phi_star":5.5e-3, "L_star":4.96e10}  # , "Mmin":-27.0, "Mmax":-19.0
     elif band=="B_Gehrels_Arcavi_17":
         # used in Fischbach 2019
-        return {"alpha":-1.07, "M_star":-20.47, "phi_star":5.5e-3} 
+        return {"phi_star":5.5e-3, "alpha":-1.07, "L_star": 2.45e10, "M_star":-20.47,} 
     elif band=="K_GLADE_2.4":
         # used in Fischbach 2019
-        return {"alpha":-1.02, "M_star":-23.55, "phi_star":5.5e-3} 
-
-    elif band=="B_DSS":
-        return {"alpha":-1.07, "L_star":2.45, "phi_star":5.5e-3}
-
+        return {"phi_star":5.5e-3, "alpha":-1.02, "L_star": 1.1e11, "M_star":-23.55, } 
     else:
-        raise ValueError("{band} band not implemented")
+        raise ValueError(f"{band} band not implemented")
 
 
 
@@ -120,25 +116,49 @@ def log_phiM(M, args_Sch, args_cosmo):
     return 0.4 * np.log(10.0) * phi_star * factor**(1.+alpha) * np.exp(-factor)
     
 
+def phiSchL_normL(lambda_mag):
+    """
+    Calculate the normalization factor for the Schechter luminosity function.
 
-def log_phiM_normalized(M, Mmin, Mmax, args_Sch, args_cosmo):
-    """Compute Schechter function normalized in [Mmin, Mmax]
-
-    Args:
-        M (np.array, float): detector frame absolute magnitudes
-        Mmin (float): lower limit of integration
-        Mmax (float): upper limit of integration
-        args_Sch (dict): Schechter function parameters
-        args_cosmo (dict): cosmology parameters
+    Parameters:
+        lambda_mag (dict): Dictionary containing the Schechter function magnitude parameters.
+            Required keys: "phistar", "Lstar", "alpha", "cut"
 
     Returns:
-        np.array: Normalized Schechter function 
-    """
-    h     = args_cosmo["H0"]/100.
-    Mmin  = Mmin + 5.*np.log10(h)
-    Mmax  = Mmax + 5.*np.log10(h)
+        float: The normalization factor for the Schechter function.
 
-    return phiM(M,args_Sch,args_cosmo)/quad(phiM, Mmin, Mmax, args=(args_Sch, args_cosmo))[0]
+    Notes:
+        The function uses the gammaincc and gamma functions from scipy.special module.
+        The normalization factor is calculated using the formula:
+            norm = phistar * Lstar * gamma(alpha + 2) * gammaincc(alpha + 2, Lcut)
+        where gammaincc is the complemented incomplete gamma function.
+    """
+    
+    phi_star, L_star, alpha, cut = [lambda_mag[i] for i in ["phi_star", "L_star", "alpha", "L_over_Lstar_cut"]]
+
+    return phi_star * L_star * gamma(alpha + 2) * gammaincc(alpha + 2, cut)
+
+
+
+
+# def log_phiM_normalized(M, Mmin, Mmax, args_Sch, args_cosmo):
+#     """Compute Schechter function normalized in [Mmin, Mmax]
+
+#     Args:
+#         M (np.array, float): detector frame absolute magnitudes
+#         Mmin (float): lower limit of integration
+#         Mmax (float): upper limit of integration
+#         args_Sch (dict): Schechter function parameters
+#         args_cosmo (dict): cosmology parameters
+
+#     Returns:
+#         np.array: Normalized Schechter function 
+#     """
+#     h     = args_cosmo["H0"]/100.
+#     Mmin  = Mmin + 5.*np.log10(h)
+#     Mmax  = Mmax + 5.*np.log10(h)
+
+#     return phiM(M,args_Sch,args_cosmo)/quad(phiM, Mmin, Mmax, args=(args_Sch, args_cosmo))[0]
 
 
 
@@ -152,27 +172,7 @@ def phiSchL(L, lambda_mag):
 
 
 
-def phiSchL_normL(lambda_mag):
-    """
-    Calculate the normalization factor for the Schechter function based on magnitude parameters.
 
-    Parameters:
-        lambda_mag (dict): Dictionary containing the Schechter function magnitude parameters.
-            Required keys: "phistar", "Lstar", "alpha", "Lcut"
-
-    Returns:
-        float: The normalization factor for the Schechter function.
-
-    Notes:
-        The function uses the gammaincc and gamma functions from scipy.special module.
-        The normalization factor is calculated using the formula:
-            norm = phistar * Lstar * gamma(alpha + 2) * gammaincc(alpha + 2, Lcut)
-        where gammaincc is the complemented incomplete gamma function.
-    """
-    
-    phi_star, L_star, alpha, L_cut = [lambda_mag[i] for i in ["phi_star", "L_star", "alpha", "L_cut"]]
-
-    return phi_star * L_star * gamma(alpha + 2) * gammaincc(alpha + 2, L_cut)
 
 
 def phiSchL_normN(lambda_mag):

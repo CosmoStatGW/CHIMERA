@@ -17,6 +17,7 @@ from scipy.interpolate import interp1d
 
 from CHIMERA.utils import angles
 from CHIMERA.cosmo import fLCDM
+from CHIMERA.Completeness import SkipCompleteness
 
 import logging
 log = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ __all__ = ["Galaxies",
 ]
 
 
+    
+
+
 
 class Galaxies(ABC):
     
@@ -36,8 +40,7 @@ class Galaxies(ABC):
                  # Pixelization
                  nside = None,
                  nest  = False,
-                
-
+    
                  **kwargs,
                  ):
         
@@ -50,6 +53,7 @@ class Galaxies(ABC):
         if nside is not None:
             self.prepixelize()
         
+
 
     @abstractmethod
     def load(self):
@@ -181,13 +185,8 @@ class Galaxies(ABC):
 
         self.data = {k : self.data[k][mask] for k in self.data.keys()}
 
-
-    def compute_completeness(self, **kwargs):
-        compl = self._completeness(**kwargs)
-        compl.compute()
-        
-        self.P_compl = compl.P_compl()
-    
+    # def set_completeness(self, completeness, **kwargs):
+    #     self.completeness = completeness(self.data, **kwargs)
 
     def get_interpolant(self, dir_interp=None, z_range=[0.073, 1.3]):
 
@@ -195,7 +194,6 @@ class Galaxies(ABC):
             p_cat_int = np.where((z>z_range[0])&(z<z_range[1]), fLCDM.dV_dz(z, {"H0": 70, "Om0": 0.3}), 0)
             p_cat_int /= _fR({"H0": 70, "Om0": 0.3})
             return p_cat_int
-
 
         if dir_interp is not None:
             log.info(f"Loading catalog interpolant in {dir_interp}")
