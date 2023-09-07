@@ -223,8 +223,15 @@ class MockLike(Likelihood):
             # p_gal     = (compl * (norm2/norm1)*p_cat/p_cat_vol + (1.-compl))*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
 
 
-            compl     = self.P_compl(z_grid)
-            p_gal     = fR * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)) )[:,np.newaxis]
+            
+            
+
+            if self.data_GAL_dir is None:
+                p_gal     = np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
+            else:
+                compl     = self.P_compl(z_grid)
+                p_gal     = fR * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)) )[:,np.newaxis]
+        
             # p_gal    *= (self.npix_event[e]*hp.pixelfunc.nside2pixarea(self.nside[e],degrees=False)) # for the integral in dOmega
 
             p_rate    = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)
