@@ -66,14 +66,6 @@ def pdf_PL(m1, m2, lambda_m):
 
 
 ######################################################
-###################################################### Broken PL
-######################################################
-
-# TBD
-
-
-
-######################################################
 ###################################################### Smooth PL
 ######################################################
 
@@ -100,6 +92,69 @@ def _logC_SPL(m1, beta, delta_m, ml, res=200):
 
 # TBD logpdf
 
+######################################################
+###################################################### Broken PL
+######################################################
+
+def _logpdfm1_BPL(m1, a1, a2, delta_m, ml, mh, b):
+    # Marginal distribution p(m1), not normalised
+    m_break = ml + b*(mh-ml)
+
+    maskL = (m1 > ml) & (m1 < m_break)
+    maskU = (m1 < mh) & (m1 > m_break)
+
+    conditions = [maskL, maskU, ~(maskL | maskU)]
+    functions = [-a1*np.log(m1)+ _logSmoothing(m1, delta_m, ml),
+                     -a2*np.log(m1)+ _logSmoothing(m1, delta_m, ml),
+                     -np.inf]
+
+    return np.piecewise(m1,conditions,functions) 
+
+def _logN_BPL(a1, a2, delta_m, ml, mh, b, res=200):
+    # log integral of PLP p(m1, m2) dm1 dm2 (i.e. total normalization of mass function )
+    mmid = ml + delta_m + delta_m/10
+    m_break = ml + b*(mh-ml)
+
+    mm   = np.concatenate([np.linspace(ml, mmid, res),
+                               np.linspace(mmid + 1e-1, m_break, res),
+                               np.linspace(m_break + 1e-1, mh, res)])
+    mm = np.sort(mm)
+
+    p1 = np.exp(_logpdfm1_BPL(mm, a1, a2, delta_m, ml, mh, b))
+
+    return np.log(np.trapz(m1,mm))
+    
+def logpdf_BLP(m1, m2, lambda_m):
+    """Broken Power-law mass distribution, p(m1,m2|lambda_m) normalized
+
+    Args:
+        m1 (np.ndarray): primary mass
+        m2 (np.ndarray): secondary mass
+        lambda_m (dict): parameters of the mass function with keys: 
+                         ["a1", "a2", "delta_m", "ml", "mh", "b"]
+    """
+
+    # Unpack parameters
+    lpar = ["a1", "a2", "delta_m", "ml", "mh", "b"]
+    a1, a2, delta_m, ml, mh, b = [lambda_m[p] for p in lpar]
+    
+    compute = (ml < m2) & (m2 < m1) & (m1 < mh)
+    m1_int  = np.array(m1)
+    m1_int[~compute] = np.nan
+
+    return np.where(compute,
+                    
+                    # compute logprob
+                    _logpdfm1_BPL(m1, a1, a2, delta_m, ml, mh, b) + \
+                    _logpdfm2_SPL(m2, beta, delta_m, ml) + _logC_SPL(m1_int, beta, delta_m, ml) - \
+                    _logN_BPL(a1, a2, delta_m, ml, mh, b) , 
+
+                    # return zero probability
+                    -np.inf)
+
+
+def pdf_BPL(m1, m2, lambda_m):
+    return np.exp(logpdf_BPL(m1, m2, lambda_m))
 
 ######################################################
 ###################################################### PL + Peak
