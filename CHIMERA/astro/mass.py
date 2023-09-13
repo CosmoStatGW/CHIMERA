@@ -122,7 +122,7 @@ def _logN_BPL(a1, a2, delta_m, ml, mh, b, res=200):
 
     p1 = np.exp(_logpdfm1_BPL(mm, a1, a2, delta_m, ml, mh, b))
 
-    return np.log(np.trapz(m1,mm))
+    return np.log(np.trapz(p1,mm))
     
 def logpdf_BLP(m1, m2, lambda_m):
     """Broken Power-law mass distribution, p(m1,m2|lambda_m) normalized
