@@ -124,19 +124,19 @@ def _logN_BPL(a1, a2, delta_m, ml, mh, b, res=200):
 
     return np.log(np.trapz(p1,mm))
     
-def logpdf_BLP(m1, m2, lambda_m):
+def logpdf_BPL(m1, m2, lambda_m):
     """Broken Power-law mass distribution, p(m1,m2|lambda_m) normalized
 
     Args:
         m1 (np.ndarray): primary mass
         m2 (np.ndarray): secondary mass
         lambda_m (dict): parameters of the mass function with keys: 
-                         ["a1", "a2", "delta_m", "ml", "mh", "b"]
+                         ["a1", "a2", "beta", "delta_m", "ml", "mh", "b"]
     """
 
     # Unpack parameters
     lpar = ["a1", "a2", "delta_m", "ml", "mh", "b"]
-    a1, a2, delta_m, ml, mh, b = [lambda_m[p] for p in lpar]
+    a1, a2, beta, delta_m, ml, mh, b = [lambda_m[p] for p in lpar]
     
     compute = (ml < m2) & (m2 < m1) & (m1 < mh)
     m1_int  = np.array(m1)
