@@ -114,6 +114,8 @@ def plot_2Dcoring(like,
     ax[0].legend()
     ax[1].legend()
 
+    return fig
+
 
 
 

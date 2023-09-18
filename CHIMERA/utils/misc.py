@@ -135,14 +135,19 @@ from scipy.integrate import cumtrapz
 from scipy.optimize import fmin
 
 
-def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k", lab=None):
+def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k", lab=None, median=False, ls='--'):
 
     if kde is not None:
         N_samples = 10**6
         post /= np.sum(post)
         samples   = np.random.choice(grid, size=N_samples, replace=True, p=post)
+        med    = np.median(samples)
+        lo, hi = np.percentile(samples, 16), np.percentile(samples, 84)
         post      = gaussian_kde(samples,bw_method=kde).evaluate(grid)
-
+    
+    if kde is None and median:
+        raise ValueError("kde must be provided to compute the median. Too lazy to write other code.")
+    
     # Higher resolution grid
     xx       = np.linspace(grid[0], grid[-1], 10**6)
     post_int = interp1d(grid, post, kind="cubic", bounds_error=False)
@@ -162,14 +167,21 @@ def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k",
 
     # Find the interval
     HDI_low = fmin(width, 1. - interval, disp=False)[0]
-    xmax = xx[np.argmax(yy)]
-    xlow = ppf(HDI_low)
-    xup  = ppf(HDI_low + interval)
+
+    if not median:
+        xmax = xx[np.argmax(yy)]
+        xlow = ppf(HDI_low)
+        xup  = ppf(HDI_low + interval)
+    else:
+        xmax = med
+        xlow = lo
+        xup  = hi 
+        
 
     if ax is not None:
         # lab = "$H_0={:.0f}^{{+{:.0f}}}_{{-{:.0f}}}$".format(xmax, xup-xmax, xmax-xlow)
         ax.fill_between(xx, 0, yy, where=(xx >= xlow) & (xx <= xup), color=color, alpha=0.2, linewidth=0.0)
-        ax.plot([xmax,xmax], [0, float(post_int(xmax))/norm], color=color, linestyle='--', label=lab)
+        ax.plot([xmax,xmax], [0, float(post_int(xmax))/norm], color=color, linestyle=ls, label=lab)
         ax.plot(xx, yy, lw=1, color=color, ls="-")
     
     return xmax, xlow, xup, post_int
