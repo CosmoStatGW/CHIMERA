@@ -18,7 +18,7 @@ from CHIMERA.GW import GW
 from CHIMERA.EM import UVC_distribution
 from CHIMERA.DataEM import (MockGalaxiesMICEv2, GLADEPlus)
 from CHIMERA.utils import (misc, plotting)
-from CHIMERA.Completeness import SkipCompleteness, MaskCompleteness
+from CHIMERA.Completeness import EmptyCatalog, MaskCompleteness, CompletenessMICEv2
 
 class Likelihood():
     attrs_baseline = ["model_cosmo", "model_mass", "model_rate", 
@@ -229,7 +229,7 @@ class MockLike(Likelihood):
             if self.data_GAL_dir is None:
                 p_gal     = np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
             else:
-                compl     = self.P_compl(z_grid)
+                compl     = self.P_compl(z_grid, 0, 0)
                 p_gal     = fR * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)) )[:,np.newaxis]
         
             # p_gal    *= (self.npix_event[e]*hp.pixelfunc.nside2pixarea(self.nside[e],degrees=False)) # for the integral in dOmega
@@ -343,42 +343,70 @@ class LikeLVK(Likelihood):
         if self.data_GAL_dir is not None:
             self.gal = GLADEPlus(data_GAL_dir, nside = self.gw.nside, Lcut=Lcut, band=band)
             self.p_cat_all, self.ngal_pix = self.gal.precompute(self.nside, self.pix_conf, self.z_grids, self.data_GW_names, self.data_GAL_weights)
-
+            
             # if completeness str load
             if isinstance(self.completeness, str):
                 dir_compl = self.completeness
-                self.completeness = MaskCompleteness(N_z_bins=30, N_masks=4, compl_goal=0.01) #dull
-                self.completeness.load(dir_compl)
+                self.completeness = CompletenessMICEv2(z_range = [0., 0.12])
+                
+                # MaskCompleteness(N_z_bins=30, N_masks=4, compl_goal=0.01) #dull
+                # self.completeness.load(dir_compl)
 
                 dir_avg_compl = "/home/debian/software/CHIMERA/data/compl_GLADEp_avg.pkl"
-                self.avg_completeness =  MaskCompleteness(N_z_bins=30, N_masks=4, compl_goal=0.01) #dull
-                self.avg_completeness.load(dir_avg_compl)
+                # self.avg_completeness =  MaskCompleteness(N_z_bins=30, N_masks=4, compl_goal=0.01) #dull
+                # self.avg_completeness.load(dir_avg_compl)
 
                 print("Using completeness from "+dir_compl)
                 print("Using average completeness from "+dir_avg_compl)
 
-            elif self.completeness is None:
-                print("No completeness given, assuming completeness = 1")
-                self.completeness = None
             else:
-                self.completeness.compute(self.gal.data)
+                print("APPROX COMPL")
+                with open(data_GAL_int_dir, "rb") as f:
+                    p_cat_int = pickle.load(f)
 
+                def P_compl(z, z_range=[0,0.12]):
+                    """Return 1 if z is in z_range, 0 otherwise."""
+                    return np.where(np.logical_and(z>z_range[0], z<z_range[1]), 1., 0.)
+
+                def _fR(lambda_cosmo):
+                    return float(self.model_cosmo.V(0.12, lambda_cosmo))
+
+                def _p_bkg_fcn(z, lambda_cosmo):
+                    pn = p_cat_int(z) / np.trapz(p_cat_int(z), z)
+                    return self._fR(lambda_cosmo)*p_cat_int(z) + (1-P_compl(z))*np.array(self.model_cosmo.dV_dz(z, lambda_cosmo))  
+
+
+                self.P_compl   = P_compl
+                self.p_gal_bkg = _p_bkg_fcn
+
+            # elif self.completeness is None:
+            #     print("No completeness given, assuming completeness = 1")
+            #     self.completeness = None
+            # else:
+            #     self.completeness.compute(self.gal.data)
+            #     self.avg_completeness =  EmptyCatalog() #dull
+
+                # self.
             # if interpolant
 
-            with open(data_GAL_int_dir, "rb") as f:
-                p_cat_int = pickle.load(f)
-            
-            P_compl_avg = lambda z : self.avg_completeness.P_compl(z, np.array([0]), 32)
-            fR_avg = lambda ll : self.avg_completeness.get_fR(ll)
-            
-            def _p_bkg_fcn(z, lambda_cosmo):
-                return fR_avg(lambda_cosmo)*p_cat_int(z) + (1-P_compl_avg)*np.array(fLCDM.dV_dz(z, lambda_cosmo))  
 
-            self.p_gal_bkg = _p_bkg_fcn
+            
+            # P_compl_avg = lambda z : self.avg_completeness.P_compl(z, np.array([0]), 32)
+            # fR_avg = lambda ll : self.model.cosmo.V(0.12, ll) 
+            
+            # self.avg_completeness.get_fR(ll, z_det_range=[0,1.3])
+            
+            # def _p_bkg_fcn(z, lambda_cosmo):
+                # return fR_avg(lambda_cosmo)*p_cat_int(z) + (1-P_compl_avg(z).T)*np.array(self.model_cosmo.dV_dz(z, lambda_cosmo))  
+
+            # self.p_gal_bkg = _p_bkg_fcn
 
         else:
             self.p_cat_all = [np.ones((self.z_int_res,self.npix_event[e])) for e in range(self.nevents)]        
 
+    def get_fR(self, lambda_cosmo, norm=False):
+        res = float(self.model_cosmo.V(0.12, lambda_cosmo))
+        return res 
 
     def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
         """Compute the likelihood for the given hyperparameters.
@@ -395,40 +423,25 @@ class LikeLVK(Likelihood):
 
         # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
         p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
-        fR       = self.completeness.get_fR(lambda_cosmo)
+        # fR       = self.completeness.get_fR(lambda_cosmo, z_det_range=[0,20])
+
+        fR_ev = self.get_fR(lambda_cosmo)
 
         # Compute like for each event
         for e in range(self.nevents):
             z_grid    = self.z_grids[e]
             p_cat     = self.p_cat_all[e]
-            p_gal     = np.zeros_like(p_cat)
 
-            idxs_mask = self.completeness.get_pix2mask(self.pix_conf[e], self.nside[e])
-            fR_ev     = fR[idxs_mask]
-            compl     = self.completeness.P_compl(z_grid, self.pix_conf[e], self.nside[e])
+            # idxs_mask = self.completeness.get_pix2mask(self.pix_conf[e], self.nside[e])
+            # fR_ev     = fR[idxs_mask]
 
-            # # print(fR_ev)
-            # # print(fR_ev.shape)
-    
-            # # print(compl.shape)
-            # # print(p_cat.shape)
-            # print(p_gal.shape)
-            # print(compl.shape)
+            # compl     = self.completeness.P_compl(z_grid, self.pix_conf[e], self.nside[e])
 
+            compl     = self.P_compl(z_grid)
 
-            # t = fR_ev * p_cat 
-            # print(t.shape)
+            p_gal     = fR_ev * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)))[:, np.newaxis]
 
-            # t1 = (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:, np.newaxis] 
-            # print(t1.shape)
-
-            # t2 = t + t1
-            # print(t2.shape)
-            # # print(t1)
-
-
-            p_gal     = fR_ev * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:, np.newaxis]  )
-
+            # print(fR_ev * p_cat )
             # for pix in range(self.npix_event[e]):
             #     zz         = np.linspace(0, 10, 1000)
             #     compl      = self.P_compl(z_grid, self.pix_conf[e][pix], self.nside[e])
@@ -490,7 +503,7 @@ class LikeLVK(Likelihood):
             # p_gal     = (compl * (norm2/norm1)*p_cat/p_cat_vol + (1.-compl))*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo))[:,np.newaxis]
 
 
-            p_gal     = p_cat
+            p_gal     = p_cat*np.array(self.model_cosmo.V(20, lambda_cosmo))
             # p_gal    *= (self.npix_event[e]*hp.pixelfunc.nside2pixarea(self.nside[e],degrees=False)) # for the integral in dOmega
 
             p_rate    = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)

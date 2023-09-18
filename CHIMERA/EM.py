@@ -17,7 +17,6 @@ from scipy.interpolate import interp1d
 
 from CHIMERA.utils import angles
 from CHIMERA.cosmo import fLCDM
-from CHIMERA.Completeness import SkipCompleteness
 
 import logging
 log = logging.getLogger(__name__)
@@ -91,7 +90,7 @@ class Galaxies(ABC):
             self.data["w"] = np.ones_like(self.data["z"])
         else:
             log.info(f"Setting weights to {weights}")
-            self.data["w"] = 1/(self.data[weights]/np.mean(self.data[weights]))
+            self.data["w"] = self.data[weights]/np.mean(self.data[weights])
 
         p_cat, N_gal = zip(*[self.precompute_event(nside[e], pix_todo[e], z_grid[e], names[e]) for e in range(Nevents)])
 
@@ -187,6 +186,12 @@ class Galaxies(ABC):
 
     # def set_completeness(self, completeness, **kwargs):
     #     self.completeness = completeness(self.data, **kwargs)
+
+    def compute_completeness(self, **kwargs):
+        compl = self._completeness(**kwargs)
+        compl.compute()
+        
+        self.P_compl = compl.P_compl()
 
     def get_interpolant(self, dir_interp=None, z_range=[0.073, 1.3]):
 

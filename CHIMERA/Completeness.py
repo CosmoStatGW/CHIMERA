@@ -54,19 +54,60 @@ def step_smooth(x, xsig, xthr):
     return 0.5*(1+erf(t_thr/np.sqrt(2)))
     
 
-class SkipCompleteness(Completeness):
+class EmptyCatalog(Completeness):
     
     def __init__(self, **kwargs):
         super().__init__()       
-        
-    def compute_implementation(self):
-        self._P_compl = lambda z: np.ones_like(z)
+        self._computed = True
 
-    def P_compl(self):
+    def compute(self, dummy):
+        pass
+
+    def get_pix2mask(self, pixel, nside_cat):
+        return 0
+
+    def P_compl(self, z, pixel, nside_cat):
         """Return the completeness function."""
-        if not self._computed:
-            raise RuntimeError("Must run compute method before accessing P_compl.")
-        return self._P_compl
+
+        # self._P_compl = lambda z: np.ones_like(z)
+
+        # if not self._computed:
+        #     raise RuntimeError("Must run compute method before accessing P_compl.")
+        
+        
+        return np.atleast_1d(1.)
+
+
+    def get_fR(self, lambda_cosmo, z_res = 1000, z_det_range=[0,20]):
+
+        zz = np.linspace(*z_det_range, z_res)
+        fR = np.trapz(np.array(fLCDM.dV_dz(zz, lambda_cosmo)), zz)
+
+        return np.atleast_1d(fR)
+
+
+class Empty(Completeness):
+    
+    def __init__(self, **kwargs):
+        super().__init__()       
+        self._computed = True
+
+    def compute(self, dummy):
+        pass
+
+    def get_pix2mask(self, pixel, nside_cat):
+        return 0
+
+    def P_compl(self, z, pixel, nside_cat):
+        """Return the completeness function."""
+      
+        return np.atleast_1d(0.)
+
+
+    def get_fR(self, lambda_cosmo, z_res = 1000, z_det_range=[0,20]):
+
+        return np.atleast_1d(0.)
+    
 
 
 class CompletenessMICEv2(Completeness):
@@ -134,13 +175,13 @@ class MaskCompleteness():
     
         self.attrs_save = ["_interp", "_nside", "pix2mask", "_computed",
                            "N_masks", "N_z_bins", "compl_goal", "compl_key",
-                           "sigma_filter", "_zstar"]
+                           "sigma_filter", "_zstar", "N_pix_in", "avg_mask"]
 
 
     def _compute_avg_mask(self):
         # Compute the sum of the completeness weights in each pixel
         unique_pixels, inverse_indices = np.unique(self.gal_pix, return_inverse=True)
-        avg_val = np.bincount(inverse_indices, weights=self.compl_wei)
+        avg_val = np.bincount(inverse_indices) #, weights=self.compl_wei) gruping is always done with Ngal_pix
         avg_mask = np.zeros(self._npix)
         avg_mask[unique_pixels] = avg_val
 
@@ -242,11 +283,12 @@ class MaskCompleteness():
             self.compl_wei  = np.ones_like(self.gal_z)
         else:
             self.compl_wei  = self.data_gal[self.compl_key]
+            log.info(f"Completeness key set to: {self.compl_key}")
 
         # Actual computation 
         log.info("Computing average mask")
         self.avg_mask = self._compute_avg_mask()
-        self.avg_mask_log = np.log2(self.avg_mask+10) # to improve clustering
+        self.avg_mask_log = np.log(self.avg_mask+10) # to improve clustering
 
         log.info("Computing clustering")
         clusterer     = AgglomerativeClustering(self.N_masks, linkage='ward')
@@ -262,7 +304,7 @@ class MaskCompleteness():
         self.counts_coarse, self.rho_coarse = self._compute_coarse()
 
         if self.compl_goal is None: self.compl_goal = self._compute_compl_goal()
-        log.info(f"Comoving density of galaxies goal set to: {self.compl_goal:.4f} Mpc^-3")
+        log.info(f"Completeness goal set to: {self.compl_goal:.2e}")
 
         log.info("Computing interpolants")
         self._compute_interpolants()
@@ -282,7 +324,7 @@ class MaskCompleteness():
 
         for i_mask in range(self.N_masks):
             P_compl    = self._interp[i_mask](zz)
-            fR_array[i_mask] = np.trapz(P_compl*np.array(fLCDM.dV_dz(zz, lambda_cosmo)), zz)
+            fR_array[i_mask] = np.trapz(P_compl*np.array(fLCDM.dV_dz(zz, lambda_cosmo)), zz) / np.trapz(np.array(fLCDM.dV_dz(zz, lambda_cosmo)), zz)
 
         return fR_array
 
@@ -315,3 +357,5 @@ class MaskCompleteness():
             state = pickle.load(f)
         for key in state:
             setattr(self, key, state[key])
+
+        log.info(f"Completeness loaded. N_masks: {self.N_masks}, N_z_bins: {self.N_z_bins}, compl_key: {self.compl_key}")

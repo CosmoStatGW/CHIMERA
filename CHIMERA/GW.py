@@ -96,7 +96,7 @@ class GW(object):
 
         Args:
             nside_list (list): list of nside parameters for Healpix
-            npix_event (number): approximate number of desired pixels per event
+            npix_event (number): approximate number of desired pixels per event###
 
         Returns:
             np.ndarray: optimized nside parameter for each event
@@ -118,7 +118,7 @@ class GW(object):
         u, c  = np.unique(nside, return_counts=True)
 
         log.info(" > NSIDE: " + " ".join(f"{x:4d}" for x in u))
-        log.info(" > counts:" + " ".join(f"{x:4d}" for x in c))
+        log.info(" > event:" + " ".join(f"{x:4d}" for x in c))
 
         pixels  = [self.compute_sky_conf_event(e,nside[e]) for e in range(self.Nevents)]
         ra, dec = zip(*[angles.find_ra_dec(pixels[e], nside=nside[e]) for e in range(self.Nevents)])
@@ -236,6 +236,9 @@ class GW(object):
         Npix = len(self.pix_conf[event])
         Nz   = len(z_grid)
         kde_gw, kde_norm = self._kde_event(event, lambda_cosmo=lambda_cosmo, lambda_mass=lambda_mass, lambda_rate=lambda_rate)
+
+        self.kde_gw = kde_gw
+        self.kde_norm = kde_norm
 
         if kde_gw is None:
             return np.zeros((Nz, Npix))

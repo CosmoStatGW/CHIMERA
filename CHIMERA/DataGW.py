@@ -109,16 +109,20 @@ class DataLVK(DataGW):
         self.data_array = None
 
 
-    def load(self, event_list, Nsamples=None):
+    def load(self, event_list, Nsamples=None, exact_name=False, table_name=None, remap_keys=None):
 
-        self.names = np.atleast_1d(event_list)
-        self.data  = {n:self.load_event(n) for n in self.names}
+        self.names      = np.atleast_1d(event_list)
+        self.exact_name = exact_name
+        self.table_name = table_name
+        self.remap_keys = remap_keys
+        self.data       = {n:self.load_event(n) for n in self.names}
 
         if Nsamples is not None:
             self.subsample_posteriors(Nsamples)
 
         # convert to dict of parameters with arrays of shape (Nevent, Nsamples)
         param_names     = list(self.data[self.names[0]].keys())
+
         self.data_array = {k : np.array([self.data[e][k] for e in self.names]) for k in param_names}
 
         return self.data_array
@@ -136,13 +140,20 @@ class DataLVK(DataGW):
         if obs_run == "O1O2":
             keysLVK    =  ['m1_detector_frame_Msun', 'm2_detector_frame_Msun', 'luminosity_distance_Mpc', 
                            'right_ascension', 'declination']
-            name_ext   = name + "_GWTC-1.hdf5"
+            name_ext   = name + ".hdf5" if self.exact_name else name + "_GWTC-1.hdf5"
+            print(name_ext)
             dir_file   = os.path.join(self.dir_file, obs_run, name_ext)
             
             with h5py.File(dir_file, 'r') as f:
-                posterior_samples = f['Overall_posterior']
-                event = {keysCHIMERA[i]: posterior_samples[k] for i,k in enumerate(keysLVK)}
-            
+                table_name = 'Overall_posterior' if self.table_name is None else self.table_name
+                posterior_samples = f[table_name]
+
+                if self.remap_keys is not None:
+                    event = {k: posterior_samples[v] for k,v in self.remap_keys.items()}   
+                else:
+                    event = {keysCHIMERA[i]: posterior_samples[k] for i,k in enumerate(keysLVK)}
+
+
             if which_spins is None:
                 pass
             elif which_spins=='s1s2':
@@ -163,16 +174,29 @@ class DataLVK(DataGW):
         
         elif obs_run == "O3a":
             keysLVK    = ['mass_1', 'mass_2', 'luminosity_distance', 'ra', 'dec']
-            name_ext   = name + '.h5'
-            dir_file   = os.path.join(self.dir_file, obs_run, name_ext)
+            name_ext   = name + ".hdf5"  if self.exact_name else name + '.h5'
+            # dir_file   = os.path.join(self.dir_file, obs_run, name_ext) # fixme
+            dir_file   = os.path.join(self.dir_file, name_ext)
             # print(dir_file)
             with h5py.File(dir_file, 'r') as f:
-                try:
-                    posterior_samples = f['C01:IMRPhenomD']['posterior_samples']
-                except:
-                    raise ValueError(f"key not found in file, available: {list(f.keys())}")
+                
+                if self.table_name is None:
+                    try:
+                        posterior_samples = f['C01:IMRPhenomD']['posterior_samples']
+                    except:
+                        raise ValueError(f"key not found in file, available: {list(f.keys())}")
+                
+                else:
+                    posterior_samples = f[self.table_name]
 
-                event = {keysCHIMERA[i]: posterior_samples[k] for i,k in enumerate(keysLVK)}
+                if self.remap_keys is not None:
+                    event = {k: np.array(posterior_samples[v]) for k,v in self.remap_keys.items()}   
+                else:
+                    event = {keysCHIMERA[i]: np.array(posterior_samples[k]) for i,k in enumerate(keysLVK)}
+
+
+
+                # event = {keysCHIMERA[i]: posterior_samples[k] for i,k in enumerate(keysLVK)}
 
             if which_spins is None:
                 pass    
@@ -184,7 +208,7 @@ class DataLVK(DataGW):
 
         elif obs_run == "O3b":
             keysLVK = ['mass_1', 'mass_2', 'luminosity_distance', 'ra', 'dec']
-            name_ext   = 'IGWN-GWTC3p0-v1-' + name + '_PEDataRelease_mixed_nocosmo.h5'
+            name_ext   = name_ext   = name if self.exact_name else 'IGWN-GWTC3p0-v1-' + name + '_PEDataRelease_mixed_nocosmo.h5'
             dir_file   = os.path.join(self.dir_file, obs_run, name_ext)
 
             with h5py.File(dir_file, 'r') as f:
