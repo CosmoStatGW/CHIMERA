@@ -135,7 +135,7 @@ def logpdf_BPL(m1, m2, lambda_m):
     """
 
     # Unpack parameters
-    lpar = ["a1", "a2", "delta_m", "ml", "mh", "b"]
+    lpar = ["a1", "a2", "beta", "delta_m", "ml", "mh", "b"]
     a1, a2, beta, delta_m, ml, mh, b = [lambda_m[p] for p in lpar]
     
     compute = (ml < m2) & (m2 < m1) & (m1 < mh)
