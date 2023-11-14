@@ -104,8 +104,8 @@ def _logpdfm1_BPL(m1, a1, a2, delta_m, ml, mh, b):
     maskU = (m1 < mh) & (m1 > m_break)
 
     conditions = [maskL, maskU, ~(maskL | maskU)]
-    functions = [-a1*np.log(m1)+ _logSmoothing(m1, delta_m, ml),
-                     -a2*np.log(m1)+ _logSmoothing(m1, delta_m, ml),
+    functions = [lambda x: -a1*np.log(x)+ _logSmoothing(x, delta_m, ml),
+                     lambda x: -a2*np.log(x)+ _logSmoothing(x, delta_m, ml)+np.log(m_break)*(-a1+a2),
                      -np.inf]
 
     return np.piecewise(m1,conditions,functions) 
@@ -135,7 +135,7 @@ def logpdf_BPL(m1, m2, lambda_m):
     """
 
     # Unpack parameters
-    lpar = ["a1", "a2", "delta_m", "ml", "mh", "b"]
+    lpar = ["a1", "a2", "beta", "delta_m", "ml", "mh", "b"]
     a1, a2, beta, delta_m, ml, mh, b = [lambda_m[p] for p in lpar]
     
     compute = (ml < m2) & (m2 < m1) & (m1 < mh)
