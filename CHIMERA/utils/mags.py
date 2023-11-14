@@ -24,7 +24,7 @@ def Mag2lum(M, band='K'):
     elif band == 'W1':
         M_sun = 3.24
     elif band == 'K':
-        M_sun = 3.28
+        M_sun = 3.27
     else:
         ValueError("Not supported")
 
@@ -67,7 +67,7 @@ def Lstar_default(band):
     if band=="B":
         Lstar = 2.45e10   # Gehrels et al. (2016), Arcavi et al. (2017)
     elif band=="K":
-        Lstar = 1.1e11    # Gehrels et al. (2016), Arcavi et al. (2017)
+        Lstar = 1.056e11    # Gehrels et al. (2016), Arcavi et al. (2017)
     return Lstar
 
 
