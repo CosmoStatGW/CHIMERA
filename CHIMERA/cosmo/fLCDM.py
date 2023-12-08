@@ -100,6 +100,13 @@ def z_from_dL(dL_vec, args):
     # return cubic_spline_interpolation(dL_grid, z_grid, dL_vec)
     return  np.interp(dL_vec, dL_grid, z_grid)
 
+
+def H0_approx(dL, z):
+    return c_light/(1e3*dL) * z
+
+
+
+
 # @jit
 # def cubic_spline_interpolation(x_new, x, y):
 #     dx = np.diff(x)
