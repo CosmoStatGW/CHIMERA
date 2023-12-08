@@ -9,10 +9,35 @@
    height="940"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
   <defs
-     id="defs756" />
+     id="defs756">
+    <pattern
+       inkscape:collect="always"
+       xlink:href="#pattern6-7"
+       preserveAspectRatio="xMidYMid"
+       id="pattern1"
+       patternTransform="translate(190,350)" />
+    <pattern
+       patternUnits="userSpaceOnUse"
+       width="29"
+       height="20"
+       patternTransform="translate(190,350)"
+       preserveAspectRatio="xMidYMid"
+       style="fill:#000000"
+       id="pattern6-7"
+       inkscape:label=""
+       inkscape:collect="always"
+       inkscape:isstock="true">
+      <path
+         style="fill:none;stroke:#000000;stroke-width:10;stroke-linecap:butt;stroke-dasharray:none;paint-order:stroke markers fill;stop-color:#000000"
+         d="M 0,5 C 19,5 10,15 29,15"
+         id="path4-2"
+         sodipodi:nodetypes="cc" />
+    </pattern>
+  </defs>
   <sodipodi:namedview
      id="namedview756"
      pagecolor="#000000"
@@ -22,9 +47,9 @@
      inkscape:pageopacity="0.0"
      inkscape:pagecheckerboard="true"
      inkscape:deskcolor="#d1d1d1"
-     inkscape:zoom="0.39993275"
-     inkscape:cx="1240.2085"
-     inkscape:cy="583.84817"
+     inkscape:zoom="0.7998655"
+     inkscape:cx="956.4108"
+     inkscape:cy="636.98209"
      inkscape:window-width="2256"
      inkscape:window-height="1398"
      inkscape:window-x="769"
@@ -3491,7 +3516,7 @@
      id="ellipse755" />
   <text
      xml:space="preserve"
-     style="font-size:280px;fill:none;stroke:none;stroke-width:3;stroke-dasharray:none;stroke-opacity:1"
+     style="font-size:280px;fill:none;stroke:#ffffff;stroke-width:5;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
      x="1087.0223"
      y="571.65204"
      id="text1"><tspan
@@ -3499,5 +3524,5 @@
        id="tspan1"
        x="1087.0223"
        y="571.65204"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:280px;font-family:'Bookman Old Style';-inkscape-font-specification:'Bookman Old Style';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1c241c;stroke:none;stroke-width:3;stroke-dasharray:none;stroke-opacity:1">CHIMERA</tspan></text>
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:280px;font-family:'Bookman Old Style';-inkscape-font-specification:'Bookman Old Style';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1c241c;stroke:#ffffff;stroke-width:5;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill">CHIMERA</tspan></text>
 </svg>
