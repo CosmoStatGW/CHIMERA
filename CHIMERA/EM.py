@@ -33,6 +33,12 @@ __all__ = ["Galaxies",
 
 
 class Galaxies(ABC):
+    """Abstract class for galaxy catalogs.
+
+    Args:
+        nside (int, optional): nside Healpix parameter. Defaults to None.
+        nest (bool, optional): Healpix pixelization scheme. Defaults to False.
+    """
     
     def __init__(self, 
 

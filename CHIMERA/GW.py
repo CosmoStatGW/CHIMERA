@@ -12,8 +12,7 @@ import numpy as np
 # from scipy.stats import gaussian_kde
 
 from jax.scipy.stats import gaussian_kde
-from jax.config import config
-config.update("jax_enable_x64", True)
+
 
 import logging
 log = logging.getLogger(__name__)
@@ -26,6 +25,21 @@ __all__ = ['GW']
 
 
 class GW(object):
+
+    """Class that handle analysis of gravitational-wave data
+
+    Args:
+        data (dict): dict with following keys: ["m1det", "m2det", "dL", "ra", "dec"]
+        names (list): events names
+        model_mass : TYPE population from 
+        model_cosmo cosmo : TYPE cosmo from
+        pixelize (bool, optional): Defaults to True.
+        nside (int, optional): nside parameter for Healpix. Defaults to 2**8.
+        nest (bool, optional): nest parameter for Healpix. Defaults to False.
+        sky_conf (float, optional): confidence interval threshold for the pixels to include. Defaults to 0.9.
+        file_bws (string, optional): Path to the file containing pre-computed KDE bandwitdhs. Defaults to None.
+    """
+    
         
     def __init__(self,
                  
@@ -156,9 +170,6 @@ class GW(object):
         mincount        = prob_sorted[idx] 
         return mincount
     
-
-
-
 
     def compute_event_log(self, event, z_grid, lambda_cosmo, lambda_mass, lambda_rate=None):
         """GW probability for one event pixelized.
@@ -314,50 +325,3 @@ class GW(object):
         z_max  = self.model_cosmo.z_from_dL(dL_max, {"H0":H0_prior_range[1], "Om0":0.3})
 
         return np.linspace(z_min, z_max, z_res, axis=1)
-
-
-
-
-
-
-    # def compute_catalog(self, lambda_cosmo, lambda_mass, lambda_rate):
-    #     """TBD. Compute the KDE for the entire catalog.
-
-    #     Args:
-    #         event (int): number of the event
-    #         lambda_cosmo (dict): cosmology hyperparameters
-    #         lambda_mass (dict): mass hyperparameters
-
-    #     Returns:
-    #         [gaussian_kde, norm]: KDE for one event and its normalization factor.
-    #     """
-
-    #     dL  = self.data["dL"]
-    #     z   = self.model_cosmo.z_from_dL(dL, lambda_cosmo)
-    #     ra  = self.data["ra"]
-    #     dec = self.data["dec"]
-    #     m1  = self.data["m1det"]/(1.+z)
-    #     m2  = self.data["m2det"]/(1.+z)
-
-    #     models = self.model_mass(m1, m2, lambda_mass)
-    #     jacD2S = 2*np.log1p(z) + self.model_cosmo.log_ddL_dz(z, lambda_cosmo, dL)
-    #     priors = 2*np.log(dL)
-
-    #     # models = self.model_rate(z, lambda_rate)/(1.+z) * self.model_mass(m1, m2, lambda_mass) * self.model_cosmo.dV_dz(z, lambda_cosmo)
-
-    #     log_weights = np.nan_to_num(models - jacD2S - priors, nan=-np.inf)
-        
-    #     # log_norm    = np.logaddexp.reduce(log_weights) - np.log(len(log_weights))
-    #     # log_s2      = np.logaddexp.reduce(2.*log_weights) - 2.*np.log(len(log_weights)) 
-    #     # log_sig2    = chimeraUtils.logdiffexp(log_s2, 2.*log_norm-np.log(len(log_weights)))
-    #     # Neff        = np.exp(2.*log_norm - log_sig2)
-
-    #     weights     = np.exp(log_weights)
-
-    #     # if (Neff < 5) or ((weights!=0).sum() < 5):
-    #     #     log.warning(f"Neff={Neff:.2f} < 5.0 for event {event}.")
-    #     #     return None, log_norm
-
-        
-
-    #     return gaussian_kde(np.array([z,ra,dec]), bw_method=self.data_smooth, weights=weights), log_norm
