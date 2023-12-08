@@ -2,6 +2,7 @@
 build/
 dist/
 *.egg-info/
+*.eggs/
 MANIFEST
 
 # Byte-compiled / optimized / DLL files

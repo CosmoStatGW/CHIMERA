@@ -26,7 +26,7 @@ project = "CHIMERA"
 copyright = "2023, Nicola Borghi & contributors"
 version = __version__
 release = __version__
-exclude_patterns = ["_build"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # HTML theme
 html_theme = "sphinx_book_theme"
