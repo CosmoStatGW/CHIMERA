@@ -1,14 +1,24 @@
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+MANIFEST
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
 
-mass_funct/
-
-data/
-data_small/
-
-notebook/
-
+# Other files
 *.jpg
 *.npy
 *.json
 *.logb 
+
+# data folder
+data/
+
+# notebooks folder
+notebook/
+
+# _build documentation folder
+/docs/_build

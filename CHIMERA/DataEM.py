@@ -26,6 +26,12 @@ __all__ = [
 
 
 class MockGalaxiesMICEv2(Galaxies):
+    """Class to handle the MICEv2 mock galaxy catalog
+    
+    Args:
+        dir_catalog (str): path to the hdf5 file containing the catalog
+        dir_interpolant (str, optional): path to the hdf5 file containing the interpolant. Defaults to None.
+    """
 
     def __init__(self, 
                  dir_catalog, 
@@ -42,6 +48,14 @@ class MockGalaxiesMICEv2(Galaxies):
              z_err          = 1,
              units_ra_dec   = "deg",
              keys_load      = ["ra_gal", "dec_gal", "z_cgal"]):
+        
+        """Load the catalog from the hdf5 file
+        
+        Args:
+            z_err (float, optional): uncertainty on the redshift. Defaults to 1.
+            units_ra_dec (str, optional): units of the RA and DEC. Defaults to "deg".
+            keys_load (list, optional): keys to load from the hdf5 file. Defaults to ["ra_gal", "dec_gal", "z_cgal"].
+        """
 
         log.info("Loading mock galaxy catalog...")
 
@@ -69,7 +83,14 @@ class MockGalaxiesMICEv2(Galaxies):
         self._completeness = CompletenessMICEv2
         
 
+
 class GLADEPlus(Galaxies):
+    """Class to handle the GLADE+ catalog
+    
+    Args:    
+        dir_cat (str): path to the hdf5 file containing the catalog 
+        nside (int, optional): nside of the healpix map. Defaults to None.
+    """
 
     def __init__(self,
                  dir_cat,
@@ -87,6 +108,14 @@ class GLADEPlus(Galaxies):
              Lcut=None,
              band=None,
              ):
+        
+        """Load the catalog from the hdf5 file
+        
+        Args:
+            keys (list, optional): keys to load from the hdf5 file. Defaults to None.
+            Lcut (float, optional): luminosity cut. Defaults to None.
+            band (str, optional): band to use for the luminosity cut. Defaults to None.    
+        """
 
         if keys is None:
             keys = self.all_keys
@@ -127,11 +156,6 @@ class GLADEPlus(Galaxies):
         self.data = data
 
        
-
-    # def get_mask_Lcut(self, band, level):
-
-
-        # return mask
 
 
 

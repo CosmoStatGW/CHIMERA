@@ -13,6 +13,8 @@ __all__ = [
 
 
 class DataGW(ABC):
+    # Generate docstring for abstract class
+    """Abstract class to handle GW data operations."""
     
     def __init__(self, **kwargs):
         pass
@@ -37,9 +39,10 @@ class DataGW(ABC):
 
 
 class DataGWMock(DataGW):
-
-    """ 
-        Class to handle mock GW data.
+    """Class to load a mock GW catalog.
+    
+    Args:   
+        dir_catalog (str): path to the mock GW catalog file.
     """
     
     def __init__(self, dir_catalog):
@@ -98,18 +101,35 @@ class DataGWMock(DataGW):
 
 
 class DataLVK(DataGW):
+    """Class to load the LVK GW catalog.
+    
+    Args:   
+        dir_catalog (str): path to the mock GW catalog file.
+    """
 
-    def __init__(self, dir_file, **kwargs):
+    def __init__(self, dir_catalog, **kwargs):
 
         super().__init__(**kwargs)
 
-        self.dir_file   = dir_file 
-        self.table      = self._get_LVK_table(os.path.join(dir_file, "GWTC-confident.json"))
+        self.dir_file   = dir_catalog 
+        self.table      = self._get_LVK_table(os.path.join(dir_catalog, "GWTC-confident.json"))
         self.data       = None
         self.data_array = None
 
 
     def load(self, event_list, Nsamples=None, exact_name=False, table_name=None, remap_keys=None):
+        """Load a list of events from the LVK catalog.
+
+        Args:
+            event_list (list): list of event names
+            Nsamples (int, optional): number of samples to load for each event. Defaults to all samples.
+            exact_name (bool, optional): whether to use the exact name of the event. Defaults to False.
+            table_name (str, optional): name of the table to load. Defaults to None.
+            remap_keys (dict, optional): dictionary to remap the keys. Defaults to None.
+
+        Returns:    
+            dict: dictionary of arrays containing the GW data.
+        """
 
         self.names      = np.atleast_1d(event_list)
         self.exact_name = exact_name
@@ -130,6 +150,15 @@ class DataLVK(DataGW):
 
 
     def load_event(self, name, which_spins=None):
+        """Load a single event from the LVK catalog.
+
+        Args:
+            name (str): name of the event
+            which_spins (str, optional): which spins to load. Defaults to None.
+
+        Returns:
+            dict: dictionary of arrays containing the GW data.
+        """
 
         keysCHIMERA = ["m1det", "m2det", "dL", "ra", "dec"]
 
@@ -193,10 +222,6 @@ class DataLVK(DataGW):
                     event = {k: np.array(posterior_samples[v]) for k,v in self.remap_keys.items()}   
                 else:
                     event = {keysCHIMERA[i]: np.array(posterior_samples[k]) for i,k in enumerate(keysLVK)}
-
-
-
-                # event = {keysCHIMERA[i]: posterior_samples[k] for i,k in enumerate(keysLVK)}
 
             if which_spins is None:
                 pass    
@@ -295,5 +320,3 @@ class DataLVK(DataGW):
             # for 96.6% of the time (142.0 days) at least one interferometer was observing,
             # while for 85.3% (125.5 days) at least two interferometers were observing
             return "O3b", 147.1/365.25  # yrs
-
-

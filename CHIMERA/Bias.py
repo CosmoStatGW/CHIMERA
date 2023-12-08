@@ -1,14 +1,35 @@
-import os, sys
+import os, sys, logging
 import numpy as np
-import logging
 log = logging.getLogger(__name__)
 
-from CHIMERA.utils import misc
+from .utils import misc
 
 __all__ = ['Bias']
 
 
+
 class Bias():
+
+    """Class to compute the selection bias term. 
+
+    >>> from CHIMERA.Bias import Bias
+    >>> bias = Bias(...)
+    >>> xi   = bias.compute(lambda_cosmo, lambda_mass, lambda_rate)
+
+    Args:
+        model_cosmo (CHIMERA.cosmo): cosmological model
+        model_mass (CHIMERA.astro.mass): mass model
+        model_rate (CHIMERA.astro.rate): rate model
+        file_inj (str): path to the injection file
+        N_inj (int, optional): number of injections. Defaults to None (i.e., the length of the injection catalog).
+        snr_th (float, optional): SNR threshold. Defaults to None (i.e., no SNR cut applied).
+        p_bkg (callable, optional): background probability function. Defaults to None (in this case, it uses `model_cosmo.dV_dz`).
+        z_det_range (list, optional): redshift range for the redshift probability normalization. Defaults to None (i.e., no redshift normalization applied).
+        z_int_res (int, optional): resolution for the redshift integral. Defaults to 1000.
+        neff_inj_min (int, optional): minimum number of effective injections. Defaults to 5.
+        Tobs (float, optional): observation time. Defaults to 1.
+    """       
+
 
     def __init__(self,
                  model_cosmo,
@@ -18,8 +39,8 @@ class Bias():
                  N_inj        = None, 
                  snr_th       = None, 
                  p_bkg        = None,
+                 z_det_range  = None,
                  z_int_res    = 1000,
-                 z_det_range  = [0,1.3],
                  neff_inj_min = 5,
                  Tobs         = 1,
                  ):
@@ -42,10 +63,13 @@ class Bias():
         self.neff_inj_min = neff_inj_min
         self.check_Neff   = True if self.neff_inj_min is not None else False  
 
-        self.load()
+        self._load()
 
 
-    def load(self):
+
+    def _load(self):
+        """Helper function to load the injection data
+        """
         
         data_inj = misc.load_data_h5(self.dir_file)
 
@@ -87,7 +111,43 @@ class Bias():
         return self.data_inj
     
 
-    def get_likelihood(self, lambda_cosmo, lambda_mass, lambda_rate):
+
+    def compute(self, lambda_cosmo, lambda_mass, lambda_rate):
+        """Compute the bias via Monte Carlo integration given the hyperparameters. Checks for N effective.
+
+        Args:
+            lambda_cosmo (dict): cosmological hyperparameters
+            lambda_mass (dict): mass hyperparameters
+            lambda_rate (dict): rate hyperparameters
+        
+        Returns:
+            float: bias value
+        """
+
+        dN   = self._get_likelihood(lambda_cosmo, lambda_mass, lambda_rate)
+        xi   = np.sum(dN) / self.N_inj
+
+        neff = misc.get_Neff(dN, xi, Ndraw=self.N_inj)
+
+        if (neff < self.neff_inj_min) and self.check_Neff:
+            log.warning(f"Neff = {neff:.1f} < 5 for injections. Returning zero prob.")
+            return 0.
+        
+        return xi
+
+
+
+    def _get_likelihood(self, lambda_cosmo, lambda_mass, lambda_rate):
+        """Likelihood of the injection data given the hyperparameters 
+
+        Args:
+            lambda_cosmo (dict): cosmological hyperparameters
+            lambda_mass (dict): mass hyperparameters
+            lambda_rate (dict): rate hyperparameters
+
+        Returns:
+            float: likelihood
+        """
 
         z      = np.array(self.model_cosmo.z_from_dL(self.data_inj["dL"], lambda_cosmo))
         m1, m2 = self.data_inj["m1det"]/(1.+z),  self.data_inj["m2det"]/(1.+z)
@@ -100,17 +160,14 @@ class Bias():
         dN             = dN_dm1zdm2zddL/self.data_inj["w"] 
 
         if self.normalized: 
-            norm   = self.Nexp(lambda_cosmo, lambda_rate)
+            norm   = self._Nexp(lambda_cosmo, lambda_rate)
             dN    /= norm
-
-        # else:
-        #     print("NNorm bias")
         
         return dN
         
 
 
-    def Nexp(self, lambda_cosmo, lambda_rate):
+    def _Nexp(self, lambda_cosmo, lambda_rate):
         """Expected number of events in the Universe given the hyperparameters
 
         Args:
@@ -128,26 +185,18 @@ class Bias():
         return res
 
     
-    def compute(self, lambda_cosmo, lambda_mass, lambda_rate):
 
-        dN   = self.get_likelihood(lambda_cosmo, lambda_mass, lambda_rate)
+    def _get_loglikelihood(self, lambda_cosmo, lambda_mass, lambda_rate):
+        """Likelihood of the injection data given the hyperparameters (log version)
 
-        mu   = np.sum(dN) / self.N_inj
+        Args:
+            lambda_cosmo (dict): cosmological hyperparameters
+            lambda_mass (dict): mass hyperparameters
+            lambda_rate (dict): rate hyperparameters
 
-        s2   = np.sum(dN**2) / self.N_inj**2
-        sig2 = s2 - mu**2 / self.N_inj
-        Neff = mu**2 / sig2
-
-        if (Neff < self.neff_inj_min) and self.check_Neff:
-            log.warning(f"Neff = {Neff:.1f} < 5 for injections. Returning zero prob.")
-            return 0.
-        
-        return mu
-
-    
-
-
-    def get_loglikelihood(self, lambda_cosmo, lambda_mass, lambda_rate):
+        Returns:
+            float: likelihood
+        """
 
         z          = self.model_cosmo.z_from_dL(self.data_inj["dL"], lambda_cosmo)
         m1, m2     = self.data_inj["m1det"]/(1.+z), self.data_inj["m2det"]/(1.+z)
@@ -167,8 +216,9 @@ class Bias():
         return dN
 
 
-    def logNexp(self, lambda_cosmo, lambda_rate):
-        """Expected number of events in the Universe given the hyperparameters
+
+    def _logNexp(self, lambda_cosmo, lambda_rate):
+        """Expected number of events in the Universe given the hyperparameters (log version)
 
         Args:
             lambda_cosmo (dict): cosmological hyperparameters
@@ -184,7 +234,18 @@ class Bias():
         return np.log(np.trapz(np.exp(dN_dz), zz))
 
 
-    def compute_log(self, lambda_cosmo, lambda_mass, lambda_rate):
+
+    def _compute_log(self, lambda_cosmo, lambda_mass, lambda_rate):
+        """Compute the bias via Monte Carlo integration given the hyperparameters. Checks for N effective (log version).
+
+        Args:
+            lambda_cosmo (dict): cosmological hyperparameters
+            lambda_mass (dict): mass hyperparameters
+            lambda_rate (dict): rate hyperparameters
+        
+        Returns:
+            float: bias value
+        """
 
         log_dN   = self.get_loglikelihood(lambda_cosmo, lambda_mass, lambda_rate)
 

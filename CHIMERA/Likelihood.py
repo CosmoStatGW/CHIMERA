@@ -9,7 +9,6 @@ import pickle
 
 from abc import ABC, abstractmethod
 
-# import jax.numpy as np
 import numpy as onp
 import numpy as np
 import healpy as hp
@@ -21,6 +20,11 @@ from CHIMERA.utils import (misc, plotting)
 from CHIMERA.Completeness import EmptyCatalog, MaskCompleteness, CompletenessMICEv2
 
 class Likelihood():
+    # Generate docstring for the class
+    """ Abstract class to handle likelihood (numerator) operations.    
+    """
+
+
     attrs_baseline = ["model_cosmo", "model_mass", "model_rate", 
                       "data_GW_smooth", "data_GAL_dir", "data_GAL_weights", "data_GAL_int_dir",
                      "nside_list", "npix_event", "sky_conf", 
@@ -46,52 +50,69 @@ class Likelihood():
         for attr_name in self.attrs_compute:
             setattr(self, attr_name, [])
 
+    def save(self, filename):
+        """Save the likelihood state to a file."""
+        state = {attr: getattr(self, attr, None) for attr in self.attrs_store}
+        with open(filename, 'wb') as f:
+            pickle.dump(state, f)
+
     def load(self, filename):
+        """Load the likelihood state from a file."""
         with open(filename, 'rb') as f:
             state = pickle.load(f)
         for key in state:
             setattr(self, key, state[key])
 
-    def save(self, filename):
-        state = {attr: getattr(self, attr, None) for attr in self.attrs_store}
-        with open(filename, 'wb') as f:
-            pickle.dump(state, f)
-    
-    def get_p_z_norm(self, lambda_cosmo, lambda_rate):
+    def _get_p_z_norm(self, lambda_cosmo, lambda_rate):
         """Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
-
-        Args:
-            lambda_rate (_type_): _description_
-            lambda_cosmo (_type_): _description_
-
-        Returns:
-            _type_: _description_
         """
         if self.z_det_range is None:
             return 1.
         zz       = np.linspace(*self.z_det_range, 1000)
         p_z_norm = self.gw.model_rate(zz, lambda_rate)/(1.+zz)*self.gw.model_cosmo.dV_dz(zz, lambda_cosmo)
         return np.trapz(p_z_norm, zz, axis=0)
-
-    def get_fR(self, lambda_cosmo, norm=False):
-        """Compute completeness fraction (kind of)
-
-        Args:
-            lambda_cosmo (_type_): _description_
-
-        Returns:
-            _type_: _description_
-        """
-
-        pass
+    
         
     def compute(self, lambda_cosmo, lambda_mass, lambda_rate, inspect=False):
+        """Method to compute the likelihood for the given hyperparameters.
+        
+        Args:
+            lambda_cosmo (dict): cosmological hyperparameters
+            lambda_mass (dict): mass hyperparameters
+            lambda_rate (dict): rate hyperparameters
+            
+        Returns:
+            np.ndarray: likelihood for each event
+        """
         pass
 
 
 
 
 class MockLike(Likelihood):
+
+    """Class to handle likelihood (numerator) operations for mock catalogs.
+    
+    Args:
+        model_cosmo (CHIMERA.cosmo): :class:`CHIMERA.cosmo` object
+        model_mass (CHIMERA.mass): :class:`CHIMERA.mass.mass` object
+        model_rate (CHIMERA.rate): :class:`CHIMERA.rate.rate` object
+        data_GW (dict): dictionary with GW data
+        data_GW_names (list): list of names of the events
+        data_GW_smooth (bool): whether to smooth the GW data or not
+        data_GAL_dir (str): path to the galaxy catalog
+        data_GAL_int_dir (str): path to the galaxy catalog interpolant
+        data_GAL_zerr (float): redshift error for the galaxy catalog
+        nside_list (list): list of nside for the pixelization
+        npix_event (list): list of number of pixels for each event
+        sky_conf (list): list of sky configurations for each event
+        z_int_H0_prior (float): H0 prior for the redshift integration
+        z_int_sigma (float): sigma for the redshift integration
+        z_int_res (int): resolution for the redshift integration
+        z_det_range (list): redshift range for the detection
+        data_GAL_weights (np.ndarray): weights for the galaxy catalog
+        neff_data_min (int): minimum number of galaxies for the galaxy catalog    
+    """
 
     def __init__(self, 
                  
@@ -205,7 +226,7 @@ class MockLike(Likelihood):
         like_events = np.empty(self.nevents)
 
         # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
-        p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
+        p_z_norm = self._get_p_z_norm(lambda_cosmo, lambda_rate)
 
         # Compute completeness fraction (kind of)
         fR       = self.get_fR(lambda_cosmo)
@@ -360,7 +381,7 @@ class LikeLVK(Likelihood):
                 print("Using average completeness from "+dir_avg_compl)
 
             else:
-                print("APPROX COMPL")
+                # print("APPROX COMPL")
                 with open(data_GAL_int_dir, "rb") as f:
                     p_cat_int = pickle.load(f)
 
@@ -422,7 +443,7 @@ class LikeLVK(Likelihood):
         like_events = np.empty(self.nevents)
 
         # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
-        p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
+        p_z_norm = self._get_p_z_norm(lambda_cosmo, lambda_rate)
         # fR       = self.completeness.get_fR(lambda_cosmo, z_det_range=[0,20])
 
         fR_ev = self.get_fR(lambda_cosmo)
@@ -485,7 +506,7 @@ class LikeLVK(Likelihood):
         like_events = np.empty(self.nevents)
 
         # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
-        p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
+        p_z_norm = self._get_p_z_norm(lambda_cosmo, lambda_rate)
 
         # Compute completeness fraction (kind of)
 

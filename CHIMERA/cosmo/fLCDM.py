@@ -91,6 +91,7 @@ def log_dV_dz(z, args):
 #########################
 
 def z_from_dL(dL_vec, args):
+    """Redshift from luminosity distance [Gpc]."""
     z_grid  = np.concatenate([np.logspace(-15, np.log10(9.99e-09), base=10, num=100), 
                               np.logspace(-8, np.log10(7.99), base=10, num=8000),
                               np.logspace(np.log10(8), 5, base=10, num=5000)])
