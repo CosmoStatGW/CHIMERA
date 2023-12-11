@@ -41,7 +41,7 @@ def plot_2Dcoring(like,
                   event         = 0,
                   do_boundaries = True,
                   do_KDE        = False,
-                  do_gal        = True,
+                  do_gal        = False,
                   do_p_gal      = True,
                   do_p_gw       = True,
                   do_p_z        = False,
@@ -51,7 +51,7 @@ def plot_2Dcoring(like,
                   KDE_levels    = [0.1,0.8,0.9, 0.99],
                   lw            = 1,
                   lab_p_gal     = "$p_{\mathrm{gal},k}(z)$",
-                  lab_p_gw      = "$p_{\mathrm{gw},k}(z)$",
+                  lab_p_gw      = "$p_{\mathrm{gw},k}(z|H_0)$",
                   lab_p_z       = "$p_{z,k}(z)$",
                   ax            = None, 
                   ):
@@ -75,7 +75,6 @@ def plot_2Dcoring(like,
     # Individual galaxies
     alpha = misc.remapMinMax(-zgal, a=.2, b=.7)
     ax[0].scatter(ragal, decgal, marker='x', c='darkred', s=30, label="Potential hosts", alpha=alpha)
-    # ax[0].scatter(ragal, decgal, marker='x', c='darkred', s=30, label="All galaxies", alpha=0.5)
 
     if do_boundaries: # Highlight Healpixels
         for jpix in pixels:
@@ -101,20 +100,18 @@ def plot_2Dcoring(like,
         [ax[1].plot(z_grid, pdf(like.p_gal_all[event][:,pix]), c="darkred", lw=lw, alpha=0.7, label=lab_p_gal if pix==0 else None) for pix in range(len(pixels))]
 
     if do_p_gw: # Plot p(z)_gw for each pixel
-        [ax[1].plot(z_grid, pdf(like.p_gw_all[iteration][event][:,pix]), c="darkblue", lw=lw, alpha=0.7, label=lab_p_gw if pix==0 else None) for pix in range(len(pixels))]
+        [ax[1].plot(z_grid, pdf(like.p_gw_all[iteration][:,pix]), c="darkblue", lw=lw, alpha=0.7, label=lab_p_gw if pix==0 else None) for pix in range(len(pixels))]
 
     if do_p_z: # Plot p(z) for each pixel
         [ax[1].plot(z_grid, pdf(like.p_z_all[iteration][event][:,pix]), c="teal", lw=lw, alpha=0.7, label=lab_p_z if pix==0 else None) for pix in range(len(pixels))]
 
     ax[0].set_xlabel("RA")
-    ax[0].set_ylabel("DEC")
+    ax[0].set_ylabel("Dec")
     ax[1].set_xlabel(r"$z$")
-    ax[1].set_ylabel(r"$p(z)~\textit{renormalized}$" if renorm_all else r"$p(z)$")
+    ax[1].set_ylabel(r"$p(z)$")
     ax[1].set_xlim(*z_lims)
     ax[0].legend()
     ax[1].legend()
-
-    return fig
 
 
 

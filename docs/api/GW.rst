@@ -13,4 +13,3 @@ GW
 .. autoclass:: CHIMERA.DataGW.DataLVK
    :members:
    :inherited-members:
-   3

@@ -136,7 +136,7 @@ from scipy.integrate import cumtrapz
 from scipy.optimize import fmin
 
 
-def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k", lab=None, median=False, ls='--'):
+def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k", lab="auto", median=False, ls='--'):
 
     if kde is not None:
         N_samples = 10**6
@@ -177,10 +177,12 @@ def get_confidence_HDI(post, grid, kde=None, interval=0.683, ax=None, color="k",
         xmax = med
         xlow = lo
         xup  = hi 
-        
-
+    
+    
     if ax is not None:
-        # lab = "$H_0={:.0f}^{{+{:.0f}}}_{{-{:.0f}}}$".format(xmax, xup-xmax, xmax-xlow)
+        if lab == "auto":
+            lab = r"$H_0={:.0f}^{{+{:.0f}}}_{{-{:.0f}}}$".format(xmax, xup-xmax, xmax-xlow)
+
         ax.fill_between(xx, 0, yy, where=(xx >= xlow) & (xx <= xup), color=color, alpha=0.2, linewidth=0.0)
         ax.plot([xmax,xmax], [0, float(post_int(xmax))/norm], color=color, linestyle=ls, label=lab)
         ax.plot(xx, yy, lw=1, color=color, ls="-")

@@ -451,36 +451,17 @@ class LikeLVK(Likelihood):
         like_events = np.empty(self.nevents)
 
         # Compute overall rate normalization given lambda_rate (returns 1. if self.z_det_range is None)
-        p_z_norm = self.get_p_z_norm(lambda_cosmo, lambda_rate)
-        fR       = self.completeness.get_fR(lambda_cosmo, z_det_range=[0,0.12])
+        p_z_norm = self._get_p_z_norm(lambda_cosmo, lambda_rate)
 
-        # fR_ev = self.get_fR(lambda_cosmo)
+        fR_ev = self.get_fR(lambda_cosmo)
 
         # Compute like for each event
         for e in range(self.nevents):
             z_grid    = self.z_grids[e]
             p_cat     = self.p_cat_all[e]
 
-            idxs_mask = self.completeness.get_pix2mask(self.pix_conf[e], self.nside[e])
-            fR_ev     = fR[idxs_mask]
-            compl     = self.completeness.P_compl(z_grid, self.pix_conf[e], self.nside[e])
-
-            # compl     = self.P_compl(z_grid)
-
-            p_gal     = fR_ev * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)[:, np.newaxis] ))
-
-            # p_gal     = fR_ev * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)))[:, np.newaxis]
-
-            if 0:
-            # print(fR_ev * p_cat )
-                for pix in range(self.npix_event[e]):
-                    zz         = np.linspace(0, 10, 1000)
-                    compl      = self.P_compl(z_grid, self.pix_conf[e][pix], self.nside[e])
-                    # print(compl)
-                    fR         = np.trapz(self.P_compl(zz, self.pix_conf[e][pix], self.nside[e])*np.array(self.model_cosmo.dV_dz(zz, lambda_cosmo)), zz)
-                    p_gal[:,pix] = fR * p_cat[:,pix] + (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)) 
-
-
+            compl     = self.P_compl(z_grid)
+            p_gal     = fR_ev * p_cat + ( (1.-compl)*np.array(self.model_cosmo.dV_dz(z_grid, lambda_cosmo)))[:, np.newaxis]
             p_rate    = self.gw.model_rate(z_grid, lambda_rate)/(1.+z_grid)
             p_z       = (p_rate/p_z_norm)[:,np.newaxis] * p_gal
             p_gw      = self.gw.compute_event(e, z_grid, lambda_cosmo, lambda_mass)

@@ -24,7 +24,7 @@ fLCDM
 ^^^^^
 
 .. autofunction:: CHIMERA.cosmo.fLCDM.dC
-.. autofunction:: CHIMERA.cosmo.fLCDM.d_L
+.. autofunction:: CHIMERA.cosmo.fLCDM.dL
 .. autofunction:: CHIMERA.cosmo.fLCDM.ddL_dz
 .. autofunction:: CHIMERA.cosmo.fLCDM.V
 .. autofunction:: CHIMERA.cosmo.fLCDM.dV_dz
