@@ -31,8 +31,8 @@ CHIMERA
 .. image:: https://img.shields.io/badge/license-MIT-fb7e21
     :target: https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE
     :alt: License
-.. image:: https://img.shields.io/gitlab/v/release/14528131
-    :target: https://gitlab.com/mmoresco/CHIMERA/-/tags
+.. image:: https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=Release&color=da644d
+    :target: https://github.com/CosmoStatGW/CHIMERA/releases
     :alt: Release
 
 .. raw:: html

@@ -11,7 +11,7 @@ The code is designed to be accurate for different scenarios, encompassing bright
 [![arXiv](https://img.shields.io/badge/arXiv-2106.14894-28bceb)](https://arxiv.org/abs/2106.14894)
 [![Read the Docs](https://readthedocs.org/projects/chimera-gw/badge/?version=latest)](https://chimera-gw.readthedocs.io/en/latest/?badge=latest)
 [![License](https://img.shields.io/badge/license-MIT-fb7e21)](https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE)
-[![GitLab](https://img.shields.io/gitlab/v/release/14528131)](https://gitlab.com/mmoresco/CHIMERA/-/tags)
+[![GitLab](https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=Release&color=da644d)](https://github.com/CosmoStatGW/CHIMERA/releases)
 
 
 ## Installation
