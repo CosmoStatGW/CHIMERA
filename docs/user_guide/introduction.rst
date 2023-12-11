@@ -9,13 +9,12 @@ Introduction
 
 The core modules of CHIMERA are ``Likelihood.py`` and ``Bias.py``. The computation of the likelihood uses functions to analyze the gravitational wave (``GW.py``) and electromagnetic gravitational wave (``EM.py``) information. These modules contain specific methods to perform all the preliminary computations that do not change during the likelihood evaluation (a more extended discussion can be found in the next paragraph). Data are loaded with specific classes present in ``DataGW.py`` (e.g., ``DataGWMock`` and ``DataGWLVK``), ``DataEM.py`` (e.g., ``MockGalaxiesMICEv2`` and ``GLADEPlus``), and ``DataInj.py``. 
 
-.. raw:: html
 
-    <div style="text-align: center;">
-        <img src="../_static/CHIMERA_diagram.svg" style="width:650px; margin:10px;" alt="Flowchart of CHIMERA">
-    </div>
 
-   <br/>
+.. image:: ../_static/CHIMERA_diagram.svg
+  :width: 650
+  :align: center
+  :alt: Flowchart of CHIMERA
 
 
 

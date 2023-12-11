@@ -11,32 +11,29 @@
 
     <div style="min-height:0.1em;"></div>
 
+
 *******
 CHIMERA
 *******
 
-.. .. raw:: html
-
-..    <img src="_static/CHIMERA_logoNB2.svg";" style="width:350px; margin:5px;"/>
-   
-..    <br/>
-
-
 **CHIMERA** (Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis), is a flexible Python code to analyze standard sirens with galaxy catalogs, allowing for a joint fitting of the cosmological and astrophysical population parameters within a Hierarchical Bayesian Inference framework. 
-
-.. The code is designed to be accurate for different scenarios, encompassing bright, dark, and spectral sirens methods, and computationally efficient in view of next-generation GW observatories and galaxy surveys. It uses the LAX-backend implementation and Just In Time (JIT) computation capabilities of JAX. 
 
 
 .. image:: https://img.shields.io/badge/GitHub-CHIMERA-9e8ed7
     :target: https://github.com/CosmoStatGW/CHIMERA/
+    :alt: GitHub
 .. image:: https://img.shields.io/badge/arXiv-2106.14894-28bceb
     :target: https://arxiv.org/abs/2106.14894
+    :alt: arXiv
 .. image:: https://readthedocs.org/projects/chimera-gw/badge/?version=latest
-    :target: https://chimera-gw.readthedocs.io/en/latest/?badge=latest
+    :target: https://chimera-gw.readthedocs.io/latest/?badge=latest
+    :alt: Documentation Status
 .. image:: https://img.shields.io/badge/license-MIT-fb7e21
     :target: https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE
+    :alt: License
 .. image:: https://img.shields.io/gitlab/v/release/14528131
     :target: https://gitlab.com/mmoresco/CHIMERA/-/tags
+    :alt: Release
 
 .. raw:: html
 
@@ -51,7 +48,6 @@ Installation
 .. code-block:: bash
 
    pip install chimera-gw
-
 
 
 License & Attribution
@@ -77,44 +73,46 @@ If you find this code useful in your research, please cite the following paper (
     }
 
 
-
 The team
 --------
 
-Main developers:
+**Core team**
 
-- `Nicola Borghi (nicola.borghi6@unibo.it) <https://orcid.org/0000-0002-2889-8997>`_
-- `Michele Mancarella (michele.mancarella@unimib.it) <https://orcid.org/0000-0002-0675-508X>`_
+- `Nicola Borghi <https://orcid.org/0000-0002-2889-8997>`_ (**main developer**, nicola.borghi6@unibo.it)
+- `Michele Mancarella <https://orcid.org/0000-0002-0675-508X>`_ (michele.mancarella@unimib.it) 
+- `Michele Moresco <https://orcid.org/0000-0002-7616-7136>`_ (michele.moresco@unibo.it) 
 
+**Contributors**
 
-Contributors:
-
-- `Michele Moresco (michele.moresco@unibo.it) <https://orcid.org/0000-0002-7616-7136>`_
 - `Matteo Tagliazucchi <https://orcid.org/0000-0002-2889-8997>`_
-- `Francesco Iacovelli <https://orcid.org/0000-0002-4875-5862>`_
 - Niccolò Passaleva
-
+- `Francesco Iacovelli <https://orcid.org/0000-0002-4875-5862>`_
 
 The code was developed starting from https://github.com/CosmoStatGW/DarkSirensStat (`Finke et al. 2019 <https://orcid.org/0000-0002-2889-8997>`_) and https://github.com/CosmoStatGW/MGCosmoPop (`Mancarella et al. 2021 <https://orcid.org/0000-0002-2889-8997>`_).
-
 
 
 Documentation
 -------------
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
     :caption: User Guide
 
     user_guide/installation
     user_guide/introduction
     user_guide/getting_started
     user_guide/framework
+    user_guide/changelog
     user_guide/citing
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Tutorials
+
+   tutorials/GW170817
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
     :caption: Python APIs
 
     api/MCMC
@@ -125,11 +123,7 @@ Documentation
     api/Models
 
 
-.. .. toctree::
-..    :maxdepth: 1
-..    :caption: Tutorials
 
-..    tutorials/quickstart
 
 
 .. Changelog

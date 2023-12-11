@@ -16,7 +16,7 @@ The code is designed to be accurate for different scenarios, encompassing bright
 
 ## Installation
 
-The code can be easily installed with pip:
+The code can be easily installed with pip (available soon):
 
     pip install chimera-gw
 
@@ -28,7 +28,7 @@ or by cloning the source repository hosted on GitHub
 
 ## Documentation
 
-Read the docs at [chimera-gw.readthedocs.io](https://chimera-gw.readthedocs.io)
+The full documentation is provided at [chimera-gw.readthedocs.io](https://chimera-gw.readthedocs.io)
 
 
 
