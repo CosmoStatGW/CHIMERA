@@ -7,6 +7,8 @@ try:
 except DistributionNotFound:
     __version__ = "unknown version"
 
+import sys
+sys.path.insert(0, '../CHIMERA')
 
 # General stuff
 extensions = [
