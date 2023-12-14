@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "chimera-gw"
-version = "1.0.2"
+version = "1.0.3"
 description = "Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis"
 authors = ["Nicola Borghi <nicola.borghi6@unibo.it>"]
 license = "MIT"
@@ -24,7 +24,7 @@ healpy = "^1.14"
 schwimmbad = "^0.3.2"
 matplotlib = "^3.4"
 jax = {extras = ["cpu"], version = "*"}
-sklearn = "^0.24"
+scikit-learn = "^0.24"
 
 # Optional for docs
 sphinx = { version = "5.3.0", optional = true }
