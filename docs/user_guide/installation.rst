@@ -4,27 +4,31 @@ Installation
 ============
 CHIMERA is a pure Python (>3) code with the following dependencies: `numpy <http://www.numpy.org/>`_ (math operations), `scipy <https://www.scipy.org/>`_ (interpolation and integration functions), `JAX <https://jax.readthedocs.io/>`_ (LAX implementation of scipy functions and just-in-time compilation), `healpy <https://healpy.readthedocs.io//>`_ (HEALPix pixelization), `h5py <https://www.h5py.org/>`_ (I/O operations), `matplotlib <https://matplotlib.org/>`_ (plotting routines), which are automatically installed.
 
-
-
 Using pip
 ---------
-CHIMERA can be easily and quickly installed just by using `Pypi <https://pypi.org/project/pylick>`_:
+The code can be quikly installed from `Pypi <https://pypi.org/project/chimera-gw>`_:
 
 .. code-block:: bash
 
    pip install chimera-gw
 
-
 From source
 -----------
-If you want to modify the code you can clone the source repository hosted on on GitHub
+For more flexibility, clone the source repository into your working folder and install it locally:
 
 .. code-block:: bash
 
-    git clone https://github.com/CosmoStatGW/CHIMERA.git
-    cd CHIMERA
+    git clone https://github.com/CosmoStatGW/CHIMERA
+    cd CHIMERA/
     pip install -e .
 
+Test the installation
+---------------------
+To test the installation, run the following command:
+
+.. code-block:: bash
+
+    python -c "import CHIMERA; print(CHIMERA.__version__)"
 
 Issues
 ------

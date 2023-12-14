@@ -1,5 +1,6 @@
 -e .
 sphinx-book-theme
+sphinx-copybutton
 myst-nb
 matplotlib
 numpy
