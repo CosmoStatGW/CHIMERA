@@ -16,7 +16,7 @@ The code is designed to be accurate for different scenarios, encompassing bright
 
 ## Installation
 
-The code can be quikly installed by cloning the source repository hosted on GitHub:
+The code can be quikly installed from PyPI:
 
     pip install chimera-gw
 
