@@ -31,7 +31,7 @@ CHIMERA
 .. image:: https://img.shields.io/badge/license-MIT-fb7e21
     :target: https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE
     :alt: License
-.. image:: https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=Release&color=da644d
+.. image:: https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=latest-release&color=da644d
     :target: https://github.com/CosmoStatGW/CHIMERA/releases
     :alt: Release
 
@@ -43,11 +43,26 @@ CHIMERA
 Installation
 ------------
 
-**CHIMERA** can be installed using `Pypi <https://pypi.org/project/chimera-gw>`_:
+The code can be quikly installed from `Pypi <https://pypi.org/project/chimera-gw>`_:
 
 .. code-block:: bash
 
    pip install chimera-gw
+
+For more flexibility, clone the source repository into your working folder and install it locally:
+
+.. code-block:: bash
+
+    git clone https://github.com/CosmoStatGW/CHIMERA
+    cd CHIMERA/
+    pip install -e .
+
+To test the installation, run the following command:
+
+.. code-block:: bash
+
+    python -c "import CHIMERA; print(CHIMERA.__version__)"
+
 
 
 License & Attribution
@@ -59,17 +74,21 @@ If you find this code useful in your research, please cite the following paper (
 
 .. code-block:: tex
 
-    @ARTICLE{Borghi2022a,
-        author = {{Borghi}, Nicola and {Moresco}, Michele and {Cimatti}, Andrea and et al.},
-         title = "{Toward a Better Understanding of Cosmic Chronometers: Stellar Population Properties of Passive Galaxies at Intermediate Redshift}",
-       journal = {ApJ},
-          year = 2022,
-         month = mar,
-        volume = {927},
-         pages = {164},
-           doi = {10.3847/1538-4357/ac3240},
-        eprint = {2106.14894},
-        adsurl = {https://ui.adsabs.harvard.edu/abs/2022ApJ...927..164B},
+    @ARTICLE{2023arXiv231205302B,
+        author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
+        title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
+        journal = {arXiv e-prints},
+        keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
+        year = 2023,
+        month = dec,
+        eid = {arXiv:2312.05302},
+        pages = {arXiv:2312.05302},
+        doi = {10.48550/arXiv.2312.05302},
+        archivePrefix = {arXiv},
+        eprint = {2312.05302},
+        primaryClass = {astro-ph.CO},
+        adsurl = {https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B},
+        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
     }
 
 

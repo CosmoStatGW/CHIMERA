@@ -16,6 +16,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",
+    "sphinx_copybutton",
     "myst_nb",
     "IPython.sphinxext.ipython_console_highlighting",
 ]

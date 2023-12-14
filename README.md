@@ -11,30 +11,29 @@ The code is designed to be accurate for different scenarios, encompassing bright
 [![arXiv](https://img.shields.io/badge/arXiv-2106.14894-28bceb)](https://arxiv.org/abs/2106.14894)
 [![Read the Docs](https://readthedocs.org/projects/chimera-gw/badge/?version=latest)](https://chimera-gw.readthedocs.io/en/latest/?badge=latest)
 [![License](https://img.shields.io/badge/license-MIT-fb7e21)](https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE)
-[![GitLab](https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=Release&color=da644d)](https://github.com/CosmoStatGW/CHIMERA/releases)
+[![GitLab](https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=latest-release&color=da644d)](https://github.com/CosmoStatGW/CHIMERA/releases)
 
 
 ## Installation
 
-The code can be quikly installed from PyPI:
+The code can be quikly installed from [Pypi](https://pypi.org/project/chimera-gw/):
 
     pip install chimera-gw
 
-
-For greater flexibility, clone the source repository into your working folder and install it locally:
+For more flexibility, clone the source repository into your working folder and install it locally:
 
     git clone https://github.com/CosmoStatGW/CHIMERA
     cd CHIMERA/
     pip install -e .
 
+To test the installation, run the following command:
 
-
+    python -c "import CHIMERA; print(CHIMERA.__version__)"
 
 
 ## Documentation
 
 The full documentation is provided at [chimera-gw.readthedocs.io](https://chimera-gw.readthedocs.io)
-
 
 
 ## Citation
