@@ -23,3 +23,5 @@ notebook/
 
 # _build documentation folder
 /docs/_build
+poetry.lock
+requirements.txt
