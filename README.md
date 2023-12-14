@@ -1,6 +1,6 @@
 # CHIMERA
 
-<img src="docs/_static/CHIMERA_logoNB2.svg" alt="CHIMERA" width=300px>
+<img src="https://raw.githubusercontent.com/CosmoStatGW/CHIMERA/main/docs/_static/CHIMERA_logoNB2.svg" alt="CHIMERA" width=300px>
 
 
 **CHIMERA** (Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis) is a flexible Python code to analyze standard sirens with galaxy catalogs, allowing for a joint fitting of the cosmological and astrophysical population parameters within a Hierarchical Bayesian Inference framework.
@@ -16,13 +16,18 @@ The code is designed to be accurate for different scenarios, encompassing bright
 
 ## Installation
 
-The code can be easily installed with pip (available soon):
+The code can be quikly installed by cloning the source repository hosted on GitHub:
 
     pip install chimera-gw
 
-or by cloning the source repository hosted on GitHub
 
-    pip install git+https://github.com/CosmoStatGW/CHIMERA
+For greater flexibility, clone the source repository into your working folder and install it locally:
+
+    git clone https://github.com/CosmoStatGW/CHIMERA
+    cd CHIMERA/
+    pip install -e .
+
+
 
 
 
@@ -34,6 +39,22 @@ The full documentation is provided at [chimera-gw.readthedocs.io](https://chimer
 
 ## Citation
 
-If you find this code useful in your research, please cite the following paper ([ADS](https://chimera-gw.readthedocs.io), [arXiv](https://chimera-gw.readthedocs.io)):
+If you find this code useful in your research, please cite the following paper ([ADS](https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B/), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2734729)):
 
-    ...
+
+    @ARTICLE{2023arXiv231205302B,
+        author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
+            title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
+        journal = {arXiv e-prints},
+        keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
+            year = 2023,
+            month = dec,
+            eid = {arXiv:2312.05302},
+            pages = {arXiv:2312.05302},
+            doi = {10.48550/arXiv.2312.05302},
+    archivePrefix = {arXiv},
+        eprint = {2312.05302},
+    primaryClass = {astro-ph.CO},
+        adsurl = {https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B},
+        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+    }

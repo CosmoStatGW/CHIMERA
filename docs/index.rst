@@ -135,3 +135,12 @@ Documentation
 .. TO BULD THE DOCS
    python -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
    python -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
+
+
+.. TO BUILD CHIMERA for pypi
+    poetry env use python
+    poetry build
+    poetry lock
+    poetry update
+    poetry check
+    poetry build

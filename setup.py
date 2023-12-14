@@ -20,11 +20,7 @@ CLASSIFIERS = [
     "Programming Language :: Python",
 ]
 INSTALL_REQUIRES = ["numpy","scipy","h5py","emcee","healpy","jax[cpu]","matplotlib"]
-SETUP_REQUIRES = [
-    "setuptools>=40.6.0",
-    "setuptools_scm",
-    "wheel",
-]
+SETUP_REQUIRES = ["setuptools>=40.6.0","setuptools_scm","wheel"]
 
 
 # END PROJECT SPECIFIC
@@ -51,9 +47,7 @@ if __name__ == "__main__":
     setup(
         name=NAME,
         use_scm_version={
-            "write_to": os.path.join(
-                NAME, "__version__.py".format(NAME)
-            ),
+            "write_to": os.path.join(NAME, "__version__.py".format(NAME)),
             "write_to_template": '__version__ = "{version}"\n',
         },
         author=find_meta("author"),

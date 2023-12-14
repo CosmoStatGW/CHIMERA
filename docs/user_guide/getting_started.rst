@@ -6,7 +6,7 @@
 
 Mock data analysis
 ------------------
-This workflow reproduces the analysis bases on the mock O4- and O5-like catalogs in `Borghi et al. 2023 <http://www.numpy.org/>`_.
+This workflow reproduces the analysis bases on the mock O4- and O5-like catalogs in `Borghi et al. 2023 <https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B>`_.
 
 
 1. Initialize the Likelihood and Bias terms
@@ -34,21 +34,6 @@ This workflow reproduces the analysis bases on the mock O4- and O5-like catalogs
         return like.compute_ln(lambda_cosmo, lambda_mass, lambda_rate) -\
                like.Nevents * bias.compute_ln(lambda_mass, lambda_cosmo, lambda_rate)
 
-
-
-
-
-
-..    import pylick.io as io
-..    from pylick.indices import IndexLibrary
-..    from pylick.analysis import Galaxy
-
-..    spectrum     = io.load_spec_fits(dir_spec, filename, colnames=['lambda', 'flux', 'flux_err'])
-..    ind_library  = IndexLibrary(index_keys)
-
-..    ind_measured = Galaxy(ID, index_list, spec_wave=spectrum[0], spec_flux=spectrum[1], spec_err=spectrum[2], z=z)
-..    vals, errs   = ind_measured.vals, ind_measured.errs
-..    print(ind_measured)
 
 
 LVK data analysis

@@ -6,7 +6,7 @@ Statistical framework
 =====================
 
 .. seealso::
-    A full description of the statistical framework of CHIMERA is presented in `Borghi et al. 2023 <http://www.numpy.org/>`_. 
+    A full description of the statistical framework of CHIMERA is presented in `Borghi et al. 2023 <https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B%2F/>`_. 
     
 CHIMERA is based on an extension of the Hierarchical Bayesian inference framework presented in `Mandel et al. 2019 <http://doi.org/10.1093/mnras/stz896/>`_ and `Vitale et al. 2022 <http://doi.org/10.1007/978-981-15-4702-7_45-1/>`_. Consider a population of GW sources, individually described by source-frame parameters `\boldsymbol{\theta}` which globally follow a probability distribution described by hyper-parameters `\boldsymbol{\lambda}`, namely:
 
