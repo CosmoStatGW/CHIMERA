@@ -6,9 +6,9 @@ CHIMERA is a pure Python (>3) code with the following dependencies: `numpy <http
 
 
 
-Using pip (available soon)
---------------------------
-CHIMERA can be easily and quicly installed just by using `Pypi <https://pypi.org/project/pylick>`_:
+Using pip
+---------
+CHIMERA can be easily and quickly installed just by using `Pypi <https://pypi.org/project/pylick>`_:
 
 .. code-block:: bash
 

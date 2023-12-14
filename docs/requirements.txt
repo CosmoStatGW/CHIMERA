@@ -6,4 +6,5 @@ numpy
 scipy
 h5py
 healpy
+sklearn
 jax[cpu]
