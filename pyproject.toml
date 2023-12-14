@@ -24,7 +24,7 @@ healpy = "^1.14"
 schwimmbad = "^0.3.2"
 matplotlib = "^3.4"
 jax = {extras = ["cpu"], version = "*"}
-scikit-learn = "^0.24"
+scikit-learn = ">=1.0"
 
 # Optional for docs
 sphinx = { version = "5.3.0", optional = true }
