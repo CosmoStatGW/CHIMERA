@@ -25,3 +25,4 @@ notebook/
 /docs/_build
 poetry.lock
 requirements.txt
+desktop.ini
