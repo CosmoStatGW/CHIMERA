@@ -30,6 +30,9 @@ To test the installation, run the following command:
 
     python -c "import CHIMERA; print(CHIMERA.__version__)"
 
+You can also run **CHIMERA** on GPU, but you have to install JAX with GPU support as explained in the [JAX installation guide](https://jax.readthedocs.io/en/latest/installation.html).
+
+
 
 ## Documentation
 
