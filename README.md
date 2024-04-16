@@ -44,19 +44,22 @@ The full documentation is provided at [chimera-gw.readthedocs.io](https://chimer
 If you find this code useful in your research, please cite the following paper ([ADS](https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B/), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2734729)):
 
 
-    @ARTICLE{2023arXiv231205302B,
-        author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
+    @ARTICLE{2024ApJ...964..191B,
+           author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
             title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
-        journal = {arXiv e-prints},
-        keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
-            year = 2023,
-            month = dec,
-            eid = {arXiv:2312.05302},
-            pages = {arXiv:2312.05302},
-            doi = {10.48550/arXiv.2312.05302},
+          journal = {\apj},
+         keywords = {Observational cosmology, Gravitational waves, Cosmological parameters, 1146, 678, 339, Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
+             year = 2024,
+            month = apr,
+           volume = {964},
+           number = {2},
+              eid = {191},
+            pages = {191},
+              doi = {10.3847/1538-4357/ad20eb},
     archivePrefix = {arXiv},
-        eprint = {2312.05302},
-    primaryClass = {astro-ph.CO},
-        adsurl = {https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B},
-        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+           eprint = {2312.05302},
+     primaryClass = {astro-ph.CO},
+           adsurl = {https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B},
+          adsnote = {Provided by the SAO/NASA Astrophysics Data System}
     }
+
