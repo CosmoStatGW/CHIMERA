@@ -1,5 +1,5 @@
 .. CHIMERA documentation master file, created by
-   sphinx-quickstart on Sun Jul  4 16:29:39 2021.
+   sphinx-quickstart on Wed Aug 27 09:45:52 2025.
 
 .. raw:: html
 
@@ -16,7 +16,7 @@
 CHIMERA
 *******
 
-**CHIMERA** (Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis), is a flexible Python code to analyze standard sirens with galaxy catalogs, allowing for a joint fitting of the cosmological and astrophysical population parameters within a Hierarchical Bayesian Inference framework. 
+**CHIMERA** (Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis), is a flexible Python code to analyze standard sirens with galaxy catalogs, allowing for a joint fitting of the cosmological and astrophysical population parameters within a Hierarchical Bayesian Inference framework.
 
 
 .. image:: https://img.shields.io/badge/GitHub-CHIMERA-9e8ed7
@@ -49,7 +49,8 @@ The code can be quikly installed from `Pypi <https://pypi.org/project/chimera-gw
 
    pip install chimera-gw
 
-For more flexibility, clone the source repository into your working folder and install it locally:
+For more flexibility, clone the source repository into your working folder and install it locally (or append the local folder using `sys`):
+
 
 .. code-block:: bash
 
@@ -63,34 +64,43 @@ To test the installation, run the following command:
 
     python -c "import CHIMERA; print(CHIMERA.__version__)"
 
-
+To install and use the code on HPC facilities with GPU nodes follow, the instructions in "install_hpc.txt".
 
 License & Attribution
 ---------------------
 
 **CHIMERA** is free software made available under the MIT License. For details see the ``LICENSE``.
 
-If you find this code useful in your research, please cite the following paper (`ADS <https://ui.adsabs.harvard.edu/abs/2022ApJ...927..164B/abstract>`_, `arXiv <https://arxiv.org/abs/2106.14894>`_, `INSPIRE <https://inspirehep.net/literature/1871797>`_):
+If you find this code useful in your research, please cite the following papers:
 
 .. code-block:: tex
 
-    @ARTICLE{2023arXiv231205302B,
-        author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
-        title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
-        journal = {arXiv e-prints},
-        keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
-        year = 2023,
-        month = dec,
-        eid = {arXiv:2312.05302},
-        pages = {arXiv:2312.05302},
-        doi = {10.48550/arXiv.2312.05302},
-        archivePrefix = {arXiv},
-        eprint = {2312.05302},
-        primaryClass = {astro-ph.CO},
-        adsurl = {https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B},
-        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
-    }
+  @ARTICLE{2023arXiv231205302B,
+    author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
+    title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
+    journal = {arXiv e-prints},
+    keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
+    year = 2023,
+    month = dec,
+    eid = {arXiv:2312.05302},
+    pages = {arXiv:2312.05302},
+    doi = {10.48550/arXiv.2312.05302},
+    archivePrefix = {arXiv},
+    eprint = {2312.05302},
+    primaryClass = {astro-ph.CO},
+    adsurl = {https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B},
+    adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+  }
 
+  @article{Tagliazucchi:2025ofb,
+    author = "Tagliazucchi, Matteo and Moresco, Michele and Borghi, Nicola and Fiebig, Manfred",
+    title = "{Accelerating the Standard Siren Method: Improved Constraints on Modified Gravitational Wave Propagation with Future Data}",
+    eprint = "2504.02034",
+    archivePrefix = "arXiv",
+    primaryClass = "astro-ph.CO",
+    month = "4",
+    year = "2025"
+  }
 
 The team
 --------
@@ -98,51 +108,42 @@ The team
 **Core team**
 
 - `Nicola Borghi <https://orcid.org/0000-0002-2889-8997>`_ (**main developer**, nicola.borghi6@unibo.it)
-- `Michele Mancarella <https://orcid.org/0000-0002-0675-508X>`_ (michele.mancarella@unimib.it) 
-- `Michele Moresco <https://orcid.org/0000-0002-7616-7136>`_ (michele.moresco@unibo.it) 
+- `Matteo Tagliazucchi <https://orcid.org/0000-0002-2889-8997>`_ (matteo.tagliazucchi2@unibo.it)
+- `Michele Moresco <https://orcid.org/0000-0002-7616-7136>`_ (michele.moresco@unibo.it)
+- `Michele Mancarella <https://orcid.org/0000-0002-0675-508X>`_ (michele.mancarella@unimib.it)
 
 **Contributors**
 
-- `Matteo Tagliazucchi <https://orcid.org/0000-0002-2889-8997>`_
-- Niccolò Passaleva
 - `Francesco Iacovelli <https://orcid.org/0000-0002-4875-5862>`_
+- Niccolò Passaleva
+- Giulia Cuomo
+- Manfred Fiebig
 
 The code was developed starting from https://github.com/CosmoStatGW/DarkSirensStat (`Finke et al. 2019 <https://orcid.org/0000-0002-2889-8997>`_) and https://github.com/CosmoStatGW/MGCosmoPop (`Mancarella et al. 2021 <https://orcid.org/0000-0002-2889-8997>`_).
-
 
 Documentation
 -------------
 
 .. toctree::
-    :maxdepth: 1
-    :caption: User Guide
+  :maxdepth: 2
+  :caption: User Guide
 
-    user_guide/installation
-    user_guide/introduction
-    user_guide/getting_started
-    user_guide/framework
-    user_guide/changelog
-    user_guide/citing
+  user_guide/installation
+  user_guide/introduction
+  user_guide/tutorials/index
+  user_guide/citing
+  user_guide/changelog
+
 
 .. toctree::
-   :maxdepth: 1
-   :caption: Tutorials
+  :maxdepth: 1
+  :caption: Python APIs
 
-   tutorials/GW170817
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Python APIs
-
-    api/MCMC
-    api/Likelihood
-    api/GW
-    api/EM 
-    api/Bias
-    api/Models
-
-
-
+  api/data
+  api/likelihood
+  api/selection_function
+  api/population
+  api/catalog
 
 
 .. Changelog
@@ -150,16 +151,15 @@ Documentation
 
 .. .. include:: changelog.rst
 
-
 .. TO BULD THE DOCS
-   python -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
-   python -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
+  python -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+  python -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
 
 
 .. TO BUILD CHIMERA for pypi
-    poetry env use python
-    poetry build
-    poetry lock
-    poetry update
-    poetry check
-    poetry build
+  poetry env use python
+  poetry build
+  poetry lock
+  poetry update
+  poetry check
+  poetry build

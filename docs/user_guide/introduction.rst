@@ -1,35 +1,50 @@
 .. default-role:: math
 
-.. _introduction:
-
+.. _framework:
 
 Introduction
 ============
 
+Statistical framework
+---------------------
 
-The core modules of CHIMERA are ``Likelihood.py`` and ``Bias.py``. The computation of the likelihood uses functions to analyze the gravitational wave (``GW.py``) and electromagnetic gravitational wave (``EM.py``) information. These modules contain specific methods to perform all the preliminary computations that do not change during the likelihood evaluation (a more extended discussion can be found in the next paragraph). Data are loaded with specific classes present in ``DataGW.py`` (e.g., ``DataGWMock`` and ``DataGWLVK``), ``DataEM.py`` (e.g., ``MockGalaxiesMICEv2`` and ``GLADEPlus``), and ``DataInj.py``. 
+.. seealso::
+    A full description of the statistical framework of CHIMERA is presented in `Borghi et al. 2023 <https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B%2F/>`_.
+
+CHIMERA is based on an extension of the Hierarchical Bayesian inference framework presented in `Mandel et al. 2019 <http://doi.org/10.1093/mnras/stz896/>`_ and `Vitale et al. 2022 <http://doi.org/10.1007/978-981-15-4702-7_45-1/>`_. Consider a population of GW sources, individually described by source-frame parameters `\boldsymbol{\theta}` which globally follow a probability distribution described by hyper-parameters `\boldsymbol{\lambda}`, namely:
+
+- `\boldsymbol{\lambda}=\{\boldsymbol{\lambda}_\mathrm{c},\boldsymbol{\lambda}_\mathrm{m},\boldsymbol{\lambda}_\mathrm{z}\}` population hyper-parameters describing cosmology `(\boldsymbol{\lambda}_\mathrm{c})`, binary mass distribution `(\boldsymbol{\lambda}_\mathrm{m})` and rate evolution `(\boldsymbol{\lambda}_\mathrm{z})`;
+- `\boldsymbol{\theta}=\{z,m_1,m_2,\hat{\Omega},\dots\}` GW event source-frame parameters, including redshift `(z)`, primary mass `(m_1)`, secondary mass `(m_2)`, and sky location `(\hat{\Omega})`;
+- `\boldsymbol{\theta}^\mathrm{det}=\{d_L,m_1^\mathrm{det},m_2^\mathrm{det},\dots\}` GW event detector-frame parameters, including luminosity distance `(d_L)`, detected primary mass `(m_1)`, detected secondary mass `(m_2)`.
+
+Given a set `\boldsymbol{d}^{\rm GW}=\{\boldsymbol{d}^{\rm GW}_i\}~~\left(i=1,\dots,N_{\rm ev}\right)` of data from independent GW events, the goal of CHIMERA is to evaluate the hyper-likelihood
+
+.. math::
+
+    p(\boldsymbol{d}^{\rm GW} | \boldsymbol{\lambda}) \propto \frac{1}{\xi(\boldsymbol{\lambda})^{N_{\rm ev}}} \prod_{i=1}^{N_{\rm ev}} \int \mathrm{d}z\, \mathrm{d}\hat{\Omega} \, \mathcal{K}_{\mathrm{gw},i}(z, \hat{\Omega} | \boldsymbol{\lambda}_\mathrm{c}, \boldsymbol{\lambda}_\mathrm{m}) \,
+    p_{\rm gal}(z, \hat{\Omega} | \boldsymbol{\lambda}_{\rm c})\, \frac{\psi(z ; \boldsymbol{\lambda}_{\rm z})}{1+z}\,, \label{eq:like_full}
+
+where the GW kernel `\mathcal{K}_{\mathrm{gw},i} (z, \hat{\Omega} | \boldsymbol{\lambda}_\mathrm{c}, \boldsymbol{\lambda}_\mathrm{m})` and the selection bias term `\xi(\boldsymbol{\lambda})` are defined as:
+
+.. math::
+    \begin{align}
+    \mathcal{K}_{\mathrm{gw},i} (z, \hat{\Omega} | \boldsymbol{\lambda}_\mathrm{c}, \boldsymbol{\lambda}_\mathrm{m}) &\equiv
+    \int \mathrm{d}m_1 \mathrm{d}m_2 \,  \frac{ p(z, m_1, m_2, \hat{\Omega} | \boldsymbol{d}^{\rm GW}_i)}{ \pi( d_L ) \pi( m_1^\mathrm{det} ) \pi( m_2^\mathrm{det} ) } \, \frac{p(m_1, m_2 | \boldsymbol{\lambda}_{\rm m})}{\frac{\mathrm{d} d_L}{\mathrm{d} z}(z, \boldsymbol{\lambda}_\mathrm{c}) (1+z)^2}\,,\label{eq:Kgw} \\
+    \xi(\boldsymbol{\lambda}) &\equiv \int \mathrm{d} \boldsymbol{\theta}^\mathrm{det} \,  P_{\rm det}(\boldsymbol{\theta}^\mathrm{det})\, \, \frac{p(m_1, m_2 | \boldsymbol{\lambda}_\mathrm{m})}{\frac{\mathrm{d} d_L}{\mathrm{d} z}(z, \boldsymbol{\lambda}_\mathrm{c}) (1+z)^2}  \, p_{\rm gal}(z, \hat{\Omega} | \boldsymbol{\lambda}_{\rm c})\, \frac{\psi(z ; \boldsymbol{\lambda}_{\rm z})}{1+z} \,, \label{eq:selection_effects_xi}
+    \end{align}
+
+[TBD]
+
+In CHIMERA, the GW kernel is computed via kernel density estimation (KDE) method, while the selection bias term is computed via Monte Carlo integration.
 
 
+Code Structure
+--------------
+
+The core modules of CHIMERA are ``likelihood.py`` and ``selection_function.py``. CHIMERA uses the functions is ``data.py`` to handle the graviational wave and electromagnetic data.
+The computation of the likelihood requires the population models implemented in the ``population/`` folder, as well as the function implemented in ``catalog/`` folder to build the redshift line of sight prior from a galaxy catalog.
 
 .. image:: ../_static/CHIMERA_diagram.svg
   :width: 650
   :align: center
   :alt: Flowchart of CHIMERA
-
-
-
-The algorithm to compute the ``Likelihood`` proceeds as follows:
-
-1. First of all, a tailored ``Likelihood`` class (e.g., ``MockLike``, ``LVKLike``) stores all the population models (``model_*``), GW data (``data_GW*``), galaxy data (``data_GAL*``), pixelization parameters (``nside_list``, ``npix_event``, ``sky_conf``), and integration parameters (``z_int_H0_prior``, ``z_int_sigma``, ``z_int_res``).
-
-2. The ``GW`` class is initialized and pixelization and redshift grids are pre-computed. To ensure efficiency for large galaxy catalog analysis, the code restricts both the sky localization and redshift integration grid. The first task is performed starting from the posterior distribution in RA and Dec using the HEALPix pixelization scheme. The user can specify the desired number of pixels per event (``npix_event``) within a confidence level ellipse (``sky_conf``), choosing from a list of possible pixelizations (``nside_list``). CHIMERA optimizes pixelization for each event to obtain the closest number of pixels to ``npix_event``. The second task must take into account that the integration grid must cover the entire redshift range explored during inference. This is achieved using GW posteriors on luminosity distance, defining the range within ``z_int_sigma`` standard deviations at a resolution of ``z_int_res`` and spanning the entire range of `H_0` explored.
-
-3. The ``EM`` class is initialized and the galaxy redshift distribution is pre-computed pixel-by-pixel. At this point, based on the included catalog (e.g., GLADE+, MICEv2), it is possible to activate catalog-related tasks (e.g., luminosity cut, or associate user-defined redshift uncertainties). Similarly, if defined, the completeness is pre-computed pixel-by-pixel and stored as a class attribute to be accessible during the inference. 
-
-The algorithm to compute the ``Bias`` proceeds as follows:
-
-4. The ``Bias`` class stores all the population models (``model_*``), the directory of the GW injection data (``file_inj``), and the SNR threshold to be applied. Optional arguments also include the catalog redshift interpolant, which can be directly taken from the likelihood. If not given, the bias is evaluated for a uniform in comoving volume galaxy distribution. 
-
-5. The injection catalog is loaded by applying the chosen SNR cut. It is important to ensure that this cut is equivalent to the one adopted when creating the catalog of GW events to analyze.
-
-Finally, the full likelihood is conveniently obtained by first calculating the log-likelihood for all the events and then subtracting the log-bias term, which is computed only once and multiplied by the number of events. The computation of the likelihood and selection bias is performed by calling the ``.compute()`` methods or, in logarithmic form, the ``.compute_ln()`` methods. In the latter case, the models should also be given in logarithmic form.

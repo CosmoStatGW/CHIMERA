@@ -1,0 +1,12 @@
+Catalog folder API
+======================
+
+.. automodule:: catalog.catalog
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: catalog.completeness
+   :members:
+   :undoc-members:
+   :show-inheritance:
