@@ -1,42 +1,39 @@
 # -*- coding: utf-8 -*-
 
 __bibtex__ = """
-@article{...
+@article{Borghi:2023opd,
+  author = "Borghi, Nicola and Mancarella, Michele and Moresco, Michele and Tagliazucchi, Matteo and Iacovelli, Francesco and Cimatti, Andrea and Maggiore, Michele",
+  title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
+  eprint = "2312.05302",
+  archivePrefix = "arXiv",
+  primaryClass = "astro-ph.CO",
+  doi = "10.3847/1538-4357/ad20eb",
+  journal = "Astrophys. J.",
+  volume = "964",
+  number = "2",
+  pages = "191",
+  year = "2024"
 }
 """
-__uri__ = "https://chimera-gw.readthedocs.io"
-__author__ = "Nicola Borghi"
-__email__ = "nicoborghi@outlook.com"
+__url__ = "https://chimera-gw.readthedocs.io"
+__author__ = "Nicola Borghi, Matteo Tagliazucchi"
+__email__ = "nicola.borghi6#unibo.it"
 __license__ = "MIT"
 __description__ = "Python tool for gravitational-wave cosmology with galaxy catalogs"
 
+__version__ = "2.0.0"
 
 from typing import Any
-from .__version__ import __version__  # isort:skip
+import sys
 
-from . import MCMC
-from . import Likelihood
-from . import Bias
-from . import GW 
-from . import EM
-from . import DataGW
-from . import DataEM
-from . import cosmo, astro, utils
+from . import utils
+from . import data
+from .population import * #cosmo, mass, rate, population, compute_z_grids
+from .likelihood import hyperlikelihood
+from .selection_function import selection_function
+from .catalog import completeness
 
-from jax.config import config
-config.update("jax_enable_x64", True)
-
-
-__all__ = [
-    "MCMC",
-    "Likelihood",
-    "Bias",
-    "GW",
-    "EM",
-    "DataGW",
-    "DataEM",
-    "cosmo",
-    "astro",
-    "utils",
-    "__version__",
-]
+sys.modules["CHIMERA.cosmo"] = cosmo
+sys.modules["CHIMERA.mass"] = mass
+sys.modules["CHIMERA.rate"] = rate
+sys.modules["CHIMERA.completeness"] = completeness

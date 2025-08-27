@@ -1,28 +1,5 @@
-# Distribution / packaging
-build/
-dist/
-*.egg-info/
-*.eggs/
-MANIFEST
-
-# Byte-compiled / optimized / DLL files
+examples/test/
+examples/data/
 __pycache__/
-*.pyc
-
-# Other files
-*.jpg
-*.npy
-*.json
-*.logb 
-
-# data folder
-data/
-
-# notebooks folder
-notebook/
-
-# _build documentation folder
-/docs/_build
-poetry.lock
-requirements.txt
-desktop.ini
+CHIMERA/parallel.py
+.ipynb_checkpoints

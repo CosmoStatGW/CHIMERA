@@ -1,0 +1,7 @@
+Selection Function API
+======================
+
+.. automodule:: selection_function
+   :members:
+   :undoc-members:
+   :show-inheritance:

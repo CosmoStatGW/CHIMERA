@@ -1,0 +1,25 @@
+Population folder API
+======================
+
+.. automodule:: population.pop_wrapper
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+.. automodule:: population.cosmo
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+.. automodule:: population.mass
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+.. automodule:: population.rate
+   :members:
+   :undoc-members:
+   :show-inheritance:
