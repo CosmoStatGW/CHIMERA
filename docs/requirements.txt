@@ -1,0 +1,11 @@
+-e .
+sphinx-book-theme
+sphinx-copybutton
+myst-nb
+matplotlib
+numpy
+scipy
+h5py
+healpy
+scikit-learn
+jax[cpu]

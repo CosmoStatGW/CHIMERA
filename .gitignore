@@ -1,10 +1,6 @@
 examples/test/
 examples/data/
 __pycache__/
-<<<<<<< HEAD
-CHIMERA/parallel.py
-.ipynb_checkpoints
-=======
 *.pyc
 
 # Other files
@@ -18,7 +14,4 @@ data/
 
 # _build documentation folder
 /docs/_build
-poetry.lock
-requirements.txt
-desktop.ini
->>>>>>> e567b68 (Update documentation for v2)
+
