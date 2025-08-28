@@ -29,7 +29,9 @@ To test the installation, run the following command:
 
     python -c "import CHIMERA; print(CHIMERA.__version__)"
 
-To install and use the code on HPC facilities with GPU nodes follow, the instructions in "install_hpc.txt".
+HPC and GPU Installation
+------------------------
+For HPC systems with GPU support, see the dedicated :ref:`hpc_gpu_installation` guide.
 
 Issues
 ------

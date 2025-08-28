@@ -18,6 +18,8 @@ CHIMERA
 
 **CHIMERA** is a hierarchical Bayesian pipeline for standard siren cosmology with gravitational wave data alone or in combination with galaxy catalogs.
 
+The latest version delivers 10-1000× speedup through JAX and GPU acceleration, enabling the analysis of thousands of events for next-generation gravitational wave observatories.
+
 .. image:: https://img.shields.io/badge/GitHub-CHIMERA-9e8ed7
     :target: https://github.com/CosmoStatGW/CHIMERA/
     :alt: GitHub
@@ -42,10 +44,10 @@ CHIMERA
     <br/>
 
 
-Installation
-------------
+Quick start installation
+------------------------
 
-The code can be quikly installed from `Pypi <https://pypi.org/project/chimera-gw>`_:
+The code can be quickly installed from `Pypi <https://pypi.org/project/chimera-gw>`_:
 
 .. code-block:: bash
 
@@ -66,7 +68,8 @@ To test the installation, run the following command:
 
     python -c "import CHIMERA; print(CHIMERA.__version__)"
 
-You can also run **CHIMERA** on GPU, but you have to install JAX with GPU support as explained in the `JAX installation guide <https://jax.readthedocs.io/en/latest/installation.html>`_.
+
+For **HPC systems and GPU support**, see the dedicated :ref:`hpc_gpu_installation` guide.
 
 
 Citation
@@ -75,7 +78,7 @@ Citation
 If you find this code useful in your research, please cite the following papers: 
 
 - Borghi et al. 2024 (`ADS <https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/abstract>`_, `arXiv <https://arxiv.org/abs/2312.05302>`_, `INSPIRE <https://inspirehep.net/literature/2734729>`_)
-- Tagliazucchi et al. 2025 (`ADS <https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B/>`_, `arXiv <https://arxiv.org/abs/2312.05302>`_, `INSPIRE <https://inspirehep.net/literature/2907634>`_):
+- Tagliazucchi et al. 2025 (`ADS <https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract>`_, `arXiv <https://arxiv.org/abs/2504.02034>`_, `INSPIRE <https://inspirehep.net/literature/2907634>`_):
 
 BibTeX from INSPIRE:
 
@@ -126,8 +129,8 @@ Documentation
   :maxdepth: 2
   :caption: User Guide
 
-  user_guide/installation
   user_guide/introduction
+  user_guide/hpc_gpu_installation
   user_guide/tutorials/index
   user_guide/citing
   user_guide/changelog

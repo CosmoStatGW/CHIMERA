@@ -25,7 +25,7 @@ source_suffix = ".rst"
 master_doc = "index"
 
 project = "CHIMERA"
-copyright = "2023, Nicola Borghi & contributors"
+author = "Nicola Borghi"
 version = __version__
 release = __version__
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

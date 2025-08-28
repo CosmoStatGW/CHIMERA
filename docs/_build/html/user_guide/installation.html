@@ -31,7 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
@@ -48,7 +48,7 @@
     <link rel="icon" href="../_static/CHIMERA_logoNB2.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Statistical framework" href="introduction.html" />
+    <link rel="next" title="Introduction" href="introduction.html" />
     <link rel="prev" title="CHIMERA" href="../index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -162,32 +162,22 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">Statistical framework</a></li>
-
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="tutorials/empty_galaxy_catalog.html">Empty Galaxy Catalog</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials/complete_galaxy_catalog.html">Complete Galaxy Catalog</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="citing.html">Citing CHIMERA</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
-</ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="tutorials/empty_galaxy_catalog.html">Load data</a></li>
-
-
-
-
-<li class="toctree-l1"><a class="reference internal" href="tutorials/complete_galaxy_catalog.html">Load data and pixelate catalogue (or load one already pixelated)</a></li>
-
-
-
-
-
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Python APIs</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../api/data.html">Data API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api/likelihood.html">Likelihood API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api/selection_function.html">Selection Function API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../api/population.html">Population folder API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../api/catalog.html">Catalog folder API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/population.html">Population API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/catalog.html">Catalog API</a></li>
 </ul>
 
     </div>
@@ -403,6 +393,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-pip">Using pip</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-source">From source</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#test-the-installation">Test the installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hpc-and-gpu-installation">HPC and GPU Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#issues">Issues</a></li>
 </ul>
             </nav>
@@ -439,7 +430,10 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import CHIMERA; print(CHIMERA.__version__)&quot;</span>
 </pre></div>
 </div>
-<p>To install and use the code on HPC facilities with GPU nodes follow, the instructions in “install_hpc.txt”.</p>
+</section>
+<section id="hpc-and-gpu-installation">
+<h2>HPC and GPU Installation<a class="headerlink" href="#hpc-and-gpu-installation" title="Link to this heading">#</a></h2>
+<p>For HPC systems with GPU support, see the dedicated <a class="reference internal" href="hpc_gpu_installation.html#hpc-gpu-installation"><span class="std std-ref">HPC and GPU Installation</span></a> guide.</p>
 </section>
 <section id="issues">
 <h2>Issues<a class="headerlink" href="#issues" title="Link to this heading">#</a></h2>
@@ -472,7 +466,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Statistical framework</p>
+        <p class="prev-next-title">Introduction</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -495,6 +489,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-pip">Using pip</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-source">From source</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#test-the-installation">Test the installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hpc-and-gpu-installation">HPC and GPU Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#issues">Issues</a></li>
 </ul>
   </nav></div>
@@ -517,13 +512,6 @@ By Author name not set
   
   <div class="footer-item">
     
-
-  <p class="copyright">
-    
-      © Copyright 2023, Nicola Borghi &amp; contributors.
-      <br/>
-    
-  </p>
 
   </div>
   

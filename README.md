@@ -5,6 +5,8 @@
 
 **CHIMERA** is a hierarchical Bayesian pipeline for standard siren cosmology with gravitational wave data alone or in combination with galaxy catalogs.
 
+The latest version delivers 10-1000× speedup through JAX and GPU acceleration, enabling the analysis of thousands of events for next-generation gravitational wave observatories.
+
 [![GitHub](https://img.shields.io/badge/GitHub-CHIMERA-9e8ed7)](https://github.com/CosmoStatGW/CHIMERA/)
 [![arXiv](https://img.shields.io/badge/arXiv-2106.14894-5185C4)](https://arxiv.org/abs/2106.14894)
 [![arXiv](https://img.shields.io/badge/arXiv-2504.02034-45bbd5)](https://arxiv.org/abs/2504.02034)
@@ -34,6 +36,8 @@ To test the installation, run the following command:
 
 You can also run **CHIMERA** on GPU, but you have to install JAX with GPU support as explained in the [JAX installation guide](https://jax.readthedocs.io/en/latest/installation.html).
 
+For HPC systems with GPU support, see the [HPC and GPU installation guide](https://chimera-gw.readthedocs.io/en/latest/user_guide/hpc_gpu_installation.html).
+
 
 
 
@@ -43,7 +47,7 @@ You can also run **CHIMERA** on GPU, but you have to install JAX with GPU suppor
 If you find this code useful in your research, please cite the following papers: 
 
 - Borghi et al. 2024 ([ADS](https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/abstract), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2734729))
-- Tagliazucchi et al. 2025 ([ADS](https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B/), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2907634)):
+- Tagliazucchi et al. 2025 ([ADS](https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract), [arXiv](https://arxiv.org/abs/2504.02034), [INSPIRE](https://inspirehep.net/literature/2907634)):
 
 
 BibTeX from INSPIRE:
