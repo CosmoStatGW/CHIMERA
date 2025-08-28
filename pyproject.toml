@@ -47,10 +47,10 @@ plum-dispatch = "*"
 # Sampling and MCMC
 emcee = "*"
 
-# Parallel computing
-mpi4py = ">=4.0"
-mpi4jax = { version = "*", extras = ["no-build-isolation"] }
-schwimmbad = ">=0.3.2"
+# Parallel computing (optional for docs)
+mpi4py = { version = ">=4.0", optional = true }
+mpi4jax = { version = "*", extras = ["no-build-isolation"], optional = true }
+schwimmbad = { version = ">=0.3.2", optional = true }
 
 # HTTP requests
 requests = ">=2.31.0"
@@ -68,7 +68,9 @@ sphinx-copybutton = { version = ">=0.5.1", optional = true }
 
 [tool.poetry.extras]
 plots = ["matplotlib"]
+mpi = ["mpi4py", "mpi4jax", "schwimmbad"]
 docs = ["sphinx", "sphinx-book-theme", "nbsphinx", "myst-parser", "myst-nb", "sphinx-copybutton", "matplotlib"]
+all = ["matplotlib", "mpi4py", "mpi4jax", "schwimmbad"]
 
 [build-system]
 requires = ["poetry-core"]
