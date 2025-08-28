@@ -16,19 +16,23 @@
 CHIMERA
 *******
 
-**CHIMERA** (Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis), is a flexible Python code to analyze standard sirens with galaxy catalogs, allowing for a joint fitting of the cosmological and astrophysical population parameters within a Hierarchical Bayesian Inference framework. 
+**CHIMERA** is a hierarchical Bayesian pipeline for standard siren cosmology with gravitational wave data alone or in combination with galaxy catalogs. 
 
+The latest version delivers 10-1000× speedup through JAX and GPU acceleration, enabling the analysis of thousands of events for next-generation gravitational wave observatories.
 
 .. image:: https://img.shields.io/badge/GitHub-CHIMERA-9e8ed7
     :target: https://github.com/CosmoStatGW/CHIMERA/
     :alt: GitHub
-.. image:: https://img.shields.io/badge/arXiv-2106.14894-28bceb
+.. image:: https://img.shields.io/badge/arXiv-2106.14894-5185C4
     :target: https://arxiv.org/abs/2106.14894
+    :alt: arXiv
+.. image:: https://img.shields.io/badge/arXiv-2504.02034-45bbd5
+    :target: https://arxiv.org/abs/2504.02034
     :alt: arXiv
 .. image:: https://readthedocs.org/projects/chimera-gw/badge/?version=latest
     :target: https://chimera-gw.readthedocs.io/latest/?badge=latest
     :alt: Documentation Status
-.. image:: https://img.shields.io/badge/license-MIT-fb7e21
+.. image:: https://img.shields.io/badge/license-GPLv3-fb7e21
     :target: https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE
     :alt: License
 .. image:: https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=latest-release&color=da644d
@@ -63,51 +67,60 @@ To test the installation, run the following command:
 
     python -c "import CHIMERA; print(CHIMERA.__version__)"
 
+You can also run **CHIMERA** on GPU, but you have to install JAX with GPU support as explained in the `JAX installation guide <https://jax.readthedocs.io/en/latest/installation.html>`_.
 
 
-License & Attribution
----------------------
 
-**CHIMERA** is free software made available under the MIT License. For details see the ``LICENSE``.
+Citation
+--------
 
-If you find this code useful in your research, please cite the following paper (`ADS <https://ui.adsabs.harvard.edu/abs/2022ApJ...927..164B/abstract>`_, `arXiv <https://arxiv.org/abs/2106.14894>`_, `INSPIRE <https://inspirehep.net/literature/1871797>`_):
+If you find this code useful in your research, please cite the following papers: 
+
+- Borghi et al. 2024 (`ADS <https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/abstract>`_, `arXiv <https://arxiv.org/abs/2312.05302>`_, `INSPIRE <https://inspirehep.net/literature/2734729>`_)
+- Tagliazucchi et al. 2025 (`ADS <https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B/>`_, `arXiv <https://arxiv.org/abs/2312.05302>`_, `INSPIRE <https://inspirehep.net/literature/2907634>`_):
+
+BibTeX from INSPIRE:
 
 .. code-block:: tex
 
-    @ARTICLE{2023arXiv231205302B,
-        author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
+    @article{Borghi:2023opd,
+        author = "Borghi, Nicola and Mancarella, Michele and Moresco, Michele and Tagliazucchi, Matteo and Iacovelli, Francesco and Cimatti, Andrea and Maggiore, Michele",
         title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
-        journal = {arXiv e-prints},
-        keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
-        year = 2023,
-        month = dec,
-        eid = {arXiv:2312.05302},
-        pages = {arXiv:2312.05302},
-        doi = {10.48550/arXiv.2312.05302},
-        archivePrefix = {arXiv},
-        eprint = {2312.05302},
-        primaryClass = {astro-ph.CO},
-        adsurl = {https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B},
-        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+        eprint = "2312.05302",
+        archivePrefix = "arXiv",
+        primaryClass = "astro-ph.CO",
+        doi = "10.3847/1538-4357/ad20eb",
+        journal = "Astrophys. J.",
+        volume = "964",
+        number = "2",
+        pages = "191",
+        year = "2024"
+    }
+
+    @article{Tagliazucchi:2025ofb,
+        author = "Tagliazucchi, Matteo and Moresco, Michele and Borghi, Nicola and Fiebig, Manfred",
+        title = "{Accelerating the Standard Siren Method: Improved Constraints on Modified Gravitational Wave Propagation with Future Data}",
+        eprint = "2504.02034",
+        archivePrefix = "arXiv",
+        primaryClass = "astro-ph.CO",
+        month = "4",
+        year = "2025"
     }
 
 
-The team
---------
+Contributions
+-------------
 
-**Core team**
+CHIMERA is actively maintained at the **University of Bologna** by: `Nicola Borghi (nicola.borghi6@unibo.it) <https://orcid.org/0000-0002-2889-8997>`_, `Matteo Tagliazucchi (matteo.tagliazucchi2@unibo.it) <https://orcid.org/0009-0003-8886-3184>`_, and `Michele Moresco (michele.moresco@unibo.it) <https://orcid.org/0000-0002-7616-7136>`_.
 
-- `Nicola Borghi <https://orcid.org/0000-0002-2889-8997>`_ (**main developer**, nicola.borghi6@unibo.it)
-- `Michele Mancarella <https://orcid.org/0000-0002-0675-508X>`_ (michele.mancarella@unimib.it) 
-- `Michele Moresco <https://orcid.org/0000-0002-7616-7136>`_ (michele.moresco@unibo.it) 
+Michele Mancarella, Francesco Iacovelli and Michele Maggiore contributed to the development of the first version of the code.
 
-**Contributors**
+The development of CHIMERA has also been supported from the work of Master's thesis students at the University of Bologna (in reverse chronological order):
 
-- `Matteo Tagliazucchi <https://orcid.org/0000-0002-2889-8997>`_
-- Niccolò Passaleva
-- `Francesco Iacovelli <https://orcid.org/0000-0002-4875-5862>`_
-
-The code was developed starting from https://github.com/CosmoStatGW/DarkSirensStat (`Finke et al. 2019 <https://orcid.org/0000-0002-2889-8997>`_) and https://github.com/CosmoStatGW/MGCosmoPop (`Mancarella et al. 2021 <https://orcid.org/0000-0002-2889-8997>`_).
+- *Giulia Cuomo* (2025, `thesis <https://amslaurea.unibo.it/id/eprint/35185/>`_): incompleteness function and application to GWTC-3 data
+- *Manfred Fiebig* (2025, `thesis <https://amslaurea.unibo.it/id/eprint/34082/>`_): modified GW propagation function and forecasts for LVK-O5
+- *Niccolò Passaleva* (2024, `thesis <https://amslaurea.unibo.it/id/eprint/30896/>`_): mass function models and inference with nested sampling
+- *Matteo Schulz* (2024, `thesis <https://amslaurea.unibo.it/id/eprint/30896/>`_): mass function models and cosmological analysis
 
 
 Documentation

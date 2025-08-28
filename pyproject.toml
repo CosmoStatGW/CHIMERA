@@ -1,21 +1,18 @@
 [tool.poetry]
 name = "chimera-gw"
-version = "1.0.3"
+version = "2.0"
 description = "Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis"
-authors = ["Nicola Borghi <nicola.borghi6@unibo.it>"]
-license = "MIT"
+authors = ["Nicola Borghi <nicola.borghi6@unibo.it>", "matteo.tagliazucchi2@unibo.it"]
+license = "GPL-3.0-or-later"
 readme = "README.md"
 repository = "https://github.com/CosmoStatGW/CHIMERA"
 documentation = "https://gwfast.readthedocs.io/en/latest/"
 packages = [ 
     {include = "CHIMERA"},
 ]
-include = [
-    { path = "data/LVK", format = ["sdist", "wheel"] },
-]
 
 [tool.poetry.dependencies]
-python = ">=3.8"
+python = ">=3.10"
 numpy = ">=1.16"
 scipy = ">=1.7"
 astropy = "^5.2"

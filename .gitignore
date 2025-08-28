@@ -18,9 +18,6 @@ __pycache__/
 # data folder
 data/
 
-# notebooks folder
-notebook/
-
 # _build documentation folder
 /docs/_build
 poetry.lock
