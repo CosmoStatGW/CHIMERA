@@ -14,8 +14,7 @@ The typical installation process on HPC systems involves:
 2. Creating and activating a virtual environment
 3. Installing MPI4PY with proper MPI support
 4. Installing JAX with GPU support (if needed)
-5. Installing remaining Python dependencies
-6. Installing CHIMERA
+5. Installing CHIMERA
 
 Below are detailed instructions for two specific systems where this process has been tested:
 
@@ -56,14 +55,13 @@ Verify the installation:
     python -m mpi4py --mpi-lib-version
     ldd $(python -m mpi4py --prefix)/MPI.*.so
 
-4. **Install required packages**
+4. **Install MPI-related packages and JAX without CUDA support (no GPU nodes on DIFA-OPH at the moment)**
 
 .. code-block:: bash
 
-    pip install wheel cython numpy packaging tqdm jax
+    pip install wheel cython jax
     pip install mpi4jax --no-build-isolation
-    pip install equinox plum-dispatch emcee h5py healpy
-    pip install schwimmbad numba dill interpax matplotlib
+
 
 5. **Install CHIMERA**
 
@@ -99,15 +97,19 @@ CINECA/LEONARDO
     module load cuda/12.2
     MPICC=$(which mpicc) pip install --no-cache-dir mpi4py>=4.0
 
-4. **Install required packages with CUDA support**
+4. **Install MPI-related packages and JAX with CUDA support**
 
 .. code-block:: bash
 
-    pip install wheel cython numpy packaging tqdm
+    pip install wheel cython
     pip install "jax[cuda12]"
     pip install mpi4jax --no-build-isolation
-    pip install equinox plum-dispatch emcee healpy h5py
-    pip install schwimmbad numba dill interpax matplotlib
+    pip install chimera-gw
+
+Note that if the HPC cluster does not have GPU nodes, you have to install JAX as
+.. code-block:: bash
+
+    pip install jax
 
 Alternative using micromamba:
 

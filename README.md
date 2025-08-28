@@ -34,17 +34,14 @@ To test the installation, run the following command:
 
     python -c "import CHIMERA; print(CHIMERA.__version__)"
 
-You can also run **CHIMERA** on GPU, but you have to install JAX with GPU support as explained in the [JAX installation guide](https://jax.readthedocs.io/en/latest/installation.html).
+These instructions install **CHIMERA** with a CPU-only version of JAX. For GPU support, first install JAX with a GPU backend following the [official installation guide](https://jax.readthedocs.io/en/latest/installation.html)), then proceed with the **CHIMERA** installation.
 
-For HPC systems with GPU support, see the [HPC and GPU installation guide](https://chimera-gw.readthedocs.io/en/latest/user_guide/hpc_gpu_installation.html).
-
-
-
+For HPC systems with GPU nodes, see the [HPC and GPU installation guide](https://chimera-gw.readthedocs.io/en/latest/user_guide/hpc_gpu_installation.html).
 
 
 ## Citation
 
-If you find this code useful in your research, please cite the following papers: 
+If you find this code useful in your research, please cite the following papers:
 
 - Borghi et al. 2024 ([ADS](https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/abstract), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2734729))
 - Tagliazucchi et al. 2025 ([ADS](https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract), [arXiv](https://arxiv.org/abs/2504.02034), [INSPIRE](https://inspirehep.net/literature/2907634)):
@@ -78,7 +75,7 @@ BibTeX from INSPIRE:
 
 
 ## Contributions
-CHIMERA is actively maintained at the **University of Bologna** by: [Nicola Borghi (nicola.borghi6@unibo.it)](https://orcid.org/0000-0002-2889-8997), [Matteo Tagliazucchi (matteo.tagliazucchi2@unibo.it)](https://orcid.org/0009-0003-8886-3184), and 
+CHIMERA is actively maintained at the **University of Bologna** by: [Nicola Borghi (nicola.borghi6@unibo.it)](https://orcid.org/0000-0002-2889-8997), [Matteo Tagliazucchi (matteo.tagliazucchi2@unibo.it)](https://orcid.org/0009-0003-8886-3184), and
 [Michele Moresco (michele.moresco@unibo.it)](https://orcid.org/0000-0002-7616-7136).
 
 Michele Mancarella, Francesco Iacovelli and Michele Maggiore contributed to the development of the first version of the code.
