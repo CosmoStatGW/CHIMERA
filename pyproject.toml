@@ -1,5 +1,6 @@
 [tool.poetry]
 name = "chimera-gw"
+<<<<<<< HEAD
 version = "2.0.0"
 description = "Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis"
 authors = ["Nicola Borghi <nicola.borghi6@unibo.it>", "Matteo Tagliazucchi <matteo.tagliazucchi2@unibo.it>"]
@@ -9,14 +10,30 @@ repository = "https://github.com/CosmoStatGW/CHIMERA"
 documentation = "https://chimera-gw.readthedocs.io/latest/"
 packages = [
   {include = "CHIMERA"},
+=======
+version = "2.0"
+description = "Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis"
+authors = ["Nicola Borghi <nicola.borghi6@unibo.it>", "matteo.tagliazucchi2@unibo.it"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/CosmoStatGW/CHIMERA"
+documentation = "https://gwfast.readthedocs.io/en/latest/"
+packages = [ 
+    {include = "CHIMERA"},
+>>>>>>> e567b68 (Update documentation for v2)
 ]
 
 [tool.poetry.dependencies]
 python = ">=3.10"
+<<<<<<< HEAD
 wheel = "*"
 cython = "*"
 numpy = ">=2.0"
 scipy = "^1.15"
+=======
+numpy = ">=1.16"
+scipy = ">=1.7"
+>>>>>>> e567b68 (Update documentation for v2)
 astropy = "^5.2"
 h5py = "^3.5"
 healpy = "^1.14"
