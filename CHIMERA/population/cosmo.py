@@ -224,7 +224,7 @@ def ddLdz_at_z(cosmo: flrw, z: jnp.ndarray, distances: Optional[jnp.ndarray] = N
 
 @dispatch
 def Xi_at_z(cosmo: mg_flrw, z: jnp.ndarray):
-  """Computes the MG factor :math:`\Xi(z)`"""
+  r"""Computes the MG factor :math:`\Xi(z)`"""
   return cosmo.Xi0 + (1. - cosmo.Xi0)/((1.+z)**cosmo.n)
 
 @dispatch

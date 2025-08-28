@@ -37,7 +37,7 @@ scikit-learn = ">=1.0"
 numba = ">=0.58"
 
 # JAX ecosystem
-jax = ">=0.4.20"
+jax = ">=0.5"
 equinox = "*"
 interpax = "*"
 
