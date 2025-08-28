@@ -12,40 +12,63 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
+# Core Python requirements
 python = ">=3.10"
+
+# Build tools
 wheel = "*"
 cython = "*"
-numpy = ">=2.0"
-scipy = "^1.15"
-astropy = "^5.2"
-h5py = "^3.5"
-healpy = "^1.14"
-matplotlib = "^3.4"
-numba = ">=0.58"
-scikit-learn = ">=1.0"
-jax = "^0.4"
-interpax = "*"
-equinox = "*"
-scikit-learn >= "1.0"
-plum-dispatch = "*"
-emcee = "*"
-packaging = "*"
-mpi4py = "^4.0"
-mpi4jax = { version = "*", extras = ["no-build-isolation"] }
-schwimmbad = "^0.3.2"
+setuptools = "*"
 
-# Optional for docs
-sphinx = { version = "5.3.0", optional = true }
+# Scientific computing core
+numpy = ">=2.0"
+scipy = ">=1.11"
+
+# Astronomy and cosmology
+astropy = ">=5.2"
+healpy = ">=1.14"
+
+# Data handling
+h5py = ">=3.5"
+packaging = "*"
+
+# Machine learning and optimization
+scikit-learn = ">=1.0"
+numba = ">=0.58"
+
+# JAX ecosystem
+jax = ">=0.4.20"
+equinox = "*"
+interpax = "*"
+
+# Utilities
+plum-dispatch = "*"
+
+# Sampling and MCMC
+emcee = "*"
+
+# Parallel computing
+mpi4py = ">=4.0"
+mpi4jax = { version = "*", extras = ["no-build-isolation"] }
+schwimmbad = ">=0.3.2"
+
+# HTTP requests
+requests = ">=2.31.0"
+
+# Plotting (optional for core functionality)
+matplotlib = { version = ">=3.4", optional = true }
+
+# Documentation dependencies (optional)
+sphinx = { version = ">=5.3.0", optional = true }
 sphinx-book-theme = { version = ">=1.0", optional = true }
 nbsphinx = { version = ">=0.8.10", optional = true }
-myst-parser = { version = "^0.18.1", optional = true }
-readthedocs-sphinx-search = { version = "^0.1.2", optional = true }
-sphinx-copybutton = { version = "^0.5.1", optional = true }
-docutils = { version = "^0.17.1", optional = true }
-requests = "^2.31.0"
+myst-parser = { version = ">=0.18.1", optional = true }
+myst-nb = { version = ">=0.17.0", optional = true }
+sphinx-copybutton = { version = ">=0.5.1", optional = true }
 
 [tool.poetry.extras]
-docs = ["sphinx", "sphinx-book-theme", "nbsphinx", "myst-parser", "readthedocs-sphinx-search", "sphinx-copybutton", "docutils"]
+plots = ["matplotlib"]
+docs = ["sphinx", "sphinx-book-theme", "nbsphinx", "myst-parser", "myst-nb", "sphinx-copybutton", "matplotlib"]
 
 [build-system]
 requires = ["poetry-core"]
