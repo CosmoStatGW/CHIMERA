@@ -50,8 +50,8 @@
     <link rel="icon" href="../_static/CHIMERA_logoNB2.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorials" href="tutorials/index.html" />
-    <link rel="prev" title="Installation" href="installation.html" />
+    <link rel="next" title="HPC and GPU Installation" href="hpc_gpu_installation.html" />
+    <link rel="prev" title="CHIMERA" href="../index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -163,8 +163,8 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hpc_gpu_installation.html">HPC and GPU Installation</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="tutorials/empty_galaxy_catalog.html">Empty Galaxy Catalog</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorials/complete_galaxy_catalog.html">Complete Galaxy Catalog</a></li>
@@ -178,8 +178,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../api/data.html">Data API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api/likelihood.html">Likelihood API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api/selection_function.html">Selection Function API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../api/population.html">Population folder API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../api/catalog.html">Catalog folder API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/population.html">Population API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/catalog.html">Catalog API</a></li>
 </ul>
 
     </div>
@@ -392,8 +392,7 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#statistical-framework">Statistical framework</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#code-structure">Code Structure</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#framework-and-code-structure">Framework and Code Structure</a></li>
 </ul>
             </nav>
         </div>
@@ -407,37 +406,30 @@ document.write(`
                   
   <section id="introduction">
 <span id="framework"></span><h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading">#</a></h1>
-<section id="statistical-framework">
-<h2>Statistical framework<a class="headerlink" href="#statistical-framework" title="Link to this heading">#</a></h2>
+<p>CHIMERA is a Python package for hierarchical Bayesian inference of gravitational wave population parameters using galaxy catalog data. It extends the framework from <a class="reference external" href="http://doi.org/10.1093/mnras/stz896/">Mandel et al. 2019</a> and <a class="reference external" href="http://doi.org/10.1007/978-981-15-4702-7_45-1/">Vitale et al. 2022</a>.</p>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p>A full description of the statistical framework of CHIMERA is presented in <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B%2F/">Borghi et al. 2023</a>.</p>
+<p>More details of the statistical framework are presented in <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/">Borghi et al. 2024</a>, for most recent implementations (performance and GPU support) see <a class="reference external" href="https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract">Tagliazucchi et al. 2025</a>.</p>
 </div>
-<p>CHIMERA is based on an extension of the Hierarchical Bayesian inference framework presented in <a class="reference external" href="http://doi.org/10.1093/mnras/stz896/">Mandel et al. 2019</a> and <a class="reference external" href="http://doi.org/10.1007/978-981-15-4702-7_45-1/">Vitale et al. 2022</a>. Consider a population of GW sources, individually described by source-frame parameters <span class="math notranslate nohighlight">\(\boldsymbol{\theta}\)</span> which globally follow a probability distribution described by hyper-parameters <span class="math notranslate nohighlight">\(\boldsymbol{\lambda}\)</span>, namely:</p>
-<ul class="simple">
-<li><p><span class="math notranslate nohighlight">\(\boldsymbol{\lambda}=\{\boldsymbol{\lambda}_\mathrm{c},\boldsymbol{\lambda}_\mathrm{m},\boldsymbol{\lambda}_\mathrm{z}\}\)</span> population hyper-parameters describing cosmology <span class="math notranslate nohighlight">\((\boldsymbol{\lambda}_\mathrm{c})\)</span>, binary mass distribution <span class="math notranslate nohighlight">\((\boldsymbol{\lambda}_\mathrm{m})\)</span> and rate evolution <span class="math notranslate nohighlight">\((\boldsymbol{\lambda}_\mathrm{z})\)</span>;</p></li>
-<li><p><span class="math notranslate nohighlight">\(\boldsymbol{\theta}=\{z,m_1,m_2,\hat{\Omega},\dots\}\)</span> GW event source-frame parameters, including redshift <span class="math notranslate nohighlight">\((z)\)</span>, primary mass <span class="math notranslate nohighlight">\((m_1)\)</span>, secondary mass <span class="math notranslate nohighlight">\((m_2)\)</span>, and sky location <span class="math notranslate nohighlight">\((\hat{\Omega})\)</span>;</p></li>
-<li><p><span class="math notranslate nohighlight">\(\boldsymbol{\theta}^\mathrm{det}=\{d_L,m_1^\mathrm{det},m_2^\mathrm{det},\dots\}\)</span> GW event detector-frame parameters, including luminosity distance <span class="math notranslate nohighlight">\((d_L)\)</span>, detected primary mass <span class="math notranslate nohighlight">\((m_1)\)</span>, detected secondary mass <span class="math notranslate nohighlight">\((m_2)\)</span>.</p></li>
+<section id="framework-and-code-structure">
+<h2>Framework and Code Structure<a class="headerlink" href="#framework-and-code-structure" title="Link to this heading">#</a></h2>
+<p>CHIMERA evaluates the hyper-likelihood for population parameters <span class="math notranslate nohighlight">\(\boldsymbol{\lambda}=\{\boldsymbol{\lambda}_\mathrm{c},\boldsymbol{\lambda}_\mathrm{m},\boldsymbol{\lambda}_\mathrm{z}\}\)</span> (cosmology, source mass distribution, rate evolution):</p>
+<div class="math notranslate nohighlight">
+\[p(\boldsymbol{d}^{\rm GW} | \boldsymbol{\lambda}) \propto \frac{1}{\xi(\boldsymbol{\lambda})^{N_{\rm ev}}} \prod_{i=1}^{N_{\rm ev}} \int \mathcal{K}_{\mathrm{gw},i}(z, \hat{\Omega} | \boldsymbol{\lambda}_\mathrm{c}, \boldsymbol{\lambda}_\mathrm{m}) \,
+p_{\rm gal}(z, \hat{\Omega} | \boldsymbol{\lambda}_{\rm c})\, \frac{\psi(z ; \boldsymbol{\lambda}_{\rm z})}{1+z}\, \mathrm{d}z\, \mathrm{d}\hat{\Omega}\]</div>
+<p>The GW kernel <span class="math notranslate nohighlight">\(\mathcal{K}_{\mathrm{gw},i}\)</span> is computed via KDE while the selection bias <span class="math notranslate nohighlight">\(\xi(\boldsymbol{\lambda})\)</span> uses Monte Carlo integration.</p>
+<dl class="simple">
+<dt><strong>Core modules:</strong></dt><dd><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">likelihood.py</span></code> - Main likelihood computation</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">selection_function.py</span></code> - Selection bias calculations</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">data.py</span></code> - GW and electromagnetic data handling</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">population/</span></code> - Population models (mass, rate, cosmology)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">catalog/</span></code> - Galaxy catalog processing for redshift priors</p></li>
 </ul>
-<p>Given a set <span class="math notranslate nohighlight">\(\boldsymbol{d}^{\rm GW}=\{\boldsymbol{d}^{\rm GW}_i\}~~\left(i=1,\dots,N_{\rm ev}\right)\)</span> of data from independent GW events, the goal of CHIMERA is to evaluate the hyper-likelihood</p>
-<div class="math notranslate nohighlight">
-\[p(\boldsymbol{d}^{\rm GW} | \boldsymbol{\lambda}) \propto \frac{1}{\xi(\boldsymbol{\lambda})^{N_{\rm ev}}} \prod_{i=1}^{N_{\rm ev}} \int \mathrm{d}z\, \mathrm{d}\hat{\Omega} \, \mathcal{K}_{\mathrm{gw},i}(z, \hat{\Omega} | \boldsymbol{\lambda}_\mathrm{c}, \boldsymbol{\lambda}_\mathrm{m}) \,
-p_{\rm gal}(z, \hat{\Omega} | \boldsymbol{\lambda}_{\rm c})\, \frac{\psi(z ; \boldsymbol{\lambda}_{\rm z})}{1+z}\,, \label{eq:like_full}\]</div>
-<p>where the GW kernel <span class="math notranslate nohighlight">\(\mathcal{K}_{\mathrm{gw},i} (z, \hat{\Omega} | \boldsymbol{\lambda}_\mathrm{c}, \boldsymbol{\lambda}_\mathrm{m})\)</span> and the selection bias term <span class="math notranslate nohighlight">\(\xi(\boldsymbol{\lambda})\)</span> are defined as:</p>
-<div class="math notranslate nohighlight">
-\[\begin{split}\begin{align}
-\mathcal{K}_{\mathrm{gw},i} (z, \hat{\Omega} | \boldsymbol{\lambda}_\mathrm{c}, \boldsymbol{\lambda}_\mathrm{m}) &amp;\equiv
-\int \mathrm{d}m_1 \mathrm{d}m_2 \,  \frac{ p(z, m_1, m_2, \hat{\Omega} | \boldsymbol{d}^{\rm GW}_i)}{ \pi( d_L ) \pi( m_1^\mathrm{det} ) \pi( m_2^\mathrm{det} ) } \, \frac{p(m_1, m_2 | \boldsymbol{\lambda}_{\rm m})}{\frac{\mathrm{d} d_L}{\mathrm{d} z}(z, \boldsymbol{\lambda}_\mathrm{c}) (1+z)^2}\,,\label{eq:Kgw} \\
-\xi(\boldsymbol{\lambda}) &amp;\equiv \int \mathrm{d} \boldsymbol{\theta}^\mathrm{det} \,  P_{\rm det}(\boldsymbol{\theta}^\mathrm{det})\, \, \frac{p(m_1, m_2 | \boldsymbol{\lambda}_\mathrm{m})}{\frac{\mathrm{d} d_L}{\mathrm{d} z}(z, \boldsymbol{\lambda}_\mathrm{c}) (1+z)^2}  \, p_{\rm gal}(z, \hat{\Omega} | \boldsymbol{\lambda}_{\rm c})\, \frac{\psi(z ; \boldsymbol{\lambda}_{\rm z})}{1+z} \,, \label{eq:selection_effects_xi}
-\end{align}\end{split}\]</div>
-<p>[TBD]</p>
-<p>In CHIMERA, the GW kernel is computed via kernel density estimation (KDE) method, while the selection bias term is computed via Monte Carlo integration.</p>
-</section>
-<section id="code-structure">
-<h2>Code Structure<a class="headerlink" href="#code-structure" title="Link to this heading">#</a></h2>
-<p>The core modules of CHIMERA are <code class="docutils literal notranslate"><span class="pre">likelihood.py</span></code> and <code class="docutils literal notranslate"><span class="pre">selection_function.py</span></code>. CHIMERA uses the functions is <code class="docutils literal notranslate"><span class="pre">data.py</span></code> to handle the graviational wave and electromagnetic data.
-The computation of the likelihood requires the population models implemented in the <code class="docutils literal notranslate"><span class="pre">population/</span></code> folder, as well as the function implemented in <code class="docutils literal notranslate"><span class="pre">catalog/</span></code> folder to build the redshift line of sight prior from a galaxy catalog.</p>
-<a class="reference internal image-reference" href="../_images/CHIMERA_diagram.svg"><img alt="Flowchart of CHIMERA" class="align-center" src="../_images/CHIMERA_diagram.svg" style="width: 650px;" />
+</dd>
+</dl>
+<p><strong>Structure and dependencies:</strong></p>
+<a class="reference internal image-reference" href="../_images/CHIMERA_diagram.drawio.svg"><img alt="Flowchart of CHIMERA" class="align-center" src="../_images/CHIMERA_diagram.drawio.svg" style="width: 600px;" />
 </a>
 </section>
 </section>
@@ -454,20 +446,20 @@ The computation of the likelihood requires the population models implemented in 
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="installation.html"
+       href="../index.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Installation</p>
+        <p class="prev-next-title">CHIMERA</p>
       </div>
     </a>
     <a class="right-next"
-       href="tutorials/index.html"
+       href="hpc_gpu_installation.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Tutorials</p>
+        <p class="prev-next-title">HPC and GPU Installation</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -487,8 +479,7 @@ The computation of the likelihood requires the population models implemented in 
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#statistical-framework">Statistical framework</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#code-structure">Code Structure</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#framework-and-code-structure">Framework and Code Structure</a></li>
 </ul>
   </nav></div>
 
@@ -503,20 +494,13 @@ The computation of the likelihood requires the population models implemented in 
   <div class="footer-item">
     
 <p class="component-author">
-By Author name not set
+By Nicola Borghi
 </p>
 
   </div>
   
   <div class="footer-item">
     
-
-  <p class="copyright">
-    
-      © Copyright 2023, Nicola Borghi &amp; contributors.
-      <br/>
-    
-  </p>
 
   </div>
   
