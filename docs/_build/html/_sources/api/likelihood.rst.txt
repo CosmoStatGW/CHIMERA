@@ -1,7 +1,0 @@
-Likelihood API
-==============
-
-.. automodule:: likelihood
-   :members:
-   :undoc-members:
-   :show-inheritance:
