@@ -85,4 +85,4 @@ The development of CHIMERA has also been supported from the work of Master's the
 - *Giulia Cuomo* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/35185/)): incompleteness function and application to GWTC-3 data
 - *Manfred Fiebig* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/34082/)): modified GW propagation function and forecasts for LVK-O5
 - *Niccolò Passaleva* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/30896/)): mass function models and inference with nested sampling
-- *Matteo Schulz* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/30896/)): mass function models and cosmological analysis
+- *Matteo Schulz* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/27607/)): mass function models and cosmological analysis
