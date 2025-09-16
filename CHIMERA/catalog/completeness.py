@@ -105,36 +105,6 @@ class homogeneous_completeness(object):
     self.z_grid_bin = jnp.linspace(*self.z_range, self.Nz_to_bin + 1)
     self.z_grid_interp = jnp.linspace(*self.z_range, self.Nz_interp + 1)
 
-  # def observed_density(self, cosmo_lambdas, z_grid=None):
-  #   """
-  #   Compute the observed density of galaxies given their redshifts, potentially including weights.
-  #   """
-  #   z_grid = self.z_grid_bin if z_grid is None else z_grid
-  #   if self.resample and self.resample < self.z_gal.size:
-  #     z_gal = jax.random.choice(rndkey, self.z_gal, shape=(self.resample,), replace=False)
-  #   else:
-  #     z_gal = self.z_gal
-  #   N_z_obs, _ = jnp.histogram(z_gal, bins=z_grid, weights=self.weights)
-  #   z_bins     = 0.5*(z_grid[:-1] + z_grid[1:])
-  #   dz         = z_grid[1] - z_grid[0]
-  #   V_sky_Mpc  = dz * 1e9 * dVcdz_at_z(cosmo_lambdas, z_bins) * self.sky_area_sr / (4. * jnp.pi)
-  #   rho_obs = N_z_obs / V_sky_Mpc
-  #   return z_bins, rho_obs
-
-  # def compute_P_compl(self, cosmo_lambdas, z_grid=None):
-  #   z_grid = self.z_grid_bin if z_grid is None else z_grid
-  #   # Compute observed density
-  #   z_bins, rho_obs = self.observed_density(cosmo_lambdas, z_grid)
-  #   if self.smooth is not None:
-  #     zz = jnp.linspace(*self.z_range, self.Nz_interp)
-  #     rho_obs = gaussian_filter1d(jnp.interp(zz, z_bins, rho_obs), self.smooth)
-  #     z_bins = zz
-  #   # Compute theoretical density
-  #   rho_theo = self.theory_density_func(z_bins)
-  #   # Compute completeness (observed/theoretical density, clipped at 1)
-  #   compl = jnp.minimum(rho_obs / rho_theo, 1.)
-  #   return z_bins, rho_obs, rho_theo, compl
-
   # -----------------------
   # Interpolant operations
   # -----------------------
