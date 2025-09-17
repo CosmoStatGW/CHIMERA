@@ -39,5 +39,13 @@ Thumbs.db
 *.logb
 
 
+<<<<<<< HEAD
 # Dockerfile
 Dockerfile
+=======
+# _build documentation folder
+/docs/_build
+poetry.lock
+requirements.txt
+desktop.ini
+>>>>>>> main

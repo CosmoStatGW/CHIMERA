@@ -16,7 +16,11 @@
 CHIMERA
 *******
 
+<<<<<<< HEAD
 **CHIMERA** is a hierarchical Bayesian pipeline for standard siren cosmology with gravitational wave data alone or in combination with galaxy catalogs.
+=======
+**CHIMERA** is a hierarchical Bayesian pipeline for standard siren cosmology with gravitational wave data alone or in combination with galaxy catalogs. 
+>>>>>>> main
 
 The latest version delivers 10-1000× speedup through JAX and GPU acceleration, enabling the analysis of thousands of events for next-generation gravitational wave observatories.
 
@@ -68,6 +72,7 @@ To test the installation, run the following command:
 
     python -c "import CHIMERA; print(CHIMERA.__version__)"
 
+You can also run **CHIMERA** on GPU, but you have to install JAX with GPU support as explained in the `JAX installation guide <https://jax.readthedocs.io/en/latest/installation.html>`_.
 
 For **HPC systems and GPU support**, see the dedicated :ref:`hpc_gpu_installation` guide.
 
@@ -78,7 +83,11 @@ Citation
 If you find this code useful in your research, please cite the following papers: 
 
 - Borghi et al. 2024 (`ADS <https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/abstract>`_, `arXiv <https://arxiv.org/abs/2312.05302>`_, `INSPIRE <https://inspirehep.net/literature/2734729>`_)
+<<<<<<< HEAD
 - Tagliazucchi et al. 2025 (`ADS <https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract>`_, `arXiv <https://arxiv.org/abs/2504.02034>`_, `INSPIRE <https://inspirehep.net/literature/2907634>`_):
+=======
+- Tagliazucchi et al. 2025 (`ADS <https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B/>`_, `arXiv <https://arxiv.org/abs/2312.05302>`_, `INSPIRE <https://inspirehep.net/literature/2907634>`_):
+>>>>>>> main
 
 BibTeX from INSPIRE:
 
@@ -96,6 +105,19 @@ BibTeX from INSPIRE:
         number = "2",
         pages = "191",
         year = "2024"
+<<<<<<< HEAD
+=======
+    }
+
+    @article{Tagliazucchi:2025ofb,
+        author = "Tagliazucchi, Matteo and Moresco, Michele and Borghi, Nicola and Fiebig, Manfred",
+        title = "{Accelerating the Standard Siren Method: Improved Constraints on Modified Gravitational Wave Propagation with Future Data}",
+        eprint = "2504.02034",
+        archivePrefix = "arXiv",
+        primaryClass = "astro-ph.CO",
+        month = "4",
+        year = "2025"
+>>>>>>> main
     }
 
     @article{Tagliazucchi:2025ofb,
@@ -116,6 +138,14 @@ CHIMERA is actively maintained at the **University of Bologna** by: `Nicola Borg
 Michele Mancarella, Francesco Iacovelli and Michele Maggiore contributed to the development of the first version of the code.
 
 The development of CHIMERA has also been supported from the work of Master's thesis students at the University of Bologna (in reverse chronological order):
+<<<<<<< HEAD
+=======
+
+- *Giulia Cuomo* (2025, `thesis <https://amslaurea.unibo.it/id/eprint/35185/>`_): incompleteness function and application to GWTC-3 data
+- *Manfred Fiebig* (2025, `thesis <https://amslaurea.unibo.it/id/eprint/34082/>`_): modified GW propagation function and forecasts for LVK-O5
+- *Niccolò Passaleva* (2024, `thesis <https://amslaurea.unibo.it/id/eprint/30896/>`_): mass function models and inference with nested sampling
+- *Matteo Schulz* (2024, `thesis <https://amslaurea.unibo.it/id/eprint/30896/>`_): mass function models and cosmological analysis
+>>>>>>> main
 
 - *Giulia Cuomo* (2025, `thesis <https://amslaurea.unibo.it/id/eprint/35185/>`_): incompleteness function and application to GWTC-3 data
 - *Manfred Fiebig* (2025, `thesis <https://amslaurea.unibo.it/id/eprint/34082/>`_): modified GW propagation function and forecasts for LVK-O5

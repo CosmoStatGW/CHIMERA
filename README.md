@@ -7,6 +7,7 @@
 
 The latest version delivers 10-1000× speedup through JAX and GPU acceleration, enabling the analysis of thousands of events for next-generation gravitational wave observatories.
 
+
 [![GitHub](https://img.shields.io/badge/GitHub-CHIMERA-9e8ed7)](https://github.com/CosmoStatGW/CHIMERA/)
 [![arXiv](https://img.shields.io/badge/arXiv-2106.14894-5185C4)](https://arxiv.org/abs/2106.14894)
 [![arXiv](https://img.shields.io/badge/arXiv-2504.02034-45bbd5)](https://arxiv.org/abs/2504.02034)
@@ -36,16 +37,17 @@ To test the installation, run the following command:
 
 These instructions install **CHIMERA** with a CPU-only version of JAX. For GPU support, first install JAX with a GPU backend following the [official installation guide](https://jax.readthedocs.io/en/latest/installation.html)), then proceed with the **CHIMERA** installation.
 
-For HPC systems with GPU nodes, see the [HPC and GPU installation guide](https://chimera-gw.readthedocs.io/en/latest/user_guide/hpc_gpu_installation.html).
+
+
+
 
 
 ## Citation
 
-If you find this code useful in your research, please cite the following papers:
+If you find this code useful in your research, please cite the following papers: 
 
 - Borghi et al. 2024 ([ADS](https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/abstract), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2734729))
-- Tagliazucchi et al. 2025 ([ADS](https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract), [arXiv](https://arxiv.org/abs/2504.02034), [INSPIRE](https://inspirehep.net/literature/2907634)):
-
+- Tagliazucchi et al. 2025 ([ADS](https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B/), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2907634)):
 
 
 BibTeX from INSPIRE:
@@ -76,7 +78,7 @@ BibTeX from INSPIRE:
 
 
 ## Contributions
-CHIMERA is actively maintained at the **University of Bologna** by: [Nicola Borghi (nicola.borghi6@unibo.it)](https://orcid.org/0000-0002-2889-8997), [Matteo Tagliazucchi (matteo.tagliazucchi2@unibo.it)](https://orcid.org/0009-0003-8886-3184), and
+CHIMERA is actively maintained at the **University of Bologna** by: [Nicola Borghi (nicola.borghi6@unibo.it)](https://orcid.org/0000-0002-2889-8997), [Matteo Tagliazucchi (matteo.tagliazucchi2@unibo.it)](https://orcid.org/0009-0003-8886-3184), and 
 [Michele Moresco (michele.moresco@unibo.it)](https://orcid.org/0000-0002-7616-7136).
 
 Michele Mancarella, Francesco Iacovelli and Michele Maggiore contributed to the development of the first version of the code.
@@ -86,4 +88,4 @@ The development of CHIMERA has also been supported from the work of Master's the
 - *Giulia Cuomo* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/35185/)): incompleteness function and application to GWTC-3 data
 - *Manfred Fiebig* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/34082/)): modified GW propagation function and forecasts for LVK-O5
 - *Niccolò Passaleva* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/30896/)): mass function models and inference with nested sampling
-- *Matteo Schulz* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/27607/)): mass function models and cosmological analysis
+- *Matteo Schulz* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/30896/)): mass function models and cosmological analysis
