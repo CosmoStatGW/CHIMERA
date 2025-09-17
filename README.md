@@ -47,6 +47,7 @@ If you find this code useful in your research, please cite the following papers:
 - Tagliazucchi et al. 2025 ([ADS](https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract), [arXiv](https://arxiv.org/abs/2504.02034), [INSPIRE](https://inspirehep.net/literature/2907634)):
 
 
+
 BibTeX from INSPIRE:
 
     @article{Borghi:2023opd,
