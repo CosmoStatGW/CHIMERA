@@ -8,7 +8,7 @@ from ..utils.math import trapz
 from ..utils import angles
 from ..utils.io import load_set, save_set
 from ..population.cosmo import dVcdz_at_z
-from .completeness import mask_completeness
+#from .completeness import mask_completeness
 from ..data import theta_pe_det, load_galaxy_catalog, theta_src
 import h5py
 
@@ -82,7 +82,6 @@ class pixelated_catalog(object):
                z_grids: Optional[jnp.ndarray] = None,
                fname_data_gal: Optional[str] = None,
                data_gw_pixelated: Optional[theta_pe_det] = None,
-               fname_interp: Optional[str] = None,
                z_err: Number = 1,
                weights: Optional[jnp.ndarray] = None,
                mask_gal = None,
@@ -107,7 +106,6 @@ class pixelated_catalog(object):
       self.z_grids = z_grids
       self.fname_data_gal = fname_data_gal
       self.data_gw_pixelated = data_gw_pixelated
-      self.fname_interp = fname_interp
       self.z_err = z_err
       self.sumgauss = sumgauss
 
@@ -190,10 +188,10 @@ class pixelated_catalog(object):
     # back to jax at the end
     self.p_cat = jnp.asarray(p_cat)
     self.N_gal = jnp.asarray(N_gal)
-    if isinstance(self.completeness, mask_completeness):
-      logger.info("Setting up the completeness mask indices")
-      self.completeness.set_gw_mask_idxs(pix_gw=pixels_numpy, nside_gw=nsides_numpy, nest_gw=False)
-      self.completeness.compute_completeness_interpolants()
+    #if isinstance(self.completeness, mask_completeness):
+    #  logger.info("Setting up the completeness mask indices")
+    #  self.completeness.set_gw_mask_idxs(pix_gw=pixels_numpy, nside_gw=nsides_numpy, nest_gw=False)
+    #  self.completeness.compute_completeness_interpolants()
     self.P_compl = self.completeness.P_compl(zgrids)[:,jnp.newaxis,:]  # assume no cosmology dependence, shape (Nev, Npix, Nz)
 
   def p_gal(self, cosmo_lambdas:eqx.Module, z:jnp.ndarray):
