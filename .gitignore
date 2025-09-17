@@ -1,28 +1,43 @@
-# Distribution / packaging
+# Test and example data
+examples/test/
+examples/data/
+data/
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Build artifacts
 build/
 dist/
 *.egg-info/
-*.eggs/
-MANIFEST
+.eggs/
 
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.pyc
+# Documentation builds
+docs/_build/
+docs/_static/
+!docs/_static/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Other files
 *.jpg
 *.npy
 *.json
-*.logb 
+*.logb
 
-# data folder
-data/
 
-# notebooks folder
-notebook/
-
-# _build documentation folder
-/docs/_build
-poetry.lock
-requirements.txt
-desktop.ini
+# Dockerfile
+Dockerfile

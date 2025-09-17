@@ -3,18 +3,22 @@
 <img src="https://raw.githubusercontent.com/CosmoStatGW/CHIMERA/main/docs/_static/CHIMERA_logoNB2.svg" alt="CHIMERA" width=300px>
 
 
-**CHIMERA** (Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis) is a flexible Python code to analyze standard sirens with galaxy catalogs, allowing for a joint fitting of the cosmological and astrophysical population parameters within a Hierarchical Bayesian Inference framework.
+**CHIMERA** is a hierarchical Bayesian pipeline for standard siren cosmology with gravitational wave data alone or in combination with galaxy catalogs.
 
-The code is designed to be accurate for different scenarios, encompassing bright, dark, and spectral sirens methods, and computationally efficient in view of next-generation GW observatories and galaxy surveys. It uses the LAX-backend implementation and Just In Time (JIT) computation capabilities of JAX.
+The latest version delivers 10-1000× speedup through JAX and GPU acceleration, enabling the analysis of thousands of events for next-generation gravitational wave observatories.
 
 [![GitHub](https://img.shields.io/badge/GitHub-CHIMERA-9e8ed7)](https://github.com/CosmoStatGW/CHIMERA/)
-[![arXiv](https://img.shields.io/badge/arXiv-2106.14894-28bceb)](https://arxiv.org/abs/2106.14894)
+[![arXiv](https://img.shields.io/badge/arXiv-2106.14894-5185C4)](https://arxiv.org/abs/2106.14894)
+[![arXiv](https://img.shields.io/badge/arXiv-2504.02034-45bbd5)](https://arxiv.org/abs/2504.02034)
 [![Read the Docs](https://readthedocs.org/projects/chimera-gw/badge/?version=latest)](https://chimera-gw.readthedocs.io/en/latest/?badge=latest)
-[![License](https://img.shields.io/badge/license-MIT-fb7e21)](https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-GPLv3-fb7e21)](https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE)
 [![GitLab](https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=latest-release&color=da644d)](https://github.com/CosmoStatGW/CHIMERA/releases)
 
+## Documentation
 
-## Installation
+The full documentation is hosted at [chimera-gw.readthedocs.io](https://chimera-gw.readthedocs.io)
+
+## Quick start installation
 
 The code can be quikly installed from [Pypi](https://pypi.org/project/chimera-gw/):
 
@@ -30,36 +34,56 @@ To test the installation, run the following command:
 
     python -c "import CHIMERA; print(CHIMERA.__version__)"
 
-You can also run **CHIMERA** on GPU, but you have to install JAX with GPU support as explained in the [JAX installation guide](https://jax.readthedocs.io/en/latest/installation.html).
+These instructions install **CHIMERA** with a CPU-only version of JAX. For GPU support, first install JAX with a GPU backend following the [official installation guide](https://jax.readthedocs.io/en/latest/installation.html)), then proceed with the **CHIMERA** installation.
 
-
-
-## Documentation
-
-The full documentation is provided at [chimera-gw.readthedocs.io](https://chimera-gw.readthedocs.io)
+For HPC systems with GPU nodes, see the [HPC and GPU installation guide](https://chimera-gw.readthedocs.io/en/latest/user_guide/hpc_gpu_installation.html).
 
 
 ## Citation
 
-If you find this code useful in your research, please cite the following paper ([ADS](https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B/), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2734729)):
+If you find this code useful in your research, please cite the following papers:
+
+- Borghi et al. 2024 ([ADS](https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/abstract), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2734729))
+- Tagliazucchi et al. 2025 ([ADS](https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract), [arXiv](https://arxiv.org/abs/2504.02034), [INSPIRE](https://inspirehep.net/literature/2907634)):
 
 
-    @ARTICLE{2024ApJ...964..191B,
-           author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
-            title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
-          journal = {\apj},
-         keywords = {Observational cosmology, Gravitational waves, Cosmological parameters, 1146, 678, 339, Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
-             year = 2024,
-            month = apr,
-           volume = {964},
-           number = {2},
-              eid = {191},
-            pages = {191},
-              doi = {10.3847/1538-4357/ad20eb},
-    archivePrefix = {arXiv},
-           eprint = {2312.05302},
-     primaryClass = {astro-ph.CO},
-           adsurl = {https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B},
-          adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+
+BibTeX from INSPIRE:
+
+    @article{Borghi:2023opd,
+        author = "Borghi, Nicola and Mancarella, Michele and Moresco, Michele and Tagliazucchi, Matteo and Iacovelli, Francesco and Cimatti, Andrea and Maggiore, Michele",
+        title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
+        eprint = "2312.05302",
+        archivePrefix = "arXiv",
+        primaryClass = "astro-ph.CO",
+        doi = "10.3847/1538-4357/ad20eb",
+        journal = "Astrophys. J.",
+        volume = "964",
+        number = "2",
+        pages = "191",
+        year = "2024"
     }
 
+    @article{Tagliazucchi:2025ofb,
+        author = "Tagliazucchi, Matteo and Moresco, Michele and Borghi, Nicola and Fiebig, Manfred",
+        title = "{Accelerating the Standard Siren Method: Improved Constraints on Modified Gravitational Wave Propagation with Future Data}",
+        eprint = "2504.02034",
+        archivePrefix = "arXiv",
+        primaryClass = "astro-ph.CO",
+        month = "4",
+        year = "2025"
+    }
+
+
+## Contributions
+CHIMERA is actively maintained at the **University of Bologna** by: [Nicola Borghi (nicola.borghi6@unibo.it)](https://orcid.org/0000-0002-2889-8997), [Matteo Tagliazucchi (matteo.tagliazucchi2@unibo.it)](https://orcid.org/0009-0003-8886-3184), and
+[Michele Moresco (michele.moresco@unibo.it)](https://orcid.org/0000-0002-7616-7136).
+
+Michele Mancarella, Francesco Iacovelli and Michele Maggiore contributed to the development of the first version of the code.
+
+The development of CHIMERA has also been supported from the work of Master's thesis students at the University of Bologna (in reverse chronological order):
+
+- *Giulia Cuomo* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/35185/)): incompleteness function and application to GWTC-3 data
+- *Manfred Fiebig* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/34082/)): modified GW propagation function and forecasts for LVK-O5
+- *Niccolò Passaleva* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/30896/)): mass function models and inference with nested sampling
+- *Matteo Schulz* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/27607/)): mass function models and cosmological analysis
