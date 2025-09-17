@@ -1,1 +1,0 @@
-cythonize -a -i yourmod.pyx

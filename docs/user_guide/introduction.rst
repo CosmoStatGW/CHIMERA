@@ -1,35 +1,37 @@
 .. default-role:: math
 
-.. _introduction:
-
+.. _framework:
 
 Introduction
 ============
 
+CHIMERA is a Python package for hierarchical Bayesian inference of gravitational wave population parameters using galaxy catalog data. It extends the framework from `Mandel et al. 2019 <http://doi.org/10.1093/mnras/stz896/>`_ and `Vitale et al. 2022 <http://doi.org/10.1007/978-981-15-4702-7_45-1/>`_.
 
-The core modules of CHIMERA are ``Likelihood.py`` and ``Bias.py``. The computation of the likelihood uses functions to analyze the gravitational wave (``GW.py``) and electromagnetic gravitational wave (``EM.py``) information. These modules contain specific methods to perform all the preliminary computations that do not change during the likelihood evaluation (a more extended discussion can be found in the next paragraph). Data are loaded with specific classes present in ``DataGW.py`` (e.g., ``DataGWMock`` and ``DataGWLVK``), ``DataEM.py`` (e.g., ``MockGalaxiesMICEv2`` and ``GLADEPlus``), and ``DataInj.py``. 
+.. seealso::
+    More details of the statistical framework are presented in `Borghi et al. 2024 <https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/>`_, for most recent implementations (performance and GPU support) see `Tagliazucchi et al. 2025 <https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract>`_.
 
+Framework and Code Structure
+----------------------------
 
+CHIMERA evaluates the hyper-likelihood for population parameters `\boldsymbol{\lambda}=\{\boldsymbol{\lambda}_\mathrm{c},\boldsymbol{\lambda}_\mathrm{m},\boldsymbol{\lambda}_\mathrm{z}\}` (cosmology, source mass distribution, rate evolution):
 
-.. image:: ../_static/CHIMERA_diagram.svg
-  :width: 650
+.. math::
+
+    p(\boldsymbol{d}^{\rm GW} | \boldsymbol{\lambda}) \propto \frac{1}{\xi(\boldsymbol{\lambda})^{N_{\rm ev}}} \prod_{i=1}^{N_{\rm ev}} \int \mathcal{K}_{\mathrm{gw},i}(z, \hat{\Omega} | \boldsymbol{\lambda}_\mathrm{c}, \boldsymbol{\lambda}_\mathrm{m}) \,
+    p_{\rm gal}(z, \hat{\Omega} | \boldsymbol{\lambda}_{\rm c})\, \frac{\psi(z ; \boldsymbol{\lambda}_{\rm z})}{1+z}\, \mathrm{d}z\, \mathrm{d}\hat{\Omega}
+
+The GW kernel `\mathcal{K}_{\mathrm{gw},i}` is computed via KDE while the selection bias `\xi(\boldsymbol{\lambda})` uses Monte Carlo integration.
+
+**Core modules:**
+    * ``likelihood.py`` - Main likelihood computation
+    * ``selection_function.py`` - Selection bias calculations  
+    * ``data.py`` - GW and electromagnetic data handling
+    * ``population/`` - Population models (mass, rate, cosmology)
+    * ``catalog/`` - Galaxy catalog processing for redshift priors
+
+**Structure and dependencies:**
+
+.. image:: ../_static/CHIMERA_diagram.drawio.svg
+  :width: 600
   :align: center
   :alt: Flowchart of CHIMERA
-
-
-
-The algorithm to compute the ``Likelihood`` proceeds as follows:
-
-1. First of all, a tailored ``Likelihood`` class (e.g., ``MockLike``, ``LVKLike``) stores all the population models (``model_*``), GW data (``data_GW*``), galaxy data (``data_GAL*``), pixelization parameters (``nside_list``, ``npix_event``, ``sky_conf``), and integration parameters (``z_int_H0_prior``, ``z_int_sigma``, ``z_int_res``).
-
-2. The ``GW`` class is initialized and pixelization and redshift grids are pre-computed. To ensure efficiency for large galaxy catalog analysis, the code restricts both the sky localization and redshift integration grid. The first task is performed starting from the posterior distribution in RA and Dec using the HEALPix pixelization scheme. The user can specify the desired number of pixels per event (``npix_event``) within a confidence level ellipse (``sky_conf``), choosing from a list of possible pixelizations (``nside_list``). CHIMERA optimizes pixelization for each event to obtain the closest number of pixels to ``npix_event``. The second task must take into account that the integration grid must cover the entire redshift range explored during inference. This is achieved using GW posteriors on luminosity distance, defining the range within ``z_int_sigma`` standard deviations at a resolution of ``z_int_res`` and spanning the entire range of `H_0` explored.
-
-3. The ``EM`` class is initialized and the galaxy redshift distribution is pre-computed pixel-by-pixel. At this point, based on the included catalog (e.g., GLADE+, MICEv2), it is possible to activate catalog-related tasks (e.g., luminosity cut, or associate user-defined redshift uncertainties). Similarly, if defined, the completeness is pre-computed pixel-by-pixel and stored as a class attribute to be accessible during the inference. 
-
-The algorithm to compute the ``Bias`` proceeds as follows:
-
-4. The ``Bias`` class stores all the population models (``model_*``), the directory of the GW injection data (``file_inj``), and the SNR threshold to be applied. Optional arguments also include the catalog redshift interpolant, which can be directly taken from the likelihood. If not given, the bias is evaluated for a uniform in comoving volume galaxy distribution. 
-
-5. The injection catalog is loaded by applying the chosen SNR cut. It is important to ensure that this cut is equivalent to the one adopted when creating the catalog of GW events to analyze.
-
-Finally, the full likelihood is conveniently obtained by first calculating the log-likelihood for all the events and then subtracting the log-bias term, which is computed only once and multiplied by the number of events. The computation of the likelihood and selection bias is performed by calling the ``.compute()`` methods or, in logarithmic form, the ``.compute_ln()`` methods. In the latter case, the models should also be given in logarithmic form.

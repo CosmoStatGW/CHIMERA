@@ -1,43 +1,76 @@
 [tool.poetry]
 name = "chimera-gw"
-version = "1.0.3"
+version = "2.0.0"
 description = "Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis"
-authors = ["Nicola Borghi <nicola.borghi6@unibo.it>"]
+authors = ["Nicola Borghi <nicola.borghi6@unibo.it>", "Matteo Tagliazucchi <matteo.tagliazucchi2@unibo.it>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/CosmoStatGW/CHIMERA"
-documentation = "https://gwfast.readthedocs.io/en/latest/"
-packages = [ 
-    {include = "CHIMERA"},
-]
-include = [
-    { path = "data/LVK", format = ["sdist", "wheel"] },
+documentation = "https://chimera-gw.readthedocs.io/latest/"
+packages = [
+  {include = "CHIMERA"},
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8"
-numpy = ">=1.16"
-scipy = ">=1.7"
-astropy = "^5.2"
-h5py = "^3.5"
-healpy = "^1.14"
-schwimmbad = "^0.3.2"
-matplotlib = "^3.4"
-jax = {extras = ["cpu"], version = "*"}
-scikit-learn = ">=1.0"
+# Core Python requirements
+python = ">=3.10"
 
-# Optional for docs
-sphinx = { version = "5.3.0", optional = true }
+# Build tools
+wheel = "*"
+cython = "*"
+setuptools = "*"
+
+# Scientific computing core
+numpy = ">=2.0"
+scipy = ">=1.11"
+
+# Astronomy and cosmology
+astropy = ">=5.2"
+healpy = ">=1.14"
+
+# Data handling
+h5py = ">=3.5"
+packaging = "*"
+
+# Machine learning and optimization
+scikit-learn = ">=1.0"
+numba = ">=0.58"
+
+# JAX ecosystem
+jax = ">=0.5"
+equinox = "*"
+interpax = "*"
+
+# Utilities
+plum-dispatch = "*"
+
+# Sampling and MCMC
+emcee = "*"
+
+# Parallel computing (optional for docs)
+mpi4py = { version = ">=4.0", optional = true }
+mpi4jax = { version = "*", extras = ["no-build-isolation"], optional = true }
+schwimmbad = { version = ">=0.3.2", optional = true }
+
+# HTTP requests
+requests = ">=2.31.0"
+
+# Plotting (optional for core functionality)
+matplotlib = { version = ">=3.4", optional = true }
+
+# Documentation dependencies (optional)
+sphinx = { version = ">=5.3.0", optional = true }
 sphinx-book-theme = { version = ">=1.0", optional = true }
 nbsphinx = { version = ">=0.8.10", optional = true }
-myst-parser = { version = "^0.18.1", optional = true }
-readthedocs-sphinx-search = { version = "^0.1.2", optional = true }
-sphinx-copybutton = { version = "^0.5.1", optional = true }
-docutils = { version = "^0.17.1", optional = true }
-requests = "^2.31.0"
+myst-parser = { version = ">=0.18.1", optional = true }
+myst-nb = { version = ">=0.17.0", optional = true }
+sphinx-copybutton = { version = ">=0.5.1", optional = true }
 
 [tool.poetry.extras]
-docs = ["sphinx", "sphinx-book-theme", "nbsphinx", "myst-parser", "readthedocs-sphinx-search", "sphinx-copybutton", "docutils"]
+plots = ["matplotlib"]
+mpi = ["mpi4py", "mpi4jax", "schwimmbad"]
+docs = ["sphinx", "sphinx-book-theme", "nbsphinx", "myst-parser", "myst-nb", "sphinx-copybutton", "matplotlib"]
+all = ["matplotlib", "mpi4py", "mpi4jax", "schwimmbad"]
 
 [build-system]
 requires = ["poetry-core"]

@@ -3,24 +3,30 @@
 Citing CHIMERA
 ==============
 
-If you find this code useful in your research, please cite the following paper (`ADS <https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B%2F/abstract>`_, `arXiv <https://arxiv.org/abs/2312.05302>`_, `INSPIRE <https://inspirehep.net/literature/2734729>`_):
-
+If you find this code useful in your research, please cite the following papers:
 
 .. code-block:: tex
 
-    @ARTICLE{2023arXiv231205302B,
-        author = {{Borghi}, Nicola and {Mancarella}, Michele and {Moresco}, Michele and et al.},
+    @article{Borghi:2023opd,
+        author = "Borghi, Nicola and Mancarella, Michele and Moresco, Michele and Tagliazucchi, Matteo and Iacovelli, Francesco and Cimatti, Andrea and Maggiore, Michele",
         title = "{Cosmology and Astrophysics with Standard Sirens and Galaxy Catalogs in View of Future Gravitational Wave Observations}",
-        journal = {arXiv e-prints},
-        keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Astrophysics of Galaxies, General Relativity and Quantum Cosmology},
-        year = 2023,
-        month = dec,
-        eid = {arXiv:2312.05302},
-        pages = {arXiv:2312.05302},
-        doi = {10.48550/arXiv.2312.05302},
-        archivePrefix = {arXiv},
-        eprint = {2312.05302},
-        primaryClass = {astro-ph.CO},
-        adsurl = {https://ui.adsabs.harvard.edu/abs/2023arXiv231205302B},
-        adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+        eprint = "2312.05302",
+        archivePrefix = "arXiv",
+        primaryClass = "astro-ph.CO",
+        doi = "10.3847/1538-4357/ad20eb",
+        journal = "Astrophys. J.",
+        volume = "964",
+        number = "2",
+        pages = "191",
+        year = "2024"
+    }
+
+    @article{Tagliazucchi:2025ofb,
+        author = "Tagliazucchi, Matteo and Moresco, Michele and Borghi, Nicola and Fiebig, Manfred",
+        title = "{Accelerating the Standard Siren Method: Improved Constraints on Modified Gravitational Wave Propagation with Future Data}",
+        eprint = "2504.02034",
+        archivePrefix = "arXiv",
+        primaryClass = "astro-ph.CO",
+        month = "4",
+        year = "2025"
     }
