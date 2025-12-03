@@ -1,7 +1,12 @@
+"""Stellar mass functions and Schechter function utilities.
 
-###################
-# Magnitudes
-###################
+This module implements evolving double Schechter mass functions with redshift-dependent
+parameters for modeling galaxy stellar mass distributions. Includes:
+- Polynomial, exponential, or constant parameter evolution with (1+z)
+- Number density and mass density integration
+- JAX-compatible implementations for automatic differentiation
+- Default parameters from Borghi+25 (MICE simulation)
+"""
 
 import logging
 logs = logging.getLogger(__name__)
@@ -15,39 +20,58 @@ from .config import jnp, jax
 from .math import trapz
 from functools import partial
 
-# Example Schechter parameters from literature
-SchecheterParsMICE_B25 = {"alpha1":   [-0.3,                 0.,  0.        ],
-                          "alpha2":   [-1.5,                 0.,  0.        ],
-                          "logMstar": [10.5,                 0.,  0.        ],
-                          "phi1":     [ 0.00147607,  0.00344156, -0.00168267],
-                          "phi2":     [ 0.00322851, -0.00240074,  0.00057019]}
+SchecheterParsMICE_B25 = {
+    "alpha1":   [-0.3,          0.,          0.        ],
+    "alpha2":   [-1.5,          0.,          0.        ],
+    "logMstar": [10.5,          0.,          0.        ],
+    "phi1":     [ 0.00147607,   0.00344156, -0.00168267],
+    "phi2":     [ 0.00322851,  -0.00240074,  0.00057019]
+}
+"""dict: Default double Schechter parameters from Borghi+25 MICE analysis.
+Polynomial coefficients for evolution with (1+z): p(z) = c0 + c1*(1+z) + c2*(1+z)^2
+"""
 
 SchechterMlimMICE_B25 = lambda z: 2.89766937 + 5.32024468*(1+z) - 1.04370681*(1+z)**2
+"""callable: Default mass completeness limit from Borghi+25 as function of redshift.
+Returns log10(M_min/Msun) for polynomial evolution with (1+z).
+"""
 
 
 __all__ = ['EvolvingDoubleSchechter']
 
-
-#############################################################################
-# Evolving Double Schechter Class
-#############################################################################
-
 class EvolvingDoubleSchechter:
-    """
-    Double Schechter function with polynomial, exponential, or constant redshift evolution
-    in (1+z).
+    """Double Schechter stellar mass function with redshift evolution.
+    
+    Implements the double Schechter function:
+    Φ(M|z) = ln(10) * [φ₁(z) * x^(α₁+1) + φ₂(z) * x^(α₂+1)] * exp(-x)
+    where x = M/M*(z) for linear mass or x = 10^(logM - logM*(z)) for log mass.
+    
+    All parameters (φ₁, φ₂, α₁, α₂, M*) can evolve with redshift via polynomial,
+    exponential, or constant prescriptions.
     """
 
     def __init__(self, zkind="poly", params=None, M_min=None, M_max=12.5, log=True, int_res=300, z_min=0., z_max=jnp.inf):
-        """
+        """Initializes the evolving double Schechter mass function.
+        
         Args:
-            zkind (str) : 'poly', 'exp', or 'const' for parameter evolution.
-            params (dict): Schechter parameters; keys in {'phi1','phi2','alpha1','alpha2','logMstar'}.
-            M_min (callable|float|int|None): Lower mass (logM if log=True) limit or function of z.
-            M_max (float): Upper mass (logM if log=True) limit (constant).
-            log (bool)   : Use log10(M/Msun). Defaults to True.
-            int_res (int|None): Number of points for Simpson's rule integration, if None uses `quad`. Defaults to 300.
-            z_min (float): Minimum redshift
+            zkind (str, optional): Parameter evolution type - 'poly', 'exp', or 'const'. Defaults to 'poly'.
+            params (dict, optional): Schechter parameters with keys {'phi1', 'phi2', 'alpha1', 'alpha2', 'logMstar'}.
+                                    For 'poly': list of coefficients [c0, c1, c2, ...] for p(z) = Σ cᵢ(1+z)^i
+                                    For 'exp': [c0, c1] for p(z) = c0 * (1+z)^c1
+                                    For 'const': scalar value
+                                    Defaults to Borghi+25 parameters.
+            M_min (callable|float|None, optional): Lower mass limit. If callable, function of z.
+                                                   In log10(M/Msun) if log=True, else linear M/Msun.
+                                                   Defaults to Borghi+25 completeness.
+            M_max (float, optional): Upper mass limit (constant). Defaults to 12.5 (log) or 10^12.5 (linear).
+            log (bool, optional): Work in log10(M/Msun) space. Defaults to True.
+            int_res (int, optional): Integration grid resolution. Defaults to 300.
+            z_min (float, optional): Minimum valid redshift. Defaults to 0.
+            z_max (float, optional): Maximum valid redshift. Defaults to inf.
+        
+        Raises:
+            ValueError: If zkind not in {'poly', 'exp', 'const'}
+            KeyError: If params missing required keys
         """
         self.zkinds_allowed = {"poly", "exp", "const"}
         if zkind not in self.zkinds_allowed:
@@ -69,9 +93,7 @@ class EvolvingDoubleSchechter:
     # Defaults
     # -------------------------------------------------------------------------
     def _default_labels(self):
-        """
-        Sets the axis labels based on whether masses are in log-space or linear.
-        """
+        """Sets plot axis labels based on mass representation (log vs linear)."""
         if self.log:
             self.xlab, self.ylab = r'$\log(M/M_{\odot})$', r'$\Phi(\log M|z) \, [\mathrm{Mpc^{-3}\,dex^{-1}}]$'
         else:
@@ -81,7 +103,11 @@ class EvolvingDoubleSchechter:
         self.ylab_rho = r"$\rho(z)$ [M$_{\odot}$ Mpc$^{-3}$]"
 
     def _default_params(self):
-        """Returns Borghi+25-like coefficients as an example."""
+        """Returns default Schechter parameters from Borghi+25.
+        
+        Returns:
+            dict: Parameter dictionary compatible with zkind setting
+        """
         p = SchecheterParsMICE_B25
 
         if self.zkind == "const":
@@ -92,7 +118,11 @@ class EvolvingDoubleSchechter:
         return p
 
     def _default_M_min(self):
-        """Example mass limit function from Borghi+25"""
+        """Returns default mass completeness limit from Borghi+25.
+        
+        Returns:
+            callable: Function M_min(z) in appropriate units (log or linear)
+        """
         f_base = SchechterMlimMICE_B25
 
         if self.zkind == 'const':
@@ -105,7 +135,18 @@ class EvolvingDoubleSchechter:
     # Validation
     # -------------------------------------------------------------------------
     def _validate_params(self, params):
-        """Check each parameter array shape matches zkind requirements."""
+        """Validates parameter dictionary structure.
+        
+        Args:
+            params (dict): Parameter dictionary to validate
+        
+        Returns:
+            dict: Validated parameters with arrays
+        
+        Raises:
+            KeyError: If required keys missing or extra keys present
+            ValueError: If coefficient array sizes don't match zkind
+        """
         required = {'phi1', 'phi2', 'alpha1', 'alpha2', 'logMstar'}
         if set(params.keys()) != required:
             missing = required - set(params.keys())
@@ -125,7 +166,17 @@ class EvolvingDoubleSchechter:
         return out
 
     def _validate_M_min(self, M_min):
-        """Ensure M_min is callable or convert it to a constant function."""
+        """Validates and converts M_min to callable.
+        
+        Args:
+            M_min: None, scalar, or callable
+        
+        Returns:
+            callable: Function M_min(z)
+        
+        Raises:
+            ValueError: If M_min is invalid type
+        """
         if M_min is None:
             return self._default_M_min()
         if isinstance(M_min, (float, int)):
@@ -135,14 +186,18 @@ class EvolvingDoubleSchechter:
         return M_min
 
     def set_params(self, new_params):
-        """
-        Allows updating the Schechter parameters after instantiation.
+        """Updates Schechter parameters.
+        
+        Args:
+            new_params (dict): New parameter dictionary (validated)
         """
         self.params = self._validate_params(new_params)
 
     def set_M_min(self, new_M_min):
-        """
-        Allows updating the M_min function after instantiation.
+        """Updates mass completeness limit.
+        
+        Args:
+            new_M_min: New M_min (callable, scalar, or None)
         """
         self.M_min_fcn = self._validate_M_min(new_M_min)
 
@@ -150,7 +205,15 @@ class EvolvingDoubleSchechter:
     # Parameter evolution
     # -------------------------------------------------------------------------
     def param_at_z(self, z, coeffs):
-        """Compute parameter value(s) at redshift z."""
+        """Evaluates parameter at given redshift(s).
+        
+        Args:
+            z (array-like): Redshift(s)
+            coeffs (array-like): Parameter coefficients
+        
+        Returns:
+            jnp.ndarray: Parameter value(s) at z
+        """
         zp1 = 1. + z
         if self.zkind == "const":
             return jnp.full_like(zp1, coeffs[0])
@@ -164,7 +227,16 @@ class EvolvingDoubleSchechter:
     # Schechter evaluation
     # -------------------------------------------------------------------------
     def schechter_on_M(self, M, z=0., norm_Mstar=False):
-        """Double Schechter in linear mass. JAX-compatible version."""
+        """Evaluates double Schechter function in linear mass.
+        
+        Args:
+            M (array-like): Stellar mass [M_sun]
+            z (array-like, optional): Redshift(s). Defaults to 0.
+            norm_Mstar (bool, optional): Divide by M*(z) for normalization. Defaults to False.
+        
+        Returns:
+            jnp.ndarray: Schechter function values Φ(M|z) [Mpc^-3 M_sun^-1 or Mpc^-3]
+        """
         M, z = jnp.atleast_1d(M), jnp.atleast_1d(z)
 
         # Evaluate each param at z
@@ -181,7 +253,15 @@ class EvolvingDoubleSchechter:
 
 
     def schechter_on_logM(self, logM, z=0.0):
-        """Double Schechter in log(M). JAX-compatible version."""
+        """Evaluates double Schechter function in log-mass.
+        
+        Args:
+            logM (array-like): log10(M/M_sun)
+            z (array-like, optional): Redshift(s). Defaults to 0.
+        
+        Returns:
+            jnp.ndarray: Schechter function values Φ(logM|z) [Mpc^-3 dex^-1]
+        """
         logM, z = jnp.atleast_1d(logM), jnp.atleast_1d(z)
 
         # Evaluate each parameter at z
@@ -204,7 +284,15 @@ class EvolvingDoubleSchechter:
     # -------------------------------------------------------------------------
     @partial(jax.jit, static_argnums=(0,))
     def _density_integral_trapz(self, z, power=0.):
-        """JAX-compatible integration over mass."""
+        """Integrates M^power * Φ(M|z) over mass range [M_min(z), M_max].
+        
+        Args:
+            z (array-like): Redshift(s)
+            power (float, optional): Mass weighting exponent. Defaults to 0 (number density).
+        
+        Returns:
+            jnp.ndarray: Integrated density at each redshift
+        """
         z = jnp.atleast_1d(z)
         lower = jnp.maximum(self.M_min_fcn(z), 1e-99)
 
@@ -219,9 +307,18 @@ class EvolvingDoubleSchechter:
 
 
     def weighted_density(self, z_array, power=0.):
-        """
-        M^power * Schechter integrated from M_min(z) to M_max, for each z.
-        Returns zero for redshifts outside [zmin, zmax] range.
+        """Computes mass-weighted integrated density.
+        
+        Integrates M^power * Φ(M|z) from M_min(z) to M_max.
+        Returns zero outside [z_min, z_max] range.
+        
+        Args:
+            z_array (array-like): Redshift(s)
+            power (float, optional): Mass exponent. power=0 gives number density,
+                                    power=1 gives mass density. Defaults to 0.
+        
+        Returns:
+            jnp.ndarray: Integrated density [Mpc^-3] (power=0) or [M_sun Mpc^-3] (power=1)
         """
         z_array = jnp.atleast_1d(z_array)
         # Apply z range constraint using JAX's where function
@@ -233,11 +330,25 @@ class EvolvingDoubleSchechter:
         return result
 
     def number_density(self, z_array):
-        """Equivalent to weighted_density with power=0."""
+        """Computes comoving number density.
+        
+        Args:
+            z_array (array-like): Redshift(s)
+        
+        Returns:
+            jnp.ndarray: Number density n(z) [Mpc^-3]
+        """
         return self.weighted_density(z_array, power=0.)
 
     def mass_density(self, z_array):
-        """Equivalent to weighted_density with power=1 (linear mass)."""
+        """Computes comoving stellar mass density.
+        
+        Args:
+            z_array (array-like): Redshift(s)
+        
+        Returns:
+            jnp.ndarray: Mass density ρ(z) [M_sun Mpc^-3]
+        """
         return self.weighted_density(z_array, power=1.)
 
 
@@ -245,26 +356,29 @@ class EvolvingDoubleSchechter:
     # Grid evaluations
     # -------------------------------------------------------------------------
     def evaluate(self, z_min=0., z_max=1.5, Nz=20, Nm=100, mask=True):
-        """
-        Evaluate the Schechter function on a 2D grid of redshift and mass.
-
+        """Evaluates Schechter function on 2D (mass, redshift) grid.
+        
         Args:
-            z_min (float): minimum redshift
-            z_max (float): maximum redshift
-            Nz (int): number of redshift bins
-            Nm (int): number of mass bins
-            mask (bool): mask out-of-range values
-
+            z_min (float, optional): Minimum redshift. Defaults to 0.
+            z_max (float, optional): Maximum redshift. Defaults to 1.5.
+            Nz (int, optional): Number of redshift points. Defaults to 20.
+            Nm (int, optional): Number of mass points. Defaults to 100.
+            mask (bool, optional): Mask values outside valid mass range. Defaults to True.
+        
         Returns:
-            np.ndarray: 2D array of Schechter values
-            np.ndarray: mass grid values
-            np.ndarray: redshift grid values
+            tuple: (phi_2d, Mvals, zvals)
+                - phi_2d (np.ndarray): Shape (Nm, Nz) Schechter values
+                - Mvals (np.ndarray): Mass grid
+                - zvals (np.ndarray): Redshift grid
         """
 
         zvals = np.linspace(z_min, z_max, Nz)
         Mmin  = self.M_min_fcn(z_min)
         Mvals = np.linspace(Mmin, self.M_max, Nm)
-        phi_2d = self.compute(Mvals, zvals)
+        if self.log:
+            phi_2d = self.schechter_on_logM(Mvals, zvals)
+        else:
+            phi_2d = self.schechter_on_M(Mvals, zvals, norm_Mstar=True)
 
         if mask:
             mask_out = (Mvals[:, None] < self.M_min_fcn(zvals)[None, :]) | (Mvals[:, None] > self.M_max)
@@ -277,20 +391,19 @@ class EvolvingDoubleSchechter:
     # Debugging and string representation
     # -------------------------------------------------------------------------
     def __repr__(self):
+        """Returns string representation of the Schechter function configuration."""
         if callable(self.M_min_fcn):
             mmin_str = getattr(self.M_min_fcn, '__name__', repr(self.M_min_fcn))
         else:
             mmin_str = repr(self.M_min_fcn)
 
-        param_lines = []
-        for key in sorted(self.params.keys()):
-            param_lines.append(f"    {key}: {self.params[key]}")
+        param_lines = [f"    {key}: {self.params[key]}" for key in sorted(self.params.keys())]
         param_block = "\n".join(param_lines)
 
         return (
             f"{self.__class__.__name__}(\n"
             f"  zkind='{self.zkind}', log={self.log},\n"
             f"  M_min_fcn={mmin_str}, M_max={self.M_max},\n"
-            f"  params={{\n{param_block}\n  }},\n"
+            f"  params={{\n{param_block}\n  }}\n"
             f")"
         )

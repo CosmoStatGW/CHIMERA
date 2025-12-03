@@ -1,9 +1,23 @@
-from .config import jax, jnp
+"""Angular coordinate transformations and HEALPix utilities.
+
+This module provides functions for converting between celestial coordinate systems
+and HEALPix pixel operations, including:
+- Equatorial (RA, dec) ↔ spherical (θ, φ) conversions
+- Galactic ↔ equatorial coordinate transformations
+- HEALPix pixel indexing and pixelization
+- Angular separation calculations
+
+All angular quantities are in radians unless otherwise specified.
+"""
+
+from .config import jnp
 import healpy as hp
 
-###########################
-#  Angles-related functions
-###########################
+_L_NCP = jnp.radians(122.93192)
+_DEL_NGP = jnp.radians(27.128336)
+_ALPHA_NGP = jnp.radians(192.859508)
+_COS_NGP = jnp.cos(_DEL_NGP)
+_SIN_NGP = jnp.sin(_DEL_NGP)
 
 def th_phi_from_ra_dec(ra, dec):
   """
@@ -41,7 +55,6 @@ def find_pix_RAdec(ra, dec, nside, nest=False):
     jnp.ndarray: list of the corresponding HEALPix pixel indices
   """
   theta, phi = th_phi_from_ra_dec(ra, dec)
-
   return hp.ang2pix(nside, theta, phi, nest=nest)
 
 def find_pix(theta, phi, nside, nest=False):
@@ -55,8 +68,7 @@ def find_pix(theta, phi, nside, nest=False):
   Returns:
     jnp.ndarray: list of the corresponding HEALPix pixel indices
   """
-  pix = hp.ang2pix(nside, theta, phi, nest=nest)
-  return pix
+  return hp.ang2pix(nside, theta, phi, nest=nest)
 
 def find_theta_phi(pix, nside, nest=False):
   """
@@ -81,111 +93,149 @@ def find_ra_dec( pix, nside,  nest=False):
     (jnp.ndarray, jnp.ndarray): tuple of RA and dec arrays
   """
   theta, phi = find_theta_phi(pix, nside,  nest=nest)
-  ra, dec = ra_dec_from_th_phi(theta, phi)
-  return ra, dec
+  return ra_dec_from_th_phi(theta, phi)
 
 def hav(theta):
-  return (jnp.sin(theta/2))**2
+  """Haversine function: sin²(θ/2).
+  
+  Args:
+    theta (jnp.ndarray): Angle [rad]
+  
+  Returns:
+    jnp.ndarray: sin²(θ/2)
+  """
+  return jnp.square(jnp.sin(theta * 0.5))
 
 def haversine(phi, theta, phi0, theta0):
-  return jnp.arccos(1 - 2*(hav(theta-theta0)+hav(phi-phi0)*np.sin(theta)*np.sin(theta0)))
+  """Great circle distance using haversine formula.
+  
+  Args:
+    phi (jnp.ndarray): Azimuthal angle [rad]
+    theta (jnp.ndarray): Polar angle [rad]
+    phi0 (jnp.ndarray): Reference azimuthal angle [rad]
+    theta0 (jnp.ndarray): Reference polar angle [rad]
+  
+  Returns:
+    jnp.ndarray: Angular distance [rad]
+  """
+  return jnp.arccos(1.0 - 2.0 * (hav(theta - theta0) + hav(phi - phi0) * jnp.sin(theta) * jnp.sin(theta0)))
 
 def gal_to_eq(l, b):
   """
-  Computed equatorial (RA, dec) coordinates from galactic coordinates.
-  See: https://en.wikipedia.org/wiki/Celestial_coordinate_system#Equatorial_↔_galacti
+  Converts galactic (l, b) to equatorial (RA, dec) coordinates.
+  
+  Uses IAU transformation from galactic to equatorial coordinates.
+  See: https://en.wikipedia.org/wiki/Celestial_coordinate_system#Equatorial_↔_galactic
+  
   Args:
-    l (jnp.ndarray): galactic longitude [rad]
-    b (jnp.ndarray): glacitc latitude [rad]
+    l (jnp.ndarray): Galactic longitude [rad]
+    b (jnp.ndarray): Galactic latitude [rad]
+  
   Returns:
-    (jnp.ndarray, jnp.ndarray): (RA, dec) coordinates [rad]
+    tuple[jnp.ndarray, jnp.ndarray]: (RA, dec) coordinates [rad]
   """
-  l_NCP     = jnp.radians(122.93192)
-  del_NGP   = jnp.radians(27.128336)
-  alpha_NGP = jnp.radians(192.859508)
-
-  RA = jnp.arctan((jnp.cos(b)*np.sin(l_NCP-l))/(jnp.cos(del_NGP)*jnp.sin(b)-jnp.sin(del_NGP)*jnp.cos(b)*jnp.cos(l_NCP-l)))+alpha_NGP
-  dec = jnp.arcsin(jnp.sin(del_NGP)*jnp.sin(b)+jnp.cos(del_NGP)*jnp.cos(b)*jnp.cos(l_NCP-l))
-
+  cos_b = jnp.cos(b)
+  sin_b = jnp.sin(b)
+  cos_l_diff = jnp.cos(_L_NCP - l)
+  
+  numerator = cos_b * jnp.sin(_L_NCP - l)
+  denominator = _COS_NGP * sin_b - _SIN_NGP * cos_b * cos_l_diff
+  RA = jnp.arctan2(numerator, denominator) + _ALPHA_NGP
+  
+  dec = jnp.arcsin(_SIN_NGP * sin_b + _COS_NGP * cos_b * cos_l_diff)
+  
   return RA, dec
 
 def healpixelize(nside, ra, dec, nest=False):
-  """
-  HEALPix index from RA and dec (expressed in radians!)
+  """Groups object indices by their HEALPix pixel location.
+  
+  Converts RA/dec coordinates to HEALPix pixels and groups object indices
+  that fall within the same pixel. Useful for spatial clustering and
+  efficient lookups of objects within sky regions.
+  
   Args:
-    nside (int): HEALPix nside parameter
-    ra (jnp.ndarray): right ascension [rad]
-    dec (jnp.ndarray): declination [rad]
-    nest (bool, optional): HEALPix nest parameter. Defaults to False.
+    nside (int): HEALPix resolution parameter (npix = 12 * nside²)
+    ra (jnp.ndarray): Right ascension [rad]
+    dec (jnp.ndarray): Declination [rad]
+    nest (bool, optional): Use NESTED ordering scheme. Defaults to False (RING).
+  
   Returns:
-    Dict[int, jnp.ndarray]: indexes of objects falling within the same HEALPix pixel.
-
+    dict[int, jnp.ndarray]: Mapping from HEALPix pixel index to array of
+                            object indices falling within that pixel.
+  
+  Example:
+    >>> ra = jnp.array([0.1, 0.2, 0.1])
+    >>> dec = jnp.array([0.5, 0.5, 0.51])
+    >>> pix_dict = healpixelize(32, ra, dec)
+    >>> # Objects 0 and 2 likely in same pixel, object 1 in another
   """
-  # Taken from gwcosmo
-  # Convert (RA, DEC) to (theta, phi)
   theta, phi = th_phi_from_ra_dec(ra, dec)
-
-  # Hierarchical Equal Area isoLatitude Pixelation and corresponding sorted indices
-  healpix          = hp.ang2pix(nside, theta, phi, nest=nest)
+  
+  healpix = hp.ang2pix(nside, theta, phi, nest=nest)
   healpix_idx_sort = jnp.argsort(healpix)
-  healpix_sorted   = healpix[healpix_idx_sort]
-
-  # healpix_hasobj: healpix containing an object (ordered)
-  # idx_split: where to cut, i.e. indices of 'healpix_sorted' where a change occours
-  healpix_hasobj, idx_start = jnp.unique(healpix_sorted, return_index=True)
-
-  # Split healpix
-  healpix_splitted = jnp.split(healpix_idx_sort, idx_start[1:])
-
-  dicts = {}
-  for i, key in enumerate(healpix_hasobj):
-    dicts[key] = healpix_splitted[i]
-
-  return dicts
+  healpix_sorted = healpix[healpix_idx_sort]
+  
+  healpix_unique, idx_start = jnp.unique(healpix_sorted, return_index=True)
+  healpix_groups = jnp.split(healpix_idx_sort, idx_start[1:])
+  
+  return {int(pix): indices for pix, indices in zip(healpix_unique, healpix_groups)}
 
 def angular_separation_from_LOS(ra, dec, ra_los, dec_los):
-  """
-  Finds the angular separation between the point defined by (RA, dec) and the LOS defined by (RA_los, dec_los)
+  """Computes angular separation between sky position and line-of-sight.
+  
+  Uses spherical trigonometry to compute the angular distance between
+  a point (RA, dec) and a reference direction (RA_los, dec_los).
+  
   Args:
-    ra (jnp.ndarray): point right ascension [rad]
-    dec (jnp.ndarray): point declination [rad]
-    ra_los (jnp.ndarray): LOS right ascension [rad]
-    dec_los (jnp.ndarray): LOS declination [rad]
-  Rerturns:
-    jnp.ndarray: angular separation
+    ra (jnp.ndarray): Point right ascension [rad]
+    dec (jnp.ndarray): Point declination [rad]
+    ra_los (jnp.ndarray): Line-of-sight right ascension [rad]
+    dec_los (jnp.ndarray): Line-of-sight declination [rad]
+  
+  Returns:
+    jnp.ndarray: Angular separation [rad]
   """
-
-  cos_angle = jnp.sin(dec)*jnp.sin(dec_los) + jnp.cos(dec)*jnp.cos(dec_los)*jnp.cos(ra-ra_los)
-  angle = jnp.arccos(cos_angle)
-  return angle
+  cos_angle = jnp.sin(dec) * jnp.sin(dec_los) + jnp.cos(dec) * jnp.cos(dec_los) * jnp.cos(ra - ra_los)
+  return jnp.arccos(jnp.clip(cos_angle, -1.0, 1.0))
 
 
 def convert_pixelization(pixels, nside_in, nside_out, nest_in=False, nest_out=False):
-    """
-    Converts HEALPix pixels from one resolution/ordering scheme to another.
-
+    """Converts HEALPix pixels between different resolutions/orderings.
+    
+    Transforms pixel indices from one HEALPix resolution (nside_in) to another
+    (nside_out), optionally converting between RING and NESTED ordering schemes.
+    Handles both uniform and varying input resolutions.
+    
     Args:
-        pixels (numpy.ndarray): Input pixel indices (2D array of shape [n_configs, n_samples])
-        nside_in (int or numpy.ndarray): NSIDE parameter of input pixels (scalar or array of length n_configs)
-        nside_out (int): NSIDE parameter for output pixels
-        nest_in (bool, optional): Input uses NESTED ordering. Defaults to False.
-        nest_out (bool, optional): Output uses NESTED ordering. Defaults to False.
-
+        pixels (array-like): Input pixel indices. Shape: (n_configs, n_samples) or (n_samples,)
+        nside_in (int or array-like): Input NSIDE parameter(s). If array, length must match
+                                      first dimension of pixels.
+        nside_out (int): Output NSIDE parameter for all pixels
+        nest_in (bool, optional): Input uses NESTED ordering. Defaults to False (RING).
+        nest_out (bool, optional): Output uses NESTED ordering. Defaults to False (RING).
+    
     Returns:
-        jnp.ndarray: Converted pixel indices with same shape as input
+        numpy.ndarray: Converted pixel indices with same shape as input
+    
+    Raises:
+        AssertionError: If nside_in shape doesn't match first dimension of pixels
+    
+    Example:
+        >>> # Convert from nside=64 to nside=128
+        >>> pixels_in = np.array([[100, 101, 102]])
+        >>> pixels_out = convert_pixelization(pixels_in, 64, 128)
     """
-    # import jax.numpy as jnp
-    # import jax_healpy as jhp
     import numpy as np
-
+    
     pixels = np.atleast_2d(pixels)
     nside_in = np.atleast_1d(nside_in)
-
-    assert pixels.shape[0] == nside_in.shape[0], f"nside_in shape {nside_in.shape} does not match first dimension of pixels {pixels.shape}"
-
-    results = []
+    
+    assert pixels.shape[0] == nside_in.shape[0], \
+        f"nside_in length {nside_in.shape[0]} != pixels first dimension {pixels.shape[0]}"
+    
+    results = np.empty_like(pixels, dtype=np.int64)
     for i in range(pixels.shape[0]):
         theta, phi = hp.pix2ang(int(nside_in[i]), pixels[i], nest=nest_in)
-        results.append(hp.ang2pix(nside_out, theta, phi, nest=nest_out))
-
-    return xp.stack(results)
+        results[i] = hp.ang2pix(nside_out, theta, phi, nest=nest_out)
+    
+    return results
