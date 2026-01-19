@@ -1,3 +1,13 @@
+"""HDF5 input/output utilities for CHIMERA objects.
+
+This module provides functions for saving and loading CHIMERA objects to/from
+HDF5 files, with support for:
+- Equinox module serialization/deserialization
+- Selective attribute, dataset, and group saving
+- JAX/NumPy backend selection
+- Required key validation
+"""
+
 import h5py
 from ..utils.config import jnp
 import numpy as np
@@ -5,7 +15,22 @@ import equinox as eqx
 from dataclasses import fields, replace
 
 def save_set(obj, dir_file, attrs=[], datasets=[], groups=[]):
-  """Save attributes and datasets of an object to dir_file."""
+  """Saves selected attributes, datasets, and groups from an object to HDF5.
+  
+  Args:
+    obj: Object containing attributes/datasets/groups to save
+    dir_file (str): Output HDF5 file path
+    attrs (list[str], optional): Attribute names to save as HDF5 attributes
+    datasets (list[str], optional): Attribute names to save as HDF5 datasets
+    groups (list[str], optional): Dictionary attributes to save as HDF5 groups
+  
+  Example:
+    >>> obj.alpha = 1.5
+    >>> obj.data = jnp.array([1, 2, 3])
+    >>> obj.params = {'x': 0.1, 'y': 0.2}
+    >>> save_set(obj, 'output.h5', attrs=['alpha'], 
+    ...          datasets=['data'], groups=['params'])
+  """
   with h5py.File(dir_file, 'w') as f:
     for a in attrs:
       f.attrs[a] = getattr(obj, a)
@@ -18,7 +43,25 @@ def save_set(obj, dir_file, attrs=[], datasets=[], groups=[]):
         dg.create_dataset(k, data=v)
 
 def load_set(obj, dir_file, attrs=[], datasets=[], groups=[]):
-  """Load attributes and datasets into a new Equinox object (or update a mutable object)."""
+  """Loads attributes, datasets, and groups from HDF5 into an object.
+  
+  For Equinox modules, creates a new immutable instance with updated fields.
+  For mutable objects, updates fields in-place.
+  
+  Args:
+    obj: Object to load data into (Equinox module or mutable object)
+    dir_file (str): Input HDF5 file path
+    attrs (list[str], optional): Attribute names to load from HDF5 attributes
+    datasets (list[str], optional): Dataset names to load as object attributes
+    groups (list[str], optional): Group names to load as dictionary attributes
+  
+  Returns:
+    object: New instance (Equinox) or updated object (mutable)
+  
+  Example:
+    >>> loaded_obj = load_set(obj_template, 'output.h5',
+    ...                       attrs=['alpha'], datasets=['data'])
+  """
   new_fields = {}
   with h5py.File(dir_file, 'r') as f:
     for a in attrs:
@@ -34,7 +77,7 @@ def load_set(obj, dir_file, attrs=[], datasets=[], groups=[]):
     field_names = {f.name for f in fields(obj)}
     current_fields = {name: getattr(obj, name) for name in field_names}
     current_fields.update(new_fields)
-    return obj.__class__(**current_fields)
+    return replace(obj, **new_fields)
   else:
     for k, v in new_fields.items():
       setattr(obj, k, v)
@@ -42,16 +85,23 @@ def load_set(obj, dir_file, attrs=[], datasets=[], groups=[]):
 
 
 def load_data_h5(fname, group_h5=None, backend='jax', require_keys=None):
-  """Generic function to load data from h5 files with optional validation.
-
+  """Loads all datasets from an HDF5 file with validation.
+  
   Args:
-      fname: Path to HDF5 file
-      group_h5: Optional group within HDF5 file
-      backend: 'jax' or 'numpy' for array types
-      require_keys: List of keys that must be present
-
+    fname (str): Path to HDF5 file
+    group_h5 (str, optional): HDF5 group path. If None, loads from root.
+    backend (str, optional): Array backend - 'jax' or 'numpy'. Defaults to 'jax'.
+    require_keys (list[str], optional): Keys that must be present. Raises ValueError if missing.
+  
   Returns:
-      Dictionary of arrays
+    dict[str, array]: Dictionary mapping dataset names to arrays
+  
+  Raises:
+    ValueError: If any required keys are missing from the file
+  
+  Example:
+    >>> data = load_data_h5('catalog.h5', group_h5='galaxies',
+    ...                     require_keys=['ra', 'dec', 'redshift'])
   """
   xp = jnp if backend == 'jax' else np
   data = {}

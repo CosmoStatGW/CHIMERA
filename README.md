@@ -66,17 +66,20 @@ BibTeX from INSPIRE:
 
     @article{Tagliazucchi:2025ofb,
         author = "Tagliazucchi, Matteo and Moresco, Michele and Borghi, Nicola and Fiebig, Manfred",
-        title = "{Accelerating the Standard Siren Method: Improved Constraints on Modified Gravitational Wave Propagation with Future Data}",
+        title = "{Accelerating the standard siren method: Improved constraints on modified gravitational-wave propagation with future data}",
         eprint = "2504.02034",
         archivePrefix = "arXiv",
         primaryClass = "astro-ph.CO",
-        month = "4",
+        doi = "10.1051/0004-6361/202554827",
+        journal = "Astron. Astrophys.",
+        volume = "702",
+        pages = "A244",
         year = "2025"
     }
 
 
 ## Contributions
-CHIMERA is actively maintained at the **University of Bologna** by: [Nicola Borghi (nicola.borghi6@unibo.it)](https://orcid.org/0000-0002-2889-8997), [Matteo Tagliazucchi (matteo.tagliazucchi2@unibo.it)](https://orcid.org/0009-0003-8886-3184), and
+CHIMERA is actively maintained at the *University of Bologna* by: [Nicola Borghi (nicola.borghi6@unibo.it)](https://orcid.org/0000-0002-2889-8997), [Matteo Tagliazucchi (matteo.tagliazucchi2@unibo.it)](https://orcid.org/0009-0003-8886-3184), and
 [Michele Moresco (michele.moresco@unibo.it)](https://orcid.org/0000-0002-7616-7136).
 
 Michele Mancarella, Francesco Iacovelli and Michele Maggiore contributed to the development of the first version of the code.
