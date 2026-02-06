@@ -86,6 +86,7 @@ Michele Mancarella, Francesco Iacovelli and Michele Maggiore contributed to the 
 
 The development of CHIMERA has also been supported from the work of Master's thesis students at the University of Bologna (in reverse chronological order):
 
+- *Martina Mori* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/36127/)): optimizing the extraction of information from future GW data
 - *Giulia Cuomo* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/35185/)): incompleteness function and application to GWTC-3 data
 - *Manfred Fiebig* (2025, [thesis](https://amslaurea.unibo.it/id/eprint/34082/)): modified GW propagation function and forecasts for LVK-O5
 - *Niccolò Passaleva* (2024, [thesis](https://amslaurea.unibo.it/id/eprint/30896/)): mass function models and inference with nested sampling
