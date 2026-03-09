@@ -87,6 +87,36 @@ class trunc_power_law(base_rate_struct):
 	default = {'gamma':1.9, 'zmax':1.3}
 	keys = list(default.keys())
 
+class z2_exp(base_rate_struct):
+  r"""Merger rate R(z) = z^2 * exp(-(z/z0)^alphaz).
+  Rises as z^2 at low z and is suppressed above z0.
+  From icaroverse LISA MBHB/EMRI snippet.
+  Args:
+    z0 (float): characteristic cutoff redshift.
+    alphaz (float): sharpness of the exponential cutoff.
+  """
+  z0: float
+  alphaz: float
+  name = 'z2_exp'
+  default = {'z0': 2.0, 'alphaz': 2.0}
+  keys = list(default.keys())
+
+class exp_cutoff_power_law(base_rate_struct):
+  r"""Merger rate R(z) = (1+z)^gamma * exp(-(z/z0)^alphaz).
+  Power-law evolution at low z with exponential suppression above z0.
+  Recovers standard power_law for z0 -> inf.
+  Args:
+    gamma (float): low-z power-law exponent.
+    z0 (float): characteristic cutoff redshift.
+    alphaz (float): sharpness of the exponential cutoff.
+  """
+  gamma: float
+  z0: float
+  alphaz: float
+  name = 'exp_cutoff_power_law'
+  default = {'gamma': 1.7, 'z0': 2.0, 'alphaz': 2.0}
+  keys = list(default.keys())
+
 ##################
 # RATE FUNCTIONS #
 ##################
@@ -121,6 +151,16 @@ def merger_rate(rate: trunc_madau_dickinson, z: jnp.ndarray):
 	one_over_norm = 1. + (1.+rate.zp)**(-rate.gamma-rate.kappa)
 	return jnp.where(z<rate.zmax, one_over_norm*rate_md_not_norm, 0.)
 
+
+@dispatch
+def merger_rate(rate: z2_exp, z: jnp.ndarray):
+  """Computes the merger rate."""
+  return z**2 * jnp.exp(-(z / rate.z0)**rate.alphaz)
+
+@dispatch
+def merger_rate(rate: exp_cutoff_power_law, z: jnp.ndarray):
+  """Computes the merger rate."""
+  return (1. + z)**rate.gamma * jnp.exp(-(z / rate.z0)**rate.alphaz)
 
 # Final dipatch for functions that needs theta_src as argument instead of array:
 
