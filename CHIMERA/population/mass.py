@@ -307,10 +307,10 @@ def primary_mass_pdf_notnorm(mass:plp, m: jnp.ndarray):
 @dispatch
 def primary_mass_pdf_notnorm(mass:pl2p, m: jnp.ndarray):
   P  = tpl_notnorm(m, -mass.alpha, mass.m_low, mass.m_high)/tpl_cdf(-mass.alpha, mass.m_low, mass.m_high)
-  G1 = truncated_gaussian(x, mass.mu1_g, mass.sigma1_g, mass.m_low, mass.mu1_g + 5*mass.sigma1_g)
-  G2 = truncated_gaussian(x, mass.mu2_g, mass.sigma2_g, mass.m_low, mass.mu2_g + 5*mass.sigma2_g)
+  G1 = truncated_gaussian(m, mass.mu1_g, mass.sigma1_g, mass.m_low, mass.mu1_g + 5*mass.sigma1_g)
+  G2 = truncated_gaussian(m, mass.mu2_g, mass.sigma2_g, mass.m_low, mass.mu2_g + 5*mass.sigma2_g)
   pdf = (1-mass.lambda_peak)*P + mass.lambda_peak*mass.lambda1*G1 + mass.lambda_peak*(1. - mass.lambda1)*G2
-  pdf *= smoothing(m2, mass.delta_m, mass.m_low)
+  pdf *= smoothing(m, mass.delta_m, mass.m_low)
   return pdf
 
 ##########################################
