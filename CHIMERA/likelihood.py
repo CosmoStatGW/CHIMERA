@@ -280,15 +280,54 @@ class hyperlikelihood(object):
     like_evs = jnp.sum(like_evs_pixels, axis = -1) # (Nevents,)
     return like_evs
 
+  def _compute_p_gw_on_eff_grids(self, pop_lambdas):
+    """Like p_gw1d but returns (p_gw, eff_grids) on the adaptive per-event grid.
+
+    Avoids the interpolation back to z_grids that fails for events with very
+    narrow z posteriors (eff_grid width < z_grid spacing).
+    """
+    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
+    norms  = jnp.mean(weights, axis=-1)
+    n_effs = jnp.sum(weights, axis=-1)**2 / jnp.sum(weights**2, axis=-1)
+
+    if self.cut_grid is not None:
+      data_min = jnp.min(th_src.z, axis=-1)
+      data_max = jnp.max(th_src.z, axis=-1)
+      sigma = jnp.std(th_src.z, axis=-1)
+      lb = jnp.where(data_min - self.cut_grid*sigma > 0., data_min - self.cut_grid*sigma, 1.e-8)
+      ub = data_max + self.cut_grid*sigma
+      eff_grids = jnp.linspace(lb, ub, self.z_int_res // 2).T
+      eff_len = self.z_int_res // 2
+    else:
+      eff_grids = self.z_grids
+      eff_len = self.z_int_res
+
+    if self.binning:
+      zs, weights = jax.vmap(binning1d, in_axes=(0,0,None))(th_src.z, weights, self.num_bins)
+    else:
+      zs, weights = th_src.z, weights
+
+    def single_ev_routine(ev):
+      condition = (n_effs[ev] >= self.pe_neff)
+      return jax.lax.cond(
+        condition,
+        lambda _: kde1d(zs[ev], eff_grids[ev], weights[ev], self.kernel, self.bw_method) * norms[ev],
+        lambda _: jnp.zeros(eff_len),
+        operand=None
+      )
+
+    p_gw = jax.vmap(single_ev_routine)(jnp.arange(self.nevents))
+    return p_gw, eff_grids
+
   def _compute_numlike_evs_no_pixels(self, pop_lambdas):
-    # p_gw(z,| \theta_gw, \lambda_c, \lambda_m)
-    p_gw = self.p_gw1d(pop_lambdas)
+    # p_gw(z | theta_gw, lambda) on the adaptive per-event eff_grid
+    p_gw, eff_grids = self._compute_p_gw_on_eff_grids(pop_lambdas)
     # p_z of having a cbc at z
-    p_z = p_cbc(pop_lambdas, self.z_grids)
+    p_z = p_cbc(pop_lambdas, eff_grids)
     # jacobian
-    jacobian = ddLdz_at_z(pop_lambdas.cosmo, self.z_grids) * (1.+self.z_grids)**2
-    # Integral
-    like_evs = trapz(p_gw*p_z/jacobian, self.z_grids, axis = -1)
+    jacobian = ddLdz_at_z(pop_lambdas.cosmo, eff_grids) * (1.+eff_grids)**2
+    # Integral on eff_grids (avoids resolution failures for narrow posteriors)
+    like_evs = trapz(p_gw*p_z/jacobian, eff_grids, axis=-1)
     return like_evs
 
   def compute_log_likenum(self, pop_lambdas):
