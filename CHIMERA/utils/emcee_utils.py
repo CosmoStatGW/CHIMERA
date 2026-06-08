@@ -1,10 +1,13 @@
-from .config import jnp, logger
-import os, re, sys
 from typing import List, Union, Dict, Optional
 import numpy as np
-import h5py
-
+import jax.numpy as jnp
+import os
+import re
+import warnings
 import emcee
+import zeus
+import h5py
+import dill
 
 # FUNCTION TO GENERATE THE FILENAME OF THE CHAIN
 
@@ -51,17 +54,57 @@ def generate_chain_filename(output_dir, chain_prefix, restart_chain):
 
 # FUNCTION THAT GENERATE A DICT OF ARRAYS GIVEN A NDARRAY AND SOME KEYS
 
-def generate_dict(params, params_keys, to_calc=None):
-  if len(params.shape)>1:
-    # vectorized case
-    if to_calc is None:
-      hyperparams = {k:jnp.array(params[:,i]) for i,k in enumerate(params_keys)}
+def generate_dict(params,  params_keys, to_calc = None):
+
+  params = jnp.asarray(params)
+  is_vectorized = params.ndim > 1
+  if is_vectorized and to_calc is not None:
+      params = params[to_calc]
+  hyperparams = dict()
+  
+  # Extract all spline_c{i} keys and sort them by index if present
+  spline_c_keys = sorted([k for k in params_keys if k.startswith('spline_c') and k[8:].isdigit()],
+                          key=lambda x: int(x[8:]))
+  num_spline_coeffs = len(spline_c_keys)
+
+  # extract parameters  
+  idx_coeffs = []
+  for i,k in enumerate(params_keys):
+    if k in spline_c_keys:
+      idx_coeffs.append(i)
+      continue
     else:
-      hyperparams = {k:jnp.array(params[to_calc,i]) for i,k in enumerate(params_keys)}
-  else:
-  # non vectorized case
-    hyperparams = {k:params[i] for i,k in enumerate(params_keys)}
+      hyperparams[k] = params[..., i] if is_vectorized else params[i]
+
+  # handle spline coeffs  
+  if num_spline_coeffs > 0:
+    idx_coeffs = jnp.array(idx_coeffs)  
+    hyperparams['spline_coefficients'] = params[..., idx_coeffs] if is_vectorized else params[idx_coeffs]
+  
   return hyperparams
+
+# FUNCTION TO HANDLE PRIORS AND TRUES WHEN THE MASS MODEL IS THE SPLINE ONE
+def create_sampler_priors_and_trues(original_priors, original_trues, num_spline_coeffs=None):
+  """Create trues for sampler with spline coefficients as individual parameters"""
+  sampler_priors = dict()
+  sampler_trues = dict()
+
+  for key, dist_obj in original_priors.items():
+    if key != 'spline_coefficients':
+      sampler_priors[key] = dist_obj
+    else:
+      for i in range(num_spline_coeffs):
+        sampler_priors[f'spline_c{i}'] = original_priors['spline_coefficients']
+
+  for key, value in original_trues.items():
+    if key != 'spline_coefficients':
+      sampler_trues[key] = value
+    else:
+      for i in range(num_spline_coeffs):
+        sampler_trues[f'spline_c{i}'] = original_trues['spline_coefficients'][i]
+
+  return sampler_priors, sampler_trues
+
 
 # FUNCTIONS TO GENERATE INITIAL WALKER POSITIONS FOR EMCEE SAMPLER
 
@@ -118,7 +161,7 @@ def get_initial_state(nwalkers,
     elif distribution == 'uniform':
       for i in range(nwalkers):
         tmp = jnp.array(np.random.uniform(low=priors[:, 0], high=priors[:, 1], size=(1, ndim)))
-        while not check_initials(tmp, log_prior):
+        while not _check_initials(tmp, log_prior):
           tmp = jnp.array(np.random.uniform(low=priors[:, 0], high=priors[:, 1], size=(1, ndim)))
         start = start.at[i].set(tmp)
 
@@ -196,8 +239,6 @@ class NotMove(emcee.moves.Move):
 
       sets = [state.coords[inds == j] for j in range(self.nsplits)]
       s = sets[split]
-      c = sets[:split] + sets[split + 1 :]
-
       # params (q) are not obtained using not using "get_proposal" but they will always be a ndarray of zeros.
       # In `log_prob_fn` they will be overwritten by the "master" (rank 0) params
       q       = np.full((len(s), ndim), -np.inf)
@@ -221,6 +262,16 @@ class NotMove(emcee.moves.Move):
 
 # CUSTOM emcee.EnsembleSampler THAT DOES NOT CHECK IF THE PARAMS ARE "inf" OR "nan".
 # Everything else is equal to emcee.EnsembleSampler
+
+try:
+  # Try to import from numpy.exceptions (available in NumPy 1.25 and later)
+   from numpy.exceptions import VisibleDeprecationWarning
+except ImportError:
+  # Fallback to the top-level numpy import (for older versions)
+  from numpy import VisibleDeprecationWarning
+def deprecation_warning(msg):
+  warnings.warn(msg, category=DeprecationWarning, stacklevel=2)
+
 
 class CustomEnsembleSampler(emcee.EnsembleSampler):
 
@@ -288,12 +339,12 @@ class CustomEnsembleSampler(emcee.EnsembleSampler):
       results = list(map_func(self.log_prob_fn, p))
 
     try:
-      blob = [l[1:] for l in results if len(l) > 1]
+      blob = [res[1:] for res in results if len(res) > 1]
       if not len(blob):
         raise IndexError
-      log_prob = np.array([emcee.ensemble._scalar(l[0]) for l in results])
+      log_prob = np.array([emcee.ensemble._scalar(res[0]) for res in results])
     except (IndexError, TypeError):
-      log_prob = np.array([emcee.ensemble._scalar(l) for l in results])
+      log_prob = np.array([emcee.ensemble._scalar(res) for res in results])
       blob = None
     else:
       if self.blobs_dtype is not None:
@@ -332,3 +383,126 @@ class CustomEnsembleSampler(emcee.EnsembleSampler):
       raise ValueError("Probability function returned NaN")
 
     return log_prob, blob
+
+
+class CheckpointCallback:
+  """
+  The Checkpoint Callback class incrementally saves samples and log-probability
+  values to an HDF5 file and pickles the sampler state for restart capability.
+
+  Args:
+      sampler (zeus.EnsembleSampler): The sampler instance to checkpoint.
+      h5file (str): HDF5 file where samples/logprob are stored.
+      pklfile (str): Pickle file where sampler is stored.
+      ncheck (int): Number of steps between checkpoints.
+  """
+  def __init__(self, sampler, h5file="./chains.h5", pklfile="./sampler.pkl", ncheck=100):
+    if h5py is None:
+      raise ImportError("You must install 'h5py' to use the CheckpointCallback")
+    self.sampler = sampler
+    self.h5file = h5file
+    self.pklfile = pklfile
+    self.ncheck = ncheck
+    self.initialised = False
+
+  def __call__(self, i, x, y):
+    """
+    Args:
+        i (int): Current iteration.
+        x (array): Chain up to iteration i, shape (i, nwalkers, ndim).
+        y (array): Log-probability values up to iteration i.
+    """
+    if i % self.ncheck == 0:
+      xs = x[i - self.ncheck:i]
+      ys = y[i - self.ncheck:i]
+      if self.initialised:
+        self.__append(xs, ys)
+      else:
+        self.__initialize(xs, ys)
+      self.__pickle_sampler()
+    return None
+
+  # HDF5 
+  def __initialize(self, x, y):
+    with h5py.File(self.h5file, "w") as hf:
+      hf.create_dataset(
+        "samples",
+        data=x,
+        compression="gzip",
+        chunks=True,
+        maxshape=(None,) + x.shape[1:],
+      )
+      hf.create_dataset(
+        "logprob",
+        data=y,
+        compression="gzip",
+        chunks=True,
+        maxshape=(None,) + y.shape[1:],
+      )
+    self.initialised = True
+
+  def __append(self, x, y):
+    with h5py.File(self.h5file, "a") as hf:
+      ns_old = hf["samples"].shape[0]
+      ns_new = ns_old + x.shape[0]
+      hf["samples"].resize(ns_new, axis=0)
+      hf["samples"][ns_old:ns_new] = x
+      hf["logprob"].resize(ns_new, axis=0)
+      hf["logprob"][ns_old:ns_new] = y
+
+  # Pickle
+  def __pickle_sampler(self):
+    tmpfile = self.pklfile + ".tmp"
+    with open(tmpfile, "wb") as f:
+      dill.dump(self.sampler, f)
+    os.replace(tmpfile, self.pklfile)
+
+
+def EnsembleSampler(nwalkers = None,
+  ndim = None,
+  logprob_fn = None,
+  args=None,
+  kwargs=None,
+  moves=None,
+  tune=True,
+  tolerance=0.05,
+  patience=5,
+  maxsteps=10000,
+  mu=1.0,
+  maxiter=10000,
+  pool=None,
+  vectorize=False,
+  blobs_dtype=None,
+  verbose=True,
+  check_walkers=True,
+  shuffle_ensemble=True,
+  light_mode=False,
+  checkpoint_pklfile=None
+):
+   
+  if checkpoint_pklfile is not None:
+    with open(checkpoint_pklfile, "rb") as f:
+      sampler = dill.load(f)
+      x0 = sampler.get_last_sample()
+    return sampler, x0
+  else:
+    sampler = zeus.EnsembleSampler(nwalkers, 
+                ndim, 
+                logprob_fn, 
+                args,
+                kwargs,
+                moves,
+                tune,
+                tolerance,
+                patience,
+                maxsteps,
+                mu,
+                maxiter,
+                pool,
+                vectorize,
+                blobs_dtype,
+                verbose,
+                check_walkers,
+                shuffle_ensemble,
+                light_mode)
+    return sampler

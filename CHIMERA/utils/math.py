@@ -1,5 +1,6 @@
 from functools import partial
-from .config import jax, jnp, USE_GPU
+import jax
+import jax.numpy as jnp
 import numba as nb
 import numpy as np
 
@@ -127,7 +128,6 @@ def jax_gkde_nd(dataset, evaluation_grid, weights=None, bw_method=None, in_log=F
   _data_covariance = jnp.atleast_2d(jnp.dot(_residual * _weights, _residual.T))
   _data_covariance /= (1 - jnp.sum(_weights ** 2))
   _data_inv_cov    = jnp.linalg.inv(_data_covariance)
-  covariance  = _data_covariance * factor**2
   inv_cov     = _data_inv_cov / factor**2
   whitening        = jnp.linalg.cholesky(inv_cov)
   points_whitened  = jnp.dot(points.T, whitening)
@@ -143,7 +143,7 @@ def jax_gaussian_kernel_nd(in_log, points, dataset, weights, log_norm):
     return jnp.log(y_train) + arg if in_log else y_train * jnp.exp(arg)
   def _reduced_kernel(x):
     kernel_values = jax.vmap(_kernel, in_axes=(None, 0, 0))(x, dataset, weights)
-    return special.logsumexp(kernel_values) if in_log else jnp.sum(kernel_values)
+    return jax.special.logsumexp(kernel_values) if in_log else jnp.sum(kernel_values)
   mapped_kernel = jax.vmap(_reduced_kernel)
   return mapped_kernel(points)
 
@@ -152,6 +152,9 @@ def jax_gaussian_kernel_nd(in_log, points, dataset, weights, log_norm):
 ###############################################
 
 def numba_gkde_nd(dataset, evaluation_grid, weights=None, bw_method=None, in_log=False):
+  from CHIMERA.utils.config import USE_GPU
+  from cupyx.scipy.special import logsumexp
+  from cupyx.scipy.spatial.distance import cdist
   # cast dataset and points
   dataset = np.atleast_2d(dataset)
   d_dataset, n_dataset = dataset.shape

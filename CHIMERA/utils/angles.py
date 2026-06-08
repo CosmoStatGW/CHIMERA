@@ -1,5 +1,6 @@
-from .config import jax, jnp
+import jax.numpy as jnp
 import healpy as hp
+import numpy as np
 
 ###########################
 #  Angles-related functions
@@ -188,4 +189,4 @@ def convert_pixelization(pixels, nside_in, nside_out, nest_in=False, nest_out=Fa
         theta, phi = hp.pix2ang(int(nside_in[i]), pixels[i], nest=nest_in)
         results.append(hp.ang2pix(nside_out, theta, phi, nest=nest_out))
 
-    return xp.stack(results)
+    return np.stack(results)

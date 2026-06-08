@@ -2,14 +2,14 @@ import equinox as eqx
 from typing import Optional, Union, List, Dict
 from numbers import Number
 from plum import dispatch
-from ..utils.config import jax, jnp, logger
+import jax.numpy as jnp
+
 from ..utils.math import trapz
-from ..utils import angles
-from ..population.cosmo import dVcdz_at_z, Vc_at_z, z_from_dGW, ddLdz_at_z
-from ..population.mass import p_m1m2
-from ..population.rate import merger_rate
+from .cosmo import  z_from_dGW, ddLdz_at_z
+from .mass import p_m1m2
+from .rate import merger_rate
 from ..catalog.catalog import empty_catalog
-from ..data import theta_src, theta_pe_det, theta_inj_det, theta_generic
+from ..data import theta_src, theta_pe_det, theta_inj_det
 
 class population(eqx.Module):
   cosmo: eqx.Module
@@ -84,7 +84,7 @@ def p_cbc(pop_lambdas:population, z:jnp.ndarray):
   p_gal = pop_lambdas.gal_cat.p_gal(pop_lambdas.cosmo, z)
   p_rate = merger_rate(pop_lambdas.rate, z) / (1+z)
   if p_gal.ndim > p_rate.ndim:
-    p_z = jnp.where(p_gal != -100, p_gal * p_rate[:, None, :], -100)  # pixelated
+    p_z = jnp.where(p_gal != jnp.nan, p_gal * p_rate[:, None, :], jnp.nan)  # pixelated
   else:
     p_z = p_gal * p_rate # no pixels
   return p_z
@@ -103,7 +103,7 @@ def pop_rate_det(pop_lambdas:population, th_det:theta_pe_det):
 def pop_rate_det(pop_lambdas:population, th_det:theta_inj_det):
   """Computes the population rate in detector frame for injections."""
   theta_inj_src = theta_det2src(pop_lambdas.cosmo, th_det, include_original_distances=True)
-  p_z = pop_lambdas.gal_cat.p_bkg(pop_lambdas.cosmo, theta_inj_src)
+  p_z = pop_lambdas.gal_cat.p_bkg(pop_lambdas.cosmo, theta_inj_src.z, distances=theta_inj_src.original_distances)
   p_z *= merger_rate(pop_lambdas.rate, theta_inj_src)/(1.+theta_inj_src.z)
   dNdtheta = pop_lambdas.R0*p_m1m2(pop_lambdas.mass, theta_inj_src)*p_z
   jacobian = jnp.abs(ddLdz_at_z(pop_lambdas.cosmo, theta_inj_src))*(1.+theta_inj_src.z)**2
@@ -113,7 +113,7 @@ def pop_rate_det(pop_lambdas:population, th_det:theta_inj_det):
 @dispatch
 def pop_rate_det(pop_lambdas:population, th_src:theta_src):
   """Computes the population rate in detector frame for mock data."""
-  p_z = pop_lambdas.gal_cat.p_bkg(pop_lambdas.cosmo, th_src)
+  p_z = pop_lambdas.gal_cat.p_bkg(pop_lambdas.cosmo, th_src.z)
   p_z *= merger_rate(pop_lambdas.rate, th_src)/(1.+th_src.z)
   dNdtheta = pop_lambdas.R0*p_m1m2(pop_lambdas.mass, th_src)*p_z
   jacobian = jnp.abs(ddLdz_at_z(pop_lambdas.cosmo, th_src))*(1.+th_src.z)**2

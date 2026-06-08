@@ -1,8 +1,8 @@
 import h5py
-from ..utils.config import jnp
+import jax.numpy as jnp
 import numpy as np
 import equinox as eqx
-from dataclasses import fields, replace
+from dataclasses import fields
 
 def save_set(obj, dir_file, attrs=[], datasets=[], groups=[]):
   """Save attributes and datasets of an object to dir_file."""
