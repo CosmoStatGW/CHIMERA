@@ -598,5 +598,105 @@ def compute_completeness(cosmo_params, rho_gal_theo, z_grid, z_gal, sky_area,
     rho_theo = rho_gal_theo(z_grid)
     rho_theo = jnp.where(rho_theo < 1e-99, 1e-99, rho_theo)
 
-    # Return clipped completeness (observed/theoretical density, clipped at 1)
-    return jnp.minimum(rho_obs / rho_theo, 1.)
+    # Calculate completeness for each mask
+    for i in range(self.nmasks):
+      mask_selector = (self.mask_gal == i)
+
+      if self.mask_and_gal is not None:
+        mask_selector &= self.mask_and_gal
+
+      self.completeness = self.completeness.at[i].set(
+          compute_completeness(self.cosmo_lambdas, self.n_gal_theo, self.z_int_grid, self.z_gal,
+                                sky_area = self.sky_area_mask[i], Nz_to_bin=self.Nz_to_bin,
+                                weights_gal=self.weights_gal, smooth=self.smooth, resample=self.resample,
+                                mask=mask_selector))
+
+    # Clip completeness between zmin and zmax
+    self.completeness = jnp.where(
+        (self.z_int_grid >= self.z_min) & (self.z_int_grid <= self.z_max),
+        self.completeness,
+        0.
+    )
+
+    def get_completeness(mask_idx, z):
+      return jnp.interp(z, self.z_int_grid, self.completeness[mask_idx], left=0, right=0)
+    self.get_completeness_z = jax.vmap(get_completeness, in_axes=(None, 0))
+    self.get_completeness_batch = jax.vmap(get_completeness, in_axes=(0, 0))
+
+    return True
+
+  # -----------------------
+  # P_compl, p_bkg, and fR
+  # -----------------------
+
+  def set_gw_mask_idxs(self, pix_gw, nside_gw, nest_gw):
+    """Set the GW mask indices for the given pixelization.
+    Convert GW to completeness pixelization and get corresponding mask inde"""
+    self.gw_mask_idxs = self.healpix2mask[convert_pixelization(pix_gw, nside_gw, self.nside, nest_gw, self.nest)]
+
+  def P_compl(self, z_grids):
+    """Compute P_compl(z) on analysis z_grids for all the GW events.
+    Approx.: P_compl is cosmology independent (true for H0)."""
+
+    # Define a function that interpolates one mask's completeness onto a redshift grid
+    def interp_single_mask_to_grid(mask_id, z_grid):
+        return jnp.interp(z_grid, self.z_int_grid, self.completeness[mask_id])
+
+    # For each event, for each pixel, get completeness at each redshift
+    def process_event(event_mask_idxs, event_z_grid):
+        # Map interpolation over all pixels for this event
+        return jax.vmap(lambda m_id: interp_single_mask_to_grid(m_id, event_z_grid))(event_mask_idxs)
+
+    # Map the processing over all events
+    return jax.vmap(process_event)(self.gw_mask_idxs, z_grids)
+
+  @dispatch
+  def p_bkg(self, cosmo_lambdas:eqx.Module, theta_src:eqx.Module):
+    """Compute background probability on arbitrary z_grid, normalized over the range defined by self.z_int_grid.
+
+    Args:
+        cosmo: Cosmology object
+        z: Redshift value(s) where to evaluate the function
+
+    Returns:
+        Normalized probability values at z points
+    """
+    bkg = jnp.where(
+      (self.z_int_grid >= self.z_min) & (self.z_int_grid <= self.z_max),
+      self.n_gal_theo(self.z_int_grid) * dVcdz_at_z(cosmo_lambdas, self.z_int_grid),
+      0.
+    )
+    norm = trapz(bkg, self.z_int_grid)
+    return jnp.interp(theta_src.z, self.z_int_grid, bkg/norm, left=0, right=0)
+
+  @dispatch
+  def p_bkg(self, cosmo_lambdas:eqx.Module, z:jnp.ndarray):
+    return self.p_bkg(cosmo_lambdas, theta_src(z=z))
+
+
+  def fR(self, cosmo_lambdas):
+    """Compute fR = ∫ P_compl * p_bkg dz for all masks with a given cosmology.
+    This function is called within MCMC iterations when cosmology changes.
+
+    Parameters:
+        cosmo: Cosmological parameters for this iteration
+        pix_gw (jnp.ndarray): Pixelization of the GW event
+        nside (jnp.ndarray): HEALPix nside parameter.
+
+        nside_gw : Nside of the GW event
+        nest_gw: Whether the GW event is in nested pixelization
+
+    Returns:
+        Array of shape (nmasks,) with fR values
+    """
+    # Compute background probability with the current cosmology: (z_points,) → (1, z_points)
+    p_bkg = self.p_bkg(cosmo_lambdas, self.z_int_grid)[None, :]
+
+    # Compute fR for all masks at once
+    fR_masks = jax.vmap(lambda x: trapz(x, self.z_int_grid))(self.completeness * p_bkg)
+
+    # Convert GW to completeness pixelization and get corresponding fR values
+    fR_values = fR_masks[self.gw_mask_idxs]
+
+    # Flatten if input is pseudo-2D
+    return fR_values.flatten() if self.gw_mask_idxs.ndim == 1 else fR_values

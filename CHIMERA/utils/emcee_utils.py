@@ -4,12 +4,27 @@ import jax.numpy as jnp
 import os
 import re
 import warnings
+"""Utilities for MCMC sampling with emcee.
+
+This module provides helper functions and custom classes for running MCMC chains
+with the emcee package, including:
+- Chain file management and restart functionality
+- Initial walker position generation from various distributions
+- Custom sampler classes for specialized parallelization needs
+- Parameter dictionary conversion utilities
+"""
+
+from .config import jnp, logger
+import os, re, sys
+from typing import List, Union, Dict, Optional
+import numpy as np
+import h5py
+import warnings
+
 import emcee
 import zeus
 import h5py
 import dill
-
-# FUNCTION TO GENERATE THE FILENAME OF THE CHAIN
 
 def generate_chain_filename(output_dir, chain_prefix, restart_chain):
   """
@@ -37,18 +52,18 @@ def generate_chain_filename(output_dir, chain_prefix, restart_chain):
     if highest_number == float('-inf'):
       raise ValueError("No files found matching the prefix requested.")
 
-    chain_to_restart = directory + prefix + '_' + str(highest_number) + '.h5'
-    filename = directory + prefix + '_' + str(highest_number+1) + '.h5'
+    chain_to_restart = os.path.join(directory, f'{prefix}_{highest_number}.h5')
+    filename = os.path.join(directory, f'{prefix}_{highest_number+1}.h5')
 
-    print(f"Restarting last chain with prefix {prefix}, that is {chain_to_restart}")
-    print(f"Samples of the restarded chain written in the file {filename}")
+    logger.info(f"Restarting last chain with prefix {prefix}, that is {chain_to_restart}")
+    logger.info(f"Samples of the restarted chain written in the file {filename}")
 
   else:
-    filename = directory + prefix + '_0.h5'
-    print(f"Writing samples in the file {filename}")
+    filename = os.path.join(directory, f'{prefix}_0.h5')
+    logger.info(f"Writing samples in the file {filename}")
 
     if highest_number == 0:
-      raise ValueError(f"WARNING: there are already some chains with prefix {prefix}. Change prefix or delete {filename} if you want to overwrite it.")
+      raise ValueError(f"Chains with prefix {prefix} already exist. Change prefix or delete {filename} to overwrite.")
 
   return filename
 
@@ -147,7 +162,7 @@ def get_initial_state(nwalkers,
     if distribution == 'gaussian':
       for i in range(nwalkers):
         tmp = jnp.array(np.random.normal(loc=gaussian_bests, scale=gaussian_sigmas, size=(1, ndim)))
-        while not _check_initials(tmp):
+        while not _check_initials(tmp, log_prior):
           tmp = jnp.array(np.random.normal(loc=gaussian_bests, scale=gaussian_sigmas, size=(1, ndim)))
         start = start.at[i].set(tmp)
 
@@ -187,7 +202,7 @@ def get_initial_state(nwalkers,
     if highest_number == float('-inf'):
       raise ValueError("No files found matching the pattern.")
 
-    chain_to_restart = directory + prefix + '_' +str(highest_number) + '.h5'
+    chain_to_restart = os.path.join(directory, f'{prefix}_{highest_number}.h5')
 
     reader = emcee.backends.HDFBackend(chain_to_restart, read_only=True)
     starting_state = reader.get_last_sample()
@@ -195,18 +210,31 @@ def get_initial_state(nwalkers,
     return starting_state
 
 def _check_initials(initial_values, log_prior):
+  """Validates initial walker positions against prior.
+  
+  Args:
+    initial_values (jnp.ndarray): Proposed initial positions
+    log_prior (callable): Log prior function
+  
+  Returns:
+    bool: True if all positions have finite log prior
+  """
   for i in range(initial_values.shape[0]):
-    if log_prior(initial_values[i,:])==-jnp.inf:
+    if log_prior(initial_values[i, :]) == -jnp.inf:
       return False
   return True
 
-# CUSTOM emcee.moves.Move THAT DOES NOT UPDATE THE SRARE
-
 class NotMove(emcee.moves.Move):
-
-  # Same structure of the "RedBlueMove" class, but the new params are not proposed using the "stretch" or "walk" algorithm.
-  # New params are always zeros, so that they will pass each check in "compute_log_prob_fn"
-  # In the user function "log_prob_fn" such params will be overwritten by rank 0 params.
+  """Custom emcee move for MPI parallelization without state updates.
+  
+  This move mimics the RedBlueMove structure but sets proposed parameters to -inf,
+  allowing them to be overwritten by rank 0 in MPI contexts. Used for specialized
+  parallelization schemes where parameter proposals are handled externally.
+  
+  Args:
+    nsplits (int, optional): Number of walker splits. Defaults to 2.
+    randomize_split (bool, optional): Randomize split assignments. Defaults to True.
+  """
 
   def __init__(self, nsplits = 2, randomize_split=True):
     self.nsplits = nsplits
@@ -274,8 +302,19 @@ def deprecation_warning(msg):
 
 
 class CustomEnsembleSampler(emcee.EnsembleSampler):
+  """Modified emcee sampler that skips parameter validity checks.
+  
+  Extends emcee.EnsembleSampler by removing checks for inf/nan parameter values
+  in compute_log_prob. This allows for MPI parallelization schemes where
+  parameters may be intentionally set to sentinel values before being
+  overwritten by the master process.
+  
+  All other functionality remains identical to the standard EnsembleSampler.
+  See emcee documentation for full parameter descriptions.
+  """
 
-  def __init__(self,
+  def __init__(
+    self,
     nwalkers,
     ndim,
     log_prob_fn,
@@ -287,14 +326,14 @@ class CustomEnsembleSampler(emcee.EnsembleSampler):
     vectorize=False,
     blobs_dtype=None,
     parameter_names: Optional[Union[Dict[str, int], List[str]]] = None,
-    # Deprecated...
     a=None,
     postargs=None,
     threads=None,
     live_dangerously=None,
     runtime_sortingfn=None,
   ):
-    super().__init__(nwalkers,
+    super().__init__(
+      nwalkers,
       ndim,
       log_prob_fn,
       pool,
@@ -314,17 +353,18 @@ class CustomEnsembleSampler(emcee.EnsembleSampler):
     )
 
   def compute_log_prob(self, coords):
-
-    # same as in emcee.EnsembleSampler but it does not check if params are "inf" or "nan"
-
+    """Compute log probability without checking for inf/nan parameters.
+    
+    Identical to emcee.EnsembleSampler.compute_log_prob but skips the
+    validation checks for infinite or NaN parameter values.
+    
+    Args:
+      coords (array-like): Walker coordinates
+    
+    Returns:
+      tuple: (log_prob, blob) arrays
+    """
     p = coords
-
-    # Check that the parameters are in physical ranges.
-    # ---> removed
-    #if np.any(np.isinf(p)):
-    #    raise ValueError("At least one parameter value was infinite")
-    #if np.any(np.isnan(p)):
-    #    raise ValueError("At least one parameter value was NaN")
 
     if self.params_are_named:
       p = emcee.ensemble.ndarray_to_list_of_dicts(p, self.parameter_names)
@@ -358,13 +398,14 @@ class CustomEnsembleSampler(emcee.EnsembleSampler):
             try:
               dt = np.atleast_1d(blob[0]).dtype
             except Warning:
-              deprecation_warning(
+              warnings.warn(
                 "You have provided blobs that are not all the "
                 "same shape or size. This means they must be "
                 "placed in an object array. Numpy has "
                 "deprecated this automatic detection, so "
-                "please specify "
-                "blobs_dtype=np.dtype('object')"
+                "please specify blobs_dtype=np.dtype('object')",
+                DeprecationWarning,
+                stacklevel=2
               )
               dt = np.dtype("object")
         except ValueError:

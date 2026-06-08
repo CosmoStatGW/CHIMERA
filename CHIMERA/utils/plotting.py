@@ -1,8 +1,19 @@
+"""Plotting utilities for CHIMERA gravitational wave analysis.
+
+This module provides visualization functions for GW events, including:
+- HEALPix pixelization plots with event localization regions
+- 3D GW probability distributions (approximated, marginalized, full)
+- Galaxy catalog probabilities per pixel
+- Catalog completeness distributions
+
+All plotting functions support custom colormaps, axes, and LaTeX labels.
+"""
+
 import numpy as np
 import healpy as hp
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-plt.rcParams['text.usetex']=True
+plt.rcParams['text.usetex'] = True
 
 def plot_pixelization(pix_cat, ev, cmap=None, ax = None, figsize=(6,4), label=None, plot_grid=False):
     """
@@ -109,19 +120,24 @@ def plot_p_gw3d_pixelated(hyperlike_obj, ev, pixel=None, cmap=None, ax=None, lab
     if created_fig:
       return fig
 
-def plot_p_gal_pixelated(hyperlike_obj, ev, pixel=None, cmap=None, ax = None, figsize=(6,4), label=True, **hyper_params):
-  """
-  Plots the value of `p_gal` in each pixel of a GW event.
+def plot_p_gal_pixelated(hyperlike_obj, ev, pixel=None, cmap=None, ax=None, figsize=(6, 4), label=True, **hyper_params):
+  """Plots galaxy catalog probability distribution per pixel.
+  
+  Visualizes p_gal(z, RA, Dec | λ) as a function of redshift for each pixel,
+  computed from the galaxy catalog and cosmological model.
+  
   Args:
-    hyperlike_obj (object): An instance of a CHIMERA.likelihood.hyperlike
-    ev (int): The event index to plot the data for.
-    kind (Optional[str]): The type of probability distribution to plot. Can be 'approximate', 'marginalized', or 'full'. Defaults to 'approximate'.
-    cmap (Optional[List]): A list of colors to use for the plot. Defaults to the 'tab20' colormap.
-    ax (Optional[matplotlib.axes.Axes]): A matplotlib axes object to plot on. If not provided, a new figure and axes are created.
-    figsize (Optional[Tuple[int]]): The size of the figure to be created if `ax` is not provided. Defaults to (6, 4).
-    **hyper_params: population paramters
+    hyperlike_obj: CHIMERA hyperlikelihood object with galcat_obj and z_grids
+    ev (int): Event index to plot
+    pixel (int, optional): Single pixel index to plot. If None, plots all pixels.
+    cmap (list, optional): Color list. Defaults to 'tab20' colormap.
+    ax (matplotlib.axes.Axes, optional): Axes to plot on. If None, creates new figure.
+    figsize (tuple, optional): Figure size if creating new figure. Defaults to (6, 4).
+    label (bool, optional): Show axis labels. Defaults to True.
+    **hyper_params: Cosmological parameters to pass to galaxy catalog model
+  
   Returns:
-    If `ax` is provided, returns None. Otherwise, returns the figure created.
+    matplotlib.figure.Figure or None: Figure if ax=None, otherwise None
   """
   if ax is None:
     fig, ax = plt.subplots(figsize=figsize)
@@ -137,23 +153,24 @@ def plot_p_gal_pixelated(hyperlike_obj, ev, pixel=None, cmap=None, ax = None, fi
   if label:
     ax.set_xlabel(r"$z$", fontsize=14)
     ax.set_ylabel(r"$p_{\mathrm{gal}}(z, \mathrm{RA}, \mathrm{Dec} | \lambda)$", fontsize=14)
-  if ax is None:
-    return fig
-  else:
-    return None
+  return fig if ax is None else None
 
-def plot_p_cat_pixelated(hyperlike_obj, ev, cmap=None, ax = None, label=True, figsize=(6,4)):
-  """
-  Plots the value of `p_cat` in each pixel of a GW event.
+def plot_p_cat_pixelated(hyperlike_obj, ev, cmap=None, ax=None, label=True, figsize=(6, 4)):
+  """Plots catalog completeness probability distribution per pixel.
+  
+  Visualizes p_cat(z, RA, Dec) as a function of redshift for each pixel,
+  representing the catalog completeness as a function of sky position and redshift.
+  
   Args:
-    hyperlike_obj (object): An instance of a CHIMERA.likelihood.hyperlike
-    ev (int): The event index to plot the data for.
-    kind (Optional[str]): The type of probability distribution to plot. Can be 'approximate', 'marginalized', or 'full'. Defaults to 'approximate'.
-    cmap (Optional[List]): A list of colors to use for the plot. Defaults to the 'tab20' colormap.
-    ax (Optional[matplotlib.axes.Axes]): A matplotlib axes object to plot on. If not provided, a new figure and axes are created.
-    figsize (Optional[Tuple[int]]): The size of the figure to be created if `ax` is not provided. Defaults to (6, 4).
+    hyperlike_obj: CHIMERA hyperlikelihood object with galcat_obj.pcat
+    ev (int): Event index to plot
+    cmap (list, optional): Color list. Defaults to 'tab20' colormap.
+    ax (matplotlib.axes.Axes, optional): Axes to plot on. If None, creates new figure.
+    label (bool, optional): Show axis labels. Defaults to True.
+    figsize (tuple, optional): Figure size if creating new figure. Defaults to (6, 4).
+  
   Returns:
-    If `ax` is provided, returns None. Otherwise, returns the figure created.
+    matplotlib.figure.Figure or None: Figure if ax=None, otherwise None
   """
   if ax is None:
     fig, ax = plt.subplots(figsize=figsize)
