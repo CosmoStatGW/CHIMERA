@@ -3,8 +3,6 @@ USE_GPU = os.getenv('CHIMERA_ENABLE_GPU', 'False').lower() == 'true'
 
 import jax
 jax.config.update("jax_enable_x64", True)
-#jax.config.update('jax_disable_jit', True)
-import jax.numpy as jnp
 
 if USE_GPU:
   jax.config.update('jax_platform_name', 'gpu')
