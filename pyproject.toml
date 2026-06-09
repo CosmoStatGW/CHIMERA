@@ -41,6 +41,9 @@ jax = ">=0.5"
 equinox = "*"
 interpax = "*"
 
+# KDExpress
+KDExpress = "*"
+
 # Utilities
 plum-dispatch = "*"
 

@@ -9,10 +9,10 @@ HDF5 files, with support for:
 """
 
 import h5py
-from ..utils.config import jnp
+import jax.numpy as jnp
 import numpy as np
 import equinox as eqx
-from dataclasses import fields, replace
+from dataclasses import fields
 
 def save_set(obj, dir_file, attrs=[], datasets=[], groups=[]):
   """Saves selected attributes, datasets, and groups from an object to HDF5.

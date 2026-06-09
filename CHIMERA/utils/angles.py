@@ -1,17 +1,6 @@
-"""Angular coordinate transformations and HEALPix utilities.
-
-This module provides functions for converting between celestial coordinate systems
-and HEALPix pixel operations, including:
-- Equatorial (RA, dec) ↔ spherical (θ, φ) conversions
-- Galactic ↔ equatorial coordinate transformations
-- HEALPix pixel indexing and pixelization
-- Angular separation calculations
-
-All angular quantities are in radians unless otherwise specified.
-"""
-
-from .config import jnp
+import jax.numpy as jnp
 import healpy as hp
+import numpy as np
 
 _L_NCP = jnp.radians(122.93192)
 _DEL_NGP = jnp.radians(27.128336)
@@ -236,6 +225,6 @@ def convert_pixelization(pixels, nside_in, nside_out, nest_in=False, nest_out=Fa
     results = np.empty_like(pixels, dtype=np.int64)
     for i in range(pixels.shape[0]):
         theta, phi = hp.pix2ang(int(nside_in[i]), pixels[i], nest=nest_in)
-        results[i] = hp.ang2pix(nside_out, theta, phi, nest=nest_out)
-    
-    return results
+        results.append(hp.ang2pix(nside_out, theta, phi, nest=nest_out))
+
+    return np.stack(results)
