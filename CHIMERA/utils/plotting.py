@@ -127,8 +127,7 @@ def plot_p_gal_pixelated(hyperlike_obj, ev, pixel=None, cmap=None, ax = None, fi
     fig, ax = plt.subplots(figsize=figsize)
 
   cosmo_lambdas = hyperlike_obj.population.cosmo.update(**hyper_params)
-  pgals = hyperlike_obj.population.gal_cat.p_gal(cosmo_lambdas, hyperlike_obj.z_grids)[ev]
-  pgals = pgals[pgals != -100.].reshape(hyperlike_obj.theta_gw_det.neff_pixels[ev], hyperlike_obj.z_int_res)
+  pgals = hyperlike_obj.population.gal_cat.p_gal(cosmo_lambdas, hyperlike_obj.z_grids)[ev, :hyperlike_obj.theta_gw_det.neff_pixels[ev], :]
 
   if pixel is not None:
     ax.plot(hyperlike_obj.z_grids[ev], pgals[pixel], color=cmap[0] if cmap is not None else None)
@@ -158,8 +157,7 @@ def plot_p_cat_pixelated(hyperlike_obj, ev, cmap=None, ax = None, label=True, fi
   if ax is None:
     fig, ax = plt.subplots(figsize=figsize)
 
-  pcats = hyperlike_obj.population.gal_cat.p_cat[ev]
-  pcats = pcats[pcats != -100.].reshape(hyperlike_obj.theta_gw_det.neff_pixels[ev], hyperlike_obj.z_int_res)
+  pcats = hyperlike_obj.population.gal_cat.p_cat[ev, :hyperlike_obj.theta_gw_det.neff_pixels[ev], :]
   [ax.plot(hyperlike_obj.z_grids[ev], pcats[i], color=cmap[i]  if cmap is not None else None,) for i in range(hyperlike_obj.theta_gw_det.neff_pixels[ev])]
   if label:
     ax.set_xlabel(r"$z$", fontsize=14)

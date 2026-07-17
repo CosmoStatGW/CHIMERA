@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from plum import dispatch
 from .base import base_mass_conditioned_struct
-from ..core import tpl_notnorm, tpl_cdf, truncated_gaussian, smoothing
+from ..core import tpl_notnorm, tpl_cdf, truncated_gaussian, high_pass_filter
 
 class pl2p(base_mass_conditioned_struct):
   r"""A class to describe a power law mass model with two Gaussian peaks, implemented as an Equinox module.
@@ -50,6 +50,6 @@ def primary_mass_pdf_notnorm(mass:pl2p, m: jnp.ndarray):
   G1 = truncated_gaussian(m, mass.mu_g_low, mass.sigma_g_low, mass.m_low, mass.mu_g_low + 5*mass.sigma_g_low)
   G2 = truncated_gaussian(m, mass.mu_g_high, mass.sigma_g_high, mass.m_low, mass.mu_g_high + 5*mass.sigma_g_high)
   pdf = (1-mass.lambda_g)*P + mass.lambda_g*mass.lambda_g_low*G1 + mass.lambda_g*(1. - mass.lambda_g_low)*G2
-  pdf *= smoothing(m, mass.delta_m, mass.m_low)
+  pdf *= high_pass_filter(m, mass.delta_m, mass.m_low)
   #return pdf
   return jnp.where(mass.mu_g_low <= mass.mu_g_high, pdf, jnp.nan)

@@ -5,7 +5,7 @@ import jax.numpy as jnp
 # Useful math functions #
 #######################
 
-# Truncated power law 
+# Truncated power law
 """
 def tpl_notnorm(m, alpha, m_low, m_high):
   # not normalized
@@ -34,17 +34,33 @@ def tpl_cdf(m, alpha, m_low):
     (m**(1 + alpha) - m_low**(1 + alpha)) / (1 + alpha)
   )
 
-# Smoothing function
-def smoothing(m, delta_m, m_low):
-  eps = 1.e-99
-  log_smoothing = jnp.where(m < m_low,
-    -jnp.inf,
-    jnp.where(m > (m_low + delta_m),
-      0.0,
-      -jnp.logaddexp(0.0, (delta_m/(m-m_low+eps) + delta_m/(m-m_low-delta_m+eps)))
+# Smoothing functions
+def high_pass_filter(m, delta_m, m_low):
+    eps = 1.e-99
+    log_smoothing = jnp.where(m < m_low,
+        -jnp.inf,
+        jnp.where(m > (m_low + delta_m),
+            0.0,
+            -jnp.logaddexp(0.0, (delta_m/(m-m_low+eps) + delta_m/(m-m_low-delta_m+eps)))
+        )
     )
-  )
-  return jnp.exp(log_smoothing)
+    return jnp.exp(log_smoothing)
+
+def low_pass_filter(m, delta_m, m_high):
+    eps = 1.e-99
+    log_smoothing = jnp.where(m > m_high,
+        -jnp.inf,
+        jnp.where(m <= (m_high - delta_m),
+            0.0,
+            -jnp.logaddexp(0.0, (delta_m/(m_high - m + eps) + delta_m/(m_high - m - delta_m + eps)))
+        )
+    )
+    return jnp.exp(log_smoothing)
+
+def notch_filter(m, m_low, m_high, delta_m_low, delta_m_high, A):
+    F_high = high_pass_filter(m, delta_m_low, m_low)
+    F_low = low_pass_filter(m, delta_m_high, m_high)
+    return 1.0 - A * F_high * F_low
 
 # Gaussian distributions
 def gaussian(x, mu, sigma):
