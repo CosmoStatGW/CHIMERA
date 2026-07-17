@@ -6,7 +6,7 @@ from plum import dispatch
 
 from CHIMERA.utils.math import cumtrapz, trapz
 from CHIMERA.data import theta_src
-from ..core import tpl_notnorm, smoothing
+from ..core import tpl_notnorm, high_pass_filter
 
 ################
 # MASS PYTREES #
@@ -76,7 +76,7 @@ def p_m1(mass:base_mass_conditioned_struct, theta:theta_src):
 @dispatch
 def secondary_mass_conditioned_pdf_notnorm(mass:base_mass_conditioned_struct, m2:jnp.ndarray, m1:Union[Number,jnp.ndarray]):
   pdf = tpl_notnorm(m2, mass.beta, mass.m_low, m1)
-  pdf *= smoothing(m2, mass.delta_m, mass.m_low)
+  pdf *= high_pass_filter(m2, mass.delta_m, mass.m_low)
   return pdf
 
 #######################

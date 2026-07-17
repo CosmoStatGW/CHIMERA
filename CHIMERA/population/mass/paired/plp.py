@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from plum import dispatch
 
 from .base import base_mass_paired_struct, mass_pdf_notnorm, pairing_function
-from ..core import tpl_notnorm, tpl_cdf, truncated_gaussian, smoothing
+from ..core import tpl_notnorm, tpl_cdf, truncated_gaussian, high_pass_filter
 
 
 class plp(base_mass_paired_struct):
@@ -87,7 +87,6 @@ def mass_pdf_notnorm(mass: plp, m: jnp.ndarray) -> jnp.ndarray:
   G = truncated_gaussian(m, mass.mu_g, mass.sigma_g, mass.m_low, mass.mu_g + 5.0 * mass.sigma_g)
 
   pdf = (1.0 - mass.lambda_peak) * P + mass.lambda_peak * G
-  pdf *= smoothing(m, mass.delta_m, mass.m_low)
   return pdf
 
 

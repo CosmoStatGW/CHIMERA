@@ -5,7 +5,7 @@ import equinox as eqx
 from plum import dispatch
 from typing import List
 from .base import base_mass_conditioned_struct, secondary_mass_conditioned_pdf_notnorm
-from ..core import tpl_notnorm, tpl_cdf, smoothing
+from ..core import tpl_notnorm, tpl_cdf, high_pass_filter
 from CHIMERA.utils.math import trapz, cumtrapz
 
 # Semi-paramtrice PL+spline model:
@@ -136,5 +136,5 @@ def primary_mass_pdf_notnorm(mass:pls, m: jnp.ndarray):
   spline_vals_on_grid = jnp.dot(mass.spline_basis, mass.spline_coefficients)
   spline_values = jnp.interp(m, mass.spline_basis_grid, spline_vals_on_grid)
   pdf = P*jnp.exp(spline_values)
-  pdf *= smoothing(m, mass.delta_m, mass.m_low)
+  pdf *= high_pass_filter(m, mass.delta_m, mass.m_low)
   return pdf
