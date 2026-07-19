@@ -80,11 +80,11 @@ class hyperlikelihood(object):
 
     # Other useful quantity
     self.pixelated = True if self.theta_gw_det.pixels_opt_nsides is not None else False
-    
+
     # Handle pixelated likelihood
     if self.pixelated:
       self.z_grids = self.population.gal_cat.z_grids
-      self.z_int_res = self.z_grids.shape[1] 
+      self.z_int_res = self.z_grids.shape[1]
       self.z_grids_edges = jax.vmap(build_hist_edges)(self.z_grids)
       kdes_available = ['single-1d-binned', 'single-1d-fft', 'single-1d-standard',
                         'many-1d-binned', 'many-1d-fft', 'many-1d-standard', '3d']
@@ -116,7 +116,7 @@ class hyperlikelihood(object):
           logger.info("3D KDE ignores `cut_grid` and `num_bins`")
 
       self.compute_like_num_evs = self._compute_like_num_evs_pixelated
-      
+
     # Handle spectral sirens likelihood
     else:
       kdes_available = ['binned', 'fft', 'standard']
@@ -155,8 +155,8 @@ class hyperlikelihood(object):
       kde_vec = jax.vmap(binned_kde1d, in_axes=(0,0,0,None,None,None,None))
       _p_gw = kde_vec(z_grids, th_src.z, weights, self.kde_bw, self.kernel, self.num_bins, cut_grid)
     elif self.kind_kde == 'fft':
-      kde_vec = jax.vmap(fft_kde1d, in_axes=(0,0,0,None,0))
-      _p_gw = kde_vec(z_grids, th_src.z, weights, self.kde_bw, z_grids_edges)
+      kde_vec = jax.vmap(fft_kde1d, in_axes=(0,0,0,None,None,0))
+      _p_gw = kde_vec(z_grids, th_src.z, weights, self.kde_bw, self.kernel, z_grids_edges)
     else:
       kde_vec = jax.vmap(kde1d, in_axes=(0,0,0,None,None))
       _p_gw = kde_vec(th_src.z, z_grids, weights, self.kernel, self.kde_bw)
@@ -194,7 +194,7 @@ class hyperlikelihood(object):
 
       # Pre-compute FFT bandwidth once per event (same for all pixels)
       if self.kind_kde == 'many-1d-fft':
-        fft_bw = scott_bw1d(th_src.z[ev], weights[ev]) if self.kde_bw is None else self.kde_bw  
+        fft_bw = scott_bw1d(th_src.z[ev], weights[ev]) if self.kde_bw is None else self.kde_bw
       else:
         fft_bw = None
 
@@ -323,38 +323,38 @@ class hyperlikelihood(object):
   ####################################
 
   def _compute_like_num_evs_pixelated(self, pop_lambdas):
-    
+
     # p_gw(z, ra, dec | \theta_gw, \lambda_c, \lambda_m)
     p_gw3d = self.p_gw3d(pop_lambdas) # (Nevents, MaxPixels, ResGrids)
     p_gw3d = jnp.where(jnp.isnan(p_gw3d), jnp.zeros_like(p_gw3d), p_gw3d) # avoid fake pixels
-    
+
     # p_z of having a cbc at z
     p_z = p_cbc(pop_lambdas, self.z_grids) # (Nevents, MaxPixels, ResGrids)
-    
+
     # jacobian
     jacobian = ddLdz_at_z(pop_lambdas.cosmo, self.z_grids) * (1.+self.z_grids)**2
-    
-    # Integral 
+
+    # Integral
     integrand = p_gw3d * p_z / jacobian[:,None,:] # (Nevents, MaxPixels, ResGrids) -> integrand
     like_num_evs_pixels = trapz(integrand, self.z_grids[:,None,:], axis = -1) # (Nevents, MaxPixels) -> integrate on z_grids
     like_num_evs = jnp.sum(like_num_evs_pixels, axis = -1) # (Nevents,) ->  Sum pixel contributions
-    
+
     return like_num_evs
 
   def _compute_like_num_evs_no_pixels(self, pop_lambdas):
-    
+
     # p_gw(z,| \theta_gw, \lambda_c, \lambda_m)
     p_gw, z_grids = self.p_gw1d(pop_lambdas)
-    
+
     # p_z of having a cbc at z
     p_z = p_cbc(pop_lambdas, z_grids)
-    
+
     # jacobian
     jacobian = ddLdz_at_z(pop_lambdas.cosmo, z_grids) * (1.+z_grids)**2
-    
+
     # Integral
     like_num_evs = trapz(p_gw*p_z/jacobian, z_grids, axis = -1)
-    
+
     return like_num_evs
 
   ################################
