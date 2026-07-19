@@ -121,9 +121,6 @@ class hyperlikelihood(object):
     else:
       kdes_available = ['binned', 'fft', 'standard']
       assert self.kind_kde in kdes_available, f"`kind_kde` must be in {kdes_available}"
-      if self.kind_kde == 'fft' and self.kernel == 'epan':
-        logger.info("FFT KDE only supports Gaussian kernel. Setting to 'gaussian'")
-        self.kernel = 'gaussian'
       self.compute_like_num_evs = self._compute_like_num_evs_no_pixels
 
     logger.info(f'Created hyperlikelihood model. Using {self.nevents} GW events.')
