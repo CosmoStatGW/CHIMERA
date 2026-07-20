@@ -166,9 +166,9 @@ def mass_pdf_notnorm(mass: bpl_dip_three_peaks, m: jnp.ndarray) -> jnp.ndarray:
     bpl = _broken_power_law(m, mass.alpha_1, mass.alpha_2, mass.b, mass.m_low, mass.m_high)
 
     # 2. Gaussian components (truncated between m_low and m_high)
-    g1 = truncated_gaussian(m, mass.mu_g1, mass.sigma_g1, mass.m_low, mass.m_high)
-    g2 = truncated_gaussian(m, mass.mu_g2, mass.sigma_g2, mass.m_low, mass.m_high)
-    g3 = truncated_gaussian(m, mass.mu_g3, mass.sigma_g3, mass.m_low, mass.m_high)
+    g1 = truncated_gaussian(m, mass.mu_g1, mass.sigma_g1, mass.m_low, mass.mu_g1+5*mass.sigma_g1)
+    g2 = truncated_gaussian(m, mass.mu_g2, mass.sigma_g2, mass.m_low, mass.mu_g2+5*mass.sigma_g2)
+    g3 = truncated_gaussian(m, mass.mu_g3, mass.sigma_g3, mass.m_low, mass.mu_g3+5*mass.sigma_g3)
 
     # 3. Combine components
     # λ_g is the fraction of events in the Gaussians
@@ -192,8 +192,8 @@ def mass_pdf_notnorm(mass: bpl_dip_three_peaks, m: jnp.ndarray) -> jnp.ndarray:
       mass.leftdipsmooth, mass.rightdipsmooth,
       mass.deep
     )
-    return pdf
-
+    peak_ordering_condition = (mass.mu_g1 <= mass.mu_g2) & (mass.mu_g2 <= mass.mu_g3)
+    return jnp.where(peak_ordering_condition, pdf, jnp.nan)
 
 @dispatch
 def pairing_function(mass: bpl_dip_three_peaks,
