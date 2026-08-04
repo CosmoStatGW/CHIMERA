@@ -30,6 +30,7 @@ from .plp import plp
 from .pls_free_knots import pls_free_knots
 from .bpl_dip_three_peaks import bpl_dip_three_peaks
 from .bpl_dip_two_peaks import bpl_dip_two_peaks
+from .nn import neural_density
 
 __all__ = [
   'base_mass_paired_struct',
@@ -41,5 +42,6 @@ __all__ = [
   'plp',
   'pls_free_knots',
   'bpl_dip_three_peaks',
-  'bpl_dip_two_peaks'
+  'bpl_dip_two_peaks',
+  'neural_density',
 ]
