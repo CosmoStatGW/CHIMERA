@@ -5,7 +5,7 @@ import os
 import re
 import warnings
 import emcee
-import zeus
+#import zeus
 import h5py
 import dill
 
@@ -54,32 +54,122 @@ def generate_chain_filename(output_dir, chain_prefix, restart_chain):
 
 # FUNCTION THAT GENERATE A DICT OF ARRAYS GIVEN A NDARRAY AND SOME KEYS
 
-def generate_dict(params,  params_keys, to_calc = None):
-
+def generate_dict(params, params_keys, to_calc=None, nn_config=None):
+  """
+  Generate hyperparameter dictionary from flat parameter array.
+  
+  Parameters
+  ----------
+  params : jnp.ndarray
+      Flat array of parameters
+  params_keys : list
+      List of parameter keys
+  to_calc : array-like, optional
+      Indices of parameters to use
+  nn_config : dict, optional
+      Neural network configuration for reshaping Ws and bs.
+      Expected keys: 'hidden_size', 'depth', 'input_size' (default: 1)
+  
+  Returns
+  -------
+  hyperparams : dict
+      Dictionary of hyperparameters
+  """
   params = jnp.asarray(params)
   is_vectorized = params.ndim > 1
   if is_vectorized and to_calc is not None:
-      params = params[to_calc]
+    params = params[to_calc]
   hyperparams = dict()
   
   # Extract all spline_c{i} keys and sort them by index if present
   spline_c_keys = sorted([k for k in params_keys if k.startswith('spline_c') and k[8:].isdigit()],
-                          key=lambda x: int(x[8:]))
+                        key=lambda x: int(x[8:]))
   num_spline_coeffs = len(spline_c_keys)
-
-  # extract parameters  
-  idx_coeffs = []
-  for i,k in enumerate(params_keys):
+  
+  # Extract all nn_weight{i} keys and sort them by index if present
+  # Note: 'nn_weight' is 9 characters, so we use k[9:]
+  nn_weight_keys = sorted([k for k in params_keys if k.startswith('nn_weight') and k[9:].isdigit()],
+                        key=lambda x: int(x[9:]))
+  num_nn_weights = len(nn_weight_keys)
+  
+  # Extract all nn_bias{i} keys and sort them by index if present
+  # Note: 'nn_bias' is 7 characters, so we use k[7:]
+  nn_bias_keys = sorted([k for k in params_keys if k.startswith('nn_bias') and k[7:].isdigit()],
+                        key=lambda x: int(x[7:]))
+  num_nn_biases = len(nn_bias_keys)
+  
+  # Collect indices for each type
+  idx_spline = []
+  idx_nn_weights = []
+  idx_nn_biases = []
+  
+  # Extract parameters
+  for i, k in enumerate(params_keys):
     if k in spline_c_keys:
-      idx_coeffs.append(i)
-      continue
+      idx_spline.append(i)
+    elif k in nn_weight_keys:
+      idx_nn_weights.append(i)
+    elif k in nn_bias_keys:
+      idx_nn_biases.append(i)
     else:
-      hyperparams[k] = params[..., i] if is_vectorized else params[i]
-
-  # handle spline coeffs  
-  if num_spline_coeffs > 0:
-    idx_coeffs = jnp.array(idx_coeffs)  
-    hyperparams['spline_coefficients'] = params[..., idx_coeffs] if is_vectorized else params[idx_coeffs]
+      # Skip internal/configuration keys that start with '_'
+      if not k.startswith('_'):
+        hyperparams[k] = params[..., i] if is_vectorized else params[i]
+  
+  # Handle spline coeffs
+  if num_spline_coeffs > 0 and idx_spline:
+    idx_spline = jnp.array(idx_spline)
+    hyperparams['spline_coefficients'] = params[..., idx_spline] if is_vectorized else params[idx_spline]
+  
+  # Handle nn_weights with reshaping
+  if num_nn_weights > 0 and idx_nn_weights and nn_config is not None:
+    idx_nn_weights = jnp.array(idx_nn_weights)
+    flat_weights = params[..., idx_nn_weights] if is_vectorized else params[idx_nn_weights]
+    
+    # Reshape weights according to network architecture
+    input_size = nn_config.get('input_size', 1)
+    hidden_size = nn_config['hidden_size']
+    depth = nn_config['depth']
+    
+    sizes = [input_size] + [hidden_size] * depth
+    
+    Ws = []
+    start_idx = 0
+    for i in range(depth):
+      # Weight matrix for layer i: sizes[i+1] x sizes[i]
+      n_params = sizes[i] * sizes[i+1]
+      W = flat_weights[start_idx:start_idx + n_params].reshape(sizes[i+1], sizes[i])
+      Ws.append(W)
+      start_idx += n_params
+    
+    # Output layer weights: 1 x hidden_size (no bias)
+    n_params = hidden_size * 1
+    W = flat_weights[start_idx:start_idx + n_params].reshape(1, hidden_size)
+    Ws.append(W)
+    
+    hyperparams['Ws'] = Ws
+  
+  # Handle nn_biases with reshaping
+  if num_nn_biases > 0 and idx_nn_biases and nn_config is not None:
+    idx_nn_biases = jnp.array(idx_nn_biases)
+    flat_biases = params[..., idx_nn_biases] if is_vectorized else params[idx_nn_biases]
+    
+    # Reshape biases according to network architecture
+    hidden_size = nn_config['hidden_size']
+    depth = nn_config['depth']
+    
+    sizes = [nn_config.get('input_size', 1)] + [hidden_size] * depth
+    
+    bs = []
+    start_idx = 0
+    for i in range(depth):
+      # Bias vector for hidden layer i+1
+      n_params = sizes[i+1]
+      b = flat_biases[start_idx:start_idx + n_params]
+      bs.append(b)
+      start_idx += n_params
+    
+    hyperparams['bs'] = bs
   
   return hyperparams
 
