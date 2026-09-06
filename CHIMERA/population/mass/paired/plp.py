@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from plum import dispatch
 
 from .base import base_mass_paired_struct, mass_pdf_notnorm, pairing_function
-from ..core import tpl_notnorm, tpl_cdf, truncated_gaussian, high_pass_filter
+from ..core import truncated_pl, truncated_gaussian, high_pass_filter
 
 
 class plp(base_mass_paired_struct):
@@ -81,7 +81,7 @@ def mass_pdf_notnorm(mass: plp, m: jnp.ndarray) -> jnp.ndarray:
   final 2-D normalisation Z is applied.
   """
   # Normalised truncated power law
-  P = tpl_notnorm(m, -mass.alpha, mass.m_low, mass.m_high) / tpl_cdf(mass.m_high, -mass.alpha, mass.m_low)
+  P = truncated_pl(m, -mass.alpha, mass.m_low, mass.m_high) 
 
   # Truncated Gaussian peak (truncated between m_low and μ + 5σ for speed)
   G = truncated_gaussian(m, mass.mu_g, mass.sigma_g, mass.m_low, mass.mu_g + 5.0 * mass.sigma_g)

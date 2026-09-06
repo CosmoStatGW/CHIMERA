@@ -1,7 +1,7 @@
 import equinox as eqx
 from typing import List
 import jax.numpy as jnp
-from ...utils.math import cumtrapz
+from ...utils.math import cumtrapz, interp
 
 ########################
 # COSMOLOGICAL PYTREES #
@@ -104,7 +104,7 @@ class mg_flrw(flrw):
 # Common functions
 def _setup_interp(cosmo:flrw):
   # utility function used in each struct initialization
-  setattr(cosmo, 'z_grid_interp',jnp.concatenate([jnp.array([0]), jnp.logspace(-10, jnp.log10(cosmo.z_max), cosmo.z_grid_res-1)]))
+  setattr(cosmo, 'z_grid_interp', jnp.concatenate([jnp.array([0]), jnp.logspace(-10, jnp.log10(cosmo.z_max), cosmo.z_grid_res-1)]))
   Ez = E_at_z(cosmo, cosmo.z_grid_interp)
   setattr(cosmo, 'integral_invE_interp', cumtrapz(1./Ez, cosmo.z_grid_interp))
 
@@ -119,4 +119,4 @@ def E_at_z(cosmo: flrw, z: jnp.ndarray):
   return Ez
 
 def int_invE_at_z(cosmo: flrw, z: jnp.ndarray):
-  return jnp.interp(z, cosmo.z_grid_interp, cosmo.integral_invE_interp)
+  return interp(z, cosmo.z_grid_interp, cosmo.integral_invE_interp)

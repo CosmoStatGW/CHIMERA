@@ -74,10 +74,24 @@ def theta_det2src(cosmo_lambdas, theta_det, include_original_distances=False):
   else:
     return theta_src(m1src=m1s, m2src=m2s, z=z)
 
-def get_theta_src_and_weights(pop_lambdas:population, theta_det:theta_pe_det):
+def get_theta_src_and_weights(pop_lambdas: population, theta_det: theta_pe_det, return_neffs=True):
   th_src = theta_det2src(pop_lambdas.cosmo, theta_det)
-  weights = p_m1m2(pop_lambdas.mass, th_src)/theta_det.pe_prior
-  return th_src, weights
+  weights = p_m1m2(pop_lambdas.mass, th_src) / theta_det.pe_prior
+
+  sum_w_raw = jnp.sum(weights, axis=-1, keepdims=True)
+  weights_ok = sum_w_raw > 0
+  n_samples = weights.shape[-1]
+  safe_weights = jnp.where(weights_ok, weights, jnp.ones_like(weights) / n_samples)
+
+  if return_neffs:
+      sum_w = jnp.sum(weights, axis=-1)
+      sum_w2 = jnp.sum(weights**2, axis=-1)
+      denom_ok = sum_w2 > 0
+      safe_sum_w2 = jnp.where(denom_ok, sum_w2, 1.0)
+      n_effs = jnp.where(denom_ok, sum_w**2 / safe_sum_w2, 0.0)
+      return th_src, safe_weights, n_effs
+  else:
+      return th_src, safe_weights
 
 def p_cbc(pop_lambdas:population, z:jnp.ndarray):
   """Computes redshift prior"""

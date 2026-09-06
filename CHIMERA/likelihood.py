@@ -132,7 +132,9 @@ class hyperlikelihood(object):
   def p_gw1d(self, pop_lambdas):
     r"""Computes :math:`p_gw(z | \lambda)`. Used for non-pixelated catalogs or when "king_kde='single-1d-'"."""
     # convert thetas
-    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
+    th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
+    norms  = jnp.mean(weights, axis = -1)
+    
     if not self.pixelated:
       z_grids = jnp.linspace(jnp.min(th_src.z, axis = -1)*0.5, jnp.max(th_src.z, axis = -1)*2, self.z_int_res).T
       cut_grid = 0
@@ -142,11 +144,7 @@ class hyperlikelihood(object):
       z_grids = self.z_grids
       cut_grid = self.cut_grid
       z_grids_edges = self.z_grids_edges
-
-    # compute normalization and n_effective
-    norms  = jnp.mean(weights, axis = -1)
-    n_effs = jnp.sum(weights, axis = -1)**2 / jnp.sum(weights**2, axis = -1)
-
+      
     # Vectorized KDE
     if self.kind_kde == 'binned':
       kde_vec = jax.vmap(binned_kde1d, in_axes=(0,0,0,None,None,None,None))
@@ -179,10 +177,9 @@ class hyperlikelihood(object):
   def p_gw3d_many1d(self, pop_lambdas):
     """Computes p_gw(z, RA, Dec | λ) when kind_p_gw3d='marginalized'."""
     # Get source frame samples and population weights
-    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
-    norms = jnp.mean(weights, axis=-1)
-    n_effs = jnp.sum(weights, axis=-1) ** 2 / jnp.sum(weights**2, axis=-1)
-
+    th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
+    norms  = jnp.mean(weights, axis = -1)
+    
     # Single event routine
     def p_gw_single_event(ev):
       pe_pix = self.theta_gw_det.pixels_pe_opt_nside[ev]
@@ -241,9 +238,9 @@ class hyperlikelihood(object):
 
   def p_gw3d_full_old(self, pop_lambdas):
     from .utils.math import numba_gkde_nd
-    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
+    # convert thetas
+    th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
     norms  = jnp.mean(weights, axis = -1)
-    n_effs = jnp.sum(weights, axis = -1)**2 / jnp.sum(weights**2, axis = -1)
 
     # Manage dataset
     dataset = jnp.array([th_src.z, self.theta_gw_det.ra, self.theta_gw_det.dec]) # dataset for kde, shape: (3, Nevents, Nsamples)
@@ -282,20 +279,21 @@ class hyperlikelihood(object):
         kde_vals = np.zeros(npix * self.z_int_res)
         kde_vals[eff_mask] = numba_gkde_nd(dat, eff_grid, weights=w, bw_method=self.bw_method, in_log=False)
         result[ev, :npix, :] = kde_vals.reshape(npix, self.z_int_res) * norm
-      return result.astype(np.float64)
+      return result.astype(np.float_)
 
     return io_callback(
       all_events_callback,
-      jax.ShapeDtypeStruct((self.nevents, self.theta_gw_det.max_npixels, self.z_int_res), jnp.float64),
+      jax.ShapeDtypeStruct((self.nevents, self.theta_gw_det.max_npixels, self.z_int_res), jnp.float_),
       callback_input
     )
 
   def p_gw3d_full(self, pop_lambdas):
     r"""Computes :math:`p_gw(z, RA, Dec | \lambda)` when "king_p_gw3d='full'"."""
     # Get source frame samples and population weights
-    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
+    # convert thetas
+    th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
     norms  = jnp.mean(weights, axis = -1)
-    n_effs = jnp.sum(weights, axis = -1)**2 / jnp.sum(weights**2, axis = -1)
+    
     dataset = jnp.array([th_src.z, self.theta_gw_det.ra, self.theta_gw_det.dec]) # dataset for kde, shape: (3, Nevents, Nsamples)
     dataset  = jnp.moveaxis(dataset, 0, 2) # shape (Nevents,Nsamples,3)
 
@@ -361,25 +359,43 @@ class hyperlikelihood(object):
   @partial(jax.jit, static_argnums=(0,))
   def compute_all(self, **hyper_lambdas):
     pop_lambdas = self.population.update(**hyper_lambdas)
-    log_like_num_evs = jnp.log(self.compute_like_num_evs(pop_lambdas))
-    N_exp, dNdtheta, xi = self.selection_function.N_exp(pop_lambdas, ret_dNdtheta_and_xi=True)
-    if not pop_lambdas.scale_free:
-      log_like_num_evs += jnp.log(pop_lambdas.R0*pop_lambdas.Tobs)
-      log_like_evs = log_like_num_evs  - N_exp/self.nevents
-    else:
-      log_like_evs = log_like_num_evs - jnp.log(N_exp)
-    log_hyperlike = jnp.sum(log_like_evs, axis=-1)
 
-    # Check Neff
+    like_num_evs = self.compute_like_num_evs(pop_lambdas)
+    num_valid = like_num_evs > 0
+    safe_like_num_evs = jnp.where(num_valid, like_num_evs, 1.0)
+    log_like_num_evs = jnp.log(safe_like_num_evs)
+
+    N_exp, dNdtheta, xi = self.selection_function.N_exp(
+        pop_lambdas, ret_dNdtheta_and_xi=True
+    )
+
     if self.inj_neff is not None:
-      variance2 = jnp.sum((dNdtheta)**2, axis = -1) / self.selection_function.N_inj**2  - xi**2 / self.selection_function.N_inj
-      neff = xi**2 / variance2
-      neff_cond = neff > self.inj_neff
-      log_hyperlike = jnp.where(neff_cond, log_hyperlike, -jnp.inf)
+        variance2 = (
+            jnp.sum(dNdtheta**2, axis=-1) / self.selection_function.N_inj**2
+            - xi**2 / self.selection_function.N_inj
+        )
+        var_ok = variance2 > 0
+        safe_variance2 = jnp.where(var_ok, variance2, 1.0)
+        neff = xi**2 / safe_variance2
+        neff_cond = var_ok & (neff > self.inj_neff)
     else:
-      neff = None
-    # Filter nan/-inf to very small number
-    log_hyperlike = jnp.nan_to_num(log_hyperlike, nan=-jnp.inf)
+        neff = None
+        neff_cond = jnp.array(True)
+
+    N_exp_ok = N_exp > 0
+    safe_N_exp = jnp.where(N_exp_ok, N_exp, 1.0)
+    
+    events_valid = num_valid & N_exp_ok         
+    all_valid = jnp.all(events_valid, axis=-1) & neff_cond  
+    
+    if not pop_lambdas.scale_free:
+        log_like_num_evs = log_like_num_evs + jnp.log(pop_lambdas.R0 * pop_lambdas.Tobs)
+        log_like_evs = log_like_num_evs - N_exp / self.nevents
+    else:
+        log_like_evs = log_like_num_evs - jnp.log(safe_N_exp)
+
+    log_hyperlike = jnp.sum(log_like_evs, axis=-1)
+    log_hyperlike = jnp.where(all_valid, log_hyperlike, -jnp.inf)
     return log_like_evs, N_exp, neff, log_hyperlike
 
   @partial(jax.jit, static_argnums=(0,))

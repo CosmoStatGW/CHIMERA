@@ -4,9 +4,9 @@ from typing import List
 from plum import dispatch
 import equinox as eqx
 from .base import base_mass_paired_struct, mass_pdf_notnorm, pairing_function, _compute_norm_2d
-from ..core import tpl_notnorm, tpl_cdf, high_pass_filter
+from ..core import truncated_pl, high_pass_filter
 from ..conditioned.pls import bspline_design_matrix
-
+from ....utils.math import interp
 
 def knot_logits_to_positions(knot_logits, x_low, x_high, spacing='log'):
     """Map unconstrained knot_logits to strictly increasing knot positions
@@ -186,10 +186,10 @@ class pls_free_knots(base_mass_paired_struct):
 @dispatch
 def mass_pdf_notnorm(mass: pls_free_knots, m: jnp.ndarray) -> jnp.ndarray:
   """p(m) = PL(m) * exp(spline(m)) * S(m)"""
-  P = tpl_notnorm(m, -mass.alpha, mass.m_low, mass.m_high) / tpl_cdf(mass.m_high, -mass.alpha, mass.m_low)
+  P = truncated_pl(m, -mass.alpha, mass.m_low, mass.m_high) 
   spline_basis_grid, spline_basis = mass.compute_spline_basis()
   spline_vals_on_grid = jnp.dot(spline_basis, mass.spline_coefficients)
-  spline_values = jnp.interp(m, spline_basis_grid, spline_vals_on_grid)
+  spline_values = interp(m, spline_basis_grid, spline_vals_on_grid)
   pdf = P * jnp.exp(spline_values)
   pdf *= high_pass_filter(m, mass.delta_m, mass.m_low)
   return pdf

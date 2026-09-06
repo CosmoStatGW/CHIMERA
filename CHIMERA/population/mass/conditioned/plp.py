@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from plum import dispatch
 from .base import base_mass_conditioned_struct
-from ..core import tpl_notnorm, tpl_cdf, truncated_gaussian, high_pass_filter
+from ..core import truncated_pl, truncated_gaussian, high_pass_filter
 
 
 class plp(base_mass_conditioned_struct):
@@ -48,7 +48,7 @@ class plp(base_mass_conditioned_struct):
 
 @dispatch
 def primary_mass_pdf_notnorm(mass:plp, m: jnp.ndarray):
-  P = tpl_notnorm(m, -mass.alpha, mass.m_low, mass.m_high)/tpl_cdf(mass.m_high, -mass.alpha, mass.m_low)
+  P = truncated_pl(m, -mass.alpha, mass.m_low, mass.m_high)
   G = truncated_gaussian(m, mass.mu_g, mass.sigma_g, mass.m_low, mass.mu_g + 5*mass.sigma_g)
   pdf = (1 - mass.lambda_peak)*P + mass.lambda_peak*G
   pdf *= high_pass_filter(m, mass.delta_m, mass.m_low)

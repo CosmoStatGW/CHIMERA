@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from plum import dispatch
 
 from .base import base_mass_paired_struct, mass_pdf_notnorm, pairing_function
-from ..core import tpl_notnorm, tpl_cdf, truncated_gaussian, high_pass_filter, low_pass_filter, notch_filter
+from ..core import broken_pl, truncated_gaussian, high_pass_filter, low_pass_filter, notch_filter
 
 class bpl_dip_three_peaks(base_mass_paired_struct):
   """
@@ -139,23 +139,6 @@ class bpl_dip_three_peaks(base_mass_paired_struct):
 # Marginal shape (same for m1 and m2)
 # ---------------------------------------------------------------------------
 
-def _broken_power_law(m, alpha_1, alpha_2, b, m_low, m_high):
-    m_break = m_low + b * (m_high - m_low)
-    pl_low_at_break = m_break ** (-alpha_1)
-    pl_high_at_break = m_break ** (-alpha_2)
-    scale_factor = pl_low_at_break / pl_high_at_break
-
-    pl_low = tpl_notnorm(m, -alpha_1, m_low, m_break)
-    pl_high = tpl_notnorm(m, -alpha_2, m_break, m_high)
-
-    bpl_unnorm =  pl_low + scale_factor * pl_high
-
-    norm_low = tpl_cdf(m_break, -alpha_1, m_low)
-    norm_high = tpl_cdf(m_high, -alpha_2, m_break)
-    bpl_norm = norm_low + scale_factor * norm_high
-
-    return bpl_unnorm / bpl_norm
-
 @dispatch
 def mass_pdf_notnorm(mass: bpl_dip_three_peaks, m: jnp.ndarray) -> jnp.ndarray:
     """
@@ -163,25 +146,23 @@ def mass_pdf_notnorm(mass: bpl_dip_three_peaks, m: jnp.ndarray) -> jnp.ndarray:
     p(m) = [(1-λ_g) * BPL(m) + λ_g * λ_1 * G₁(m) + λ_g * (1-λ_1) * λ_2 * G₂(m) + λ_g * (1-λ_1) * (1-λ_2) * G₃(m)] * F_h(m) * F_l(m) * F_n(m)
     """
     # 1. Broken Power Law component (normalized between m_low and m_high)
-    bpl = _broken_power_law(m, mass.alpha_1, mass.alpha_2, mass.b, mass.m_low, mass.m_high)
+    bpl = broken_pl(m, mass.alpha_1, mass.alpha_2, mass.b, mass.m_low, mass.m_high)
 
     # 2. Gaussian components (truncated between m_low and m_high)
     g1 = truncated_gaussian(m, mass.mu_g1, mass.sigma_g1, mass.m_low, mass.mu_g1+5*mass.sigma_g1)
     g2 = truncated_gaussian(m, mass.mu_g2, mass.sigma_g2, mass.m_low, mass.mu_g2+5*mass.sigma_g2)
     g3 = truncated_gaussian(m, mass.mu_g3, mass.sigma_g3, mass.m_low, mass.mu_g3+5*mass.sigma_g3)
 
-    # 3. Combine components
-    # λ_g is the fraction of events in the Gaussians
-    # λ_1 is the fraction of Gaussian events in Gaussian 1
-    # λ_2 is the fraction of Gaussian events in Gaussian 2
-    # Gaussian 3 gets the remaining fraction
+    one_minus_lambda_g = jnp.exp(jnp.log(1.0 - mass.lambda_g))
+    one_minus_lambda_1 = jnp.exp(jnp.log(1.0 - mass.lambda_1))
+    one_minus_lambda_2 = jnp.exp(jnp.log(1.0 - mass.lambda_2))
     gaussian_component = (
       mass.lambda_g * mass.lambda_1 * g1 +
-      mass.lambda_g * (1.0 - mass.lambda_1) * mass.lambda_2 * g2 +
-      mass.lambda_g * (1.0 - mass.lambda_1) * (1.0 - mass.lambda_2) * g3
+      mass.lambda_g * one_minus_lambda_1 * mass.lambda_2 * g2 +
+      mass.lambda_g * one_minus_lambda_1 * one_minus_lambda_2 * g3
     )
 
-    pdf = (1.0 - mass.lambda_g) * bpl + gaussian_component
+    pdf = one_minus_lambda_g * bpl + gaussian_component
 
     # 4. Apply filters
     pdf *= high_pass_filter(m, mass.bottomsmooth, mass.m_low) # High-pass filter (smoothing at low mass end)

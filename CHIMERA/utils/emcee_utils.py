@@ -5,7 +5,7 @@ import os
 import re
 import warnings
 import emcee
-#import zeus
+import zeus
 import h5py
 import dill
 

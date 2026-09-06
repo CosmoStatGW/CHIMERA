@@ -26,6 +26,14 @@ def cumtrapz(y,x):
   res  = jnp.cumsum(0.5*(y[:-1]+y[1:])*dx)
   return jnp.concatenate([jnp.array([0]), res])
 
+##########
+# interp #
+##########
+
+@jax.jit
+def interp(x, xp, fp, left=None, right=None):
+  return jnp.interp(x, xp, fp, left, right)
+  
 ##############
 # 1d binning #
 ##############

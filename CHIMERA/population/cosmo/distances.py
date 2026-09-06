@@ -3,6 +3,7 @@ from typing import Optional
 from plum import dispatch
 from .core import flrw, mg_flrw, E_at_z, int_invE_at_z
 from ...data import theta_src
+from ...utils.math import cumtrapz, interp
 
 # Shared functions
 
@@ -91,7 +92,7 @@ def ddLdz_at_z(cosmo: mg_flrw, z: jnp.ndarray, distances: Optional[jnp.ndarray] 
 @dispatch
 def z_from_dGW(cosmo, dGWs: jnp.ndarray):
   dGW_values = dL_at_z(cosmo, cosmo.z_grid_interp)
-  return jnp.interp(dGWs, dGW_values, cosmo.z_grid_interp)
+  return interp(dGWs, dGW_values, cosmo.z_grid_interp)
 
 # Theta source dispatches
 @dispatch

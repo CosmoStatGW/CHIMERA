@@ -31,9 +31,15 @@ from . import data
 from .population import * #cosmo, mass, rate, population, compute_z_grids
 from .likelihood import hyperlikelihood
 from .selection_function import selection_function
-from .catalog import completeness
+from .catalog import completeness, catalog
 
-sys.modules["CHIMERA.cosmo"] = cosmo
-sys.modules["CHIMERA.mass"] = mass
-sys.modules["CHIMERA.rate"] = rate
-sys.modules["CHIMERA.completeness"] = completeness
+
+sys.modules[__name__ +".cosmo"] = cosmo
+sys.modules[__name__ +".catalog"] = catalog
+sys.modules[__name__ +".rate"] = rate
+sys.modules[__name__ +".completeness"] = completeness
+
+sys.modules[__name__ + ".mass"] = mass
+sys.modules[__name__ + ".mass.paired"] = mass.paired
+sys.modules[__name__ + ".mass.conditioned"] = mass.conditioned
+

@@ -3,8 +3,8 @@ import jax
 import equinox as eqx
 from typing import List
 from plum import dispatch
-from CHIMERA.utils.math import trapz
-from CHIMERA.data import theta_src
+from ....utils.math import trapz, interp
+from ....data import theta_src
 
 ################
 # MASS PYTREES #
@@ -168,7 +168,7 @@ def p_m1m2(mass: base_mass_paired_struct,
   pm2  = mass_pdf_notnorm(mass, m2)
   fval = pairing_function(mass, m1, m2)
   fval = jnp.where(m2 <= m1, fval, 0.0)           # enforce support
-  Z    = jnp.maximum(mass.norm_2d, jnp.finfo(jnp.float64).tiny)
+  Z    = jnp.maximum(mass.norm_2d, jnp.finfo(jnp.float_).tiny)
   return pm1 * pm2 * fval / Z
 
 
@@ -205,10 +205,10 @@ def p_m1(mass: base_mass_paired_struct, m: jnp.ndarray) -> jnp.ndarray:
   # inner integral profile: (N,)
   I_grid = trapz(pm[None, :] * fval, x=g, axis=1)
   # Interpolate I at queried m1 values
-  m1_arr = jnp.atleast_1d(jnp.asarray(m, dtype=jnp.float64))
-  I_m1   = jnp.interp(m1_arr, g, I_grid)
+  m1_arr = jnp.atleast_1d(jnp.asarray(m, dtype=jnp.float_))
+  I_m1   = interp(m1_arr, g, I_grid)
   pm1_unnorm = mass_pdf_notnorm(mass, m1_arr)
-  Z          = jnp.maximum(mass.norm_2d, jnp.finfo(jnp.float64).tiny)
+  Z          = jnp.maximum(mass.norm_2d, jnp.finfo(jnp.float_).tiny)
   result     = pm1_unnorm * I_m1 / Z
   return result.squeeze() if jnp.ndim(m) == 0 else result
 
@@ -245,10 +245,10 @@ def pdf_joint_and_marg(mass: base_mass_paired_struct,
   p_joint = p_m1m2(mass, m1mesh, m2mesh)
   p1_marg = trapz(p_joint, x=m2, axis=0)
   p1_marg = p1_marg / jnp.maximum(trapz(p1_marg, x=m1),
-                                  jnp.finfo(jnp.float64).tiny)
+                                  jnp.finfo(jnp.float_).tiny)
   p2_marg = trapz(p_joint, x=m1, axis=1)
   p2_marg = p2_marg / jnp.maximum(trapz(p2_marg, x=m2),
-                                  jnp.finfo(jnp.float64).tiny)
+                                  jnp.finfo(jnp.float_).tiny)
 
   dict_to_ret = {'m1':m1, 'm2':m2, 'm1mesh':m1mesh, 'm2mesh':m2mesh,
     'p_joint': p_joint, 'p_m1_marg': p1_marg, 'p_m2_marg': p2_marg}
