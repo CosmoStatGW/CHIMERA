@@ -437,7 +437,7 @@ def pixelize_gw_catalog(theta_gw,
   dec_grids = np.full((num_events, max_dec_size), np.nan)
   ra_edges = np.full((num_events, max_ra_size + 1), np.nan)
   dec_edges = np.full((num_events, max_dec_size + 1), np.nan)
-  pixel_indices = np.full((num_events, max_npixels, 2), -1, dtype=np.float64)
+  pixel_indices = np.full((num_events, max_npixels, 2), -1, dtype=np.float_)
 
   # Second pass: process all events and populate grid metadata
   for e in range(num_events):
@@ -491,7 +491,7 @@ def pixelize_gw_catalog(theta_gw,
       dec_edges[e, :dec_size+1] = dec_edges_ev
 
       # Create pixel to grid index mapping
-      indices = np.full((max_npixels, 2), -1, dtype=np.float64)
+      indices = np.full((max_npixels, 2), -1, dtype=np.float_)
       for i in range(npix):
         ra_val, dec_val = pixel_ra[e][i], pixel_dec[e][i]
         ra_idx = np.argmin(np.abs(ra_unique - ra_val))
@@ -500,7 +500,7 @@ def pixelize_gw_catalog(theta_gw,
       pixel_indices[e] = indices
 
   # Create padded arrays for the main pixel data
-  padded_event_pixels = _pad_arr_list(event_pixels, pad_value=np.nan, dtype=np.float64)
+  padded_event_pixels = _pad_arr_list(event_pixels, pad_value=np.nan, dtype=np.float_)
   padded_pixel_ra = _pad_arr_list(pixel_ra, pad_value=np.nan)
   padded_pixel_dec = _pad_arr_list(pixel_dec, pad_value=np.nan)
   padded_pixel_probs = _pad_arr_list(pixel_probabilities, pad_value=np.nan)
@@ -518,7 +518,7 @@ def pixelize_gw_catalog(theta_gw,
     ra_pix=padded_pixel_ra,
     dec_pix=padded_pixel_dec,
     gw_loc2d_pdf=padded_pixel_probs,
-    pixels_pe_opt_nside=jnp.asarray(pe_samples_pixels).astype(jnp.float64),
+    pixels_pe_opt_nside=jnp.asarray(pe_samples_pixels).astype(jnp.float_),
     ra_grids=jnp.asarray(ra_grids),
     dec_grids=jnp.asarray(dec_grids),
     ra_edges=jnp.asarray(ra_edges),

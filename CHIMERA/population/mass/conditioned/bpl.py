@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from plum import dispatch
 from .base import base_mass_conditioned_struct
-from ..core import tpl_notnorm, high_pass_filter
+from ..core import broken_pl, high_pass_filter
 
 class bpl(base_mass_conditioned_struct):
   r"""A class to describe a broken power law mass model implemented as an Equinox module.
@@ -37,10 +37,6 @@ class bpl(base_mass_conditioned_struct):
 
 @dispatch
 def primary_mass_pdf_notnorm(mass:bpl, m:jnp.ndarray):
-  m_break = mass.m_low + mass.break_fraction * (mass.m_high - mass.m_low)
-  pl1_m_break = tpl_notnorm(m_break, -mass.alpha_1, mass.m_low, m_break)
-  pl2_m_break = tpl_notnorm(m_break, -mass.alpha_2, m_break, mass.m_high)
-  pdf = tpl_notnorm(m, -mass.alpha_1, mass.m_low, m_break)
-  pdf += tpl_notnorm(m, -mass.alpha_2, m_break, mass.m_high)*pl1_m_break/pl2_m_break
+  pdf = broken_pl(m, mass.alpha_1, mass.alpha_2, mass.b, mass.m_low, mass.m_high)
   pdf *= high_pass_filter(m, mass.delta_m, mass.m_low)
   return pdf

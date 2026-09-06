@@ -14,68 +14,13 @@ from .base import (
     pairing_function,
     _compute_norm_2d,
 )
-from ..core import high_pass_filter, low_pass_filter
-
+from ..core import high_pass_filter, low_pass_filter, smooth_step_up, smooth_step_down, truncated_pl
 
 # ===========================================================================
 # Neural log-density MLP
 # ===========================================================================
 
-def _ordered_bias(raw_b):
-    """Map unconstrained latent parameters to centered, ordered biases.
-
-    The returned biases satisfy
-
-        b_0 < b_1 < ... < b_(H-1)
-
-    while remaining centered around the first raw parameter and having
-    a finite, controlled span.
-    """
-    if raw_b.size == 0 or raw_b.size == 1:
-        return raw_b
-    gaps = jax.nn.softplus(raw_b[1:]) + 1e-4
-    cumulative = jnp.concatenate(
-        [
-            jnp.zeros(1, dtype=raw_b.dtype),
-            jnp.cumsum(gaps),
-        ]
-    )
-    cumulative = cumulative / cumulative[-1]
-    positions = cumulative - 0.5
-    center = raw_b[0]
-
-    return center + positions
-
-
-
 def init_mlp_params(hidden_size, depth, input_size, key):
-    """Randomly initialize the permutation-free MLP parameters.
-
-    The returned biases are *unconstrained latent parameters*. They are
-    transformed by `_ordered_bias` at evaluation time into the actual
-    hidden-layer biases.
-
-    Parameters
-    ----------
-    hidden_size : int
-        Number of neurons in each hidden layer.
-    depth : int
-        Number of hidden layers.
-    input_size : int
-        Input dimensionality.
-    key : jax.random.PRNGKey
-        Random key.
-
-    Returns
-    -------
-    Ws : list[jnp.ndarray]
-        Network weight matrices. ``len(Ws) == depth + 1``.
-        The final matrix is the bias-free output layer.
-
-    bs : list[jnp.ndarray]
-        Unconstrained latent bias vectors. ``len(bs) == depth``.
-        Actual biases are obtained through `_ordered_bias`.
-    """
     sizes = [input_size] + [hidden_size] * depth
     keys = jax.random.split(key, depth + 1)
 
@@ -126,47 +71,21 @@ def init_mlp_params(hidden_size, depth, input_size, key):
 # ===========================================================================
 
 def _log_density_single(Ws, bs, x):
-    """Evaluate g(x) for one scalar standardized log-mass.
-
-    Every hidden layer uses strictly ordered biases, which removes the
-    exact hidden-neuron permutation symmetry of the unconstrained MLP.
-    """
     h = jnp.atleast_1d(x)
-
-    for W, b_raw in zip(Ws[:-1], bs):
-        b = _ordered_bias(b_raw)
-        h = jax.nn.softplus(W @ h + b)
-
-    # Output layer has no bias. A constant output offset is degenerate
-    # with the normalization of the density.
+    for W, b in zip(Ws[:-1], bs):
+        h = jnp.tanh(W @ h + b)
     return (Ws[-1] @ h)[0]
 
-
 def log_density(Ws, bs, x):
-    """Vectorized permutation-free neural log-density.
+  flat_g = jax.vmap(
+      lambda xi: _log_density_single(Ws, bs, xi)
+  )(x.reshape(-1))
+  return flat_g.reshape(x.shape) 
 
-    Parameters
-    ----------
-    Ws, bs
-        MLP parameters. ``bs`` are the unconstrained latent bias
-        parameters; `_ordered_bias` is applied internally.
-
-    x : array-like
-        Scalar or array of arbitrary shape.
-
-    Returns
-    -------
-    jnp.ndarray
-        g(x), with the same shape as ``x``.
-    """
-    x = jnp.asarray(x)
-
-    flat_g = jax.vmap(
-        lambda xi: _log_density_single(Ws, bs, xi)
-    )(x.reshape(-1))
-
-    return flat_g.reshape(x.shape)
-
+def log_density_interpolated(Ws, bs, x, x_grid):
+    g_grid = jax.vmap(lambda xi: _log_density_single(Ws, bs, xi))(x_grid)
+    g_grid = g_grid - jnp.mean(g_grid)
+    return jnp.interp(x, x_grid, g_grid)
 
 # ===========================================================================
 # Paired neural density model
@@ -198,27 +117,6 @@ class neural_density(base_mass_paired_struct):
         \frac{\log m-\bar x}{\sigma_x}.
 
     The neural log-density g is represented by a Softplus MLP.
-
-    -----------------------------------------------------------------------
-    Permutation-free parameterization
-    -----------------------------------------------------------------------
-
-    Hidden-neuron permutation symmetry is removed by parameterizing every
-    hidden-layer bias vector through `_ordered_bias`.
-
-    The stored ``bs`` are therefore NOT the physical biases directly.
-    They are unconstrained latent parameters whose transformation gives
-
-        b_0 < b_1 < ... < b_(H-1).
-
-    For every ordinary MLP with distinct hidden-layer biases, there is a
-    permutation of the neurons that puts those biases into this ordering.
-    Thus this removes the redundant neuron-label representations without
-    changing the represented function class, apart from the measure-zero
-    case of exactly coincident biases.
-
-    No `sort()` is used, so the transformation remains differentiable and
-    suitable for NUTS.
 
     -----------------------------------------------------------------------
     Network shape
@@ -276,6 +174,7 @@ class neural_density(base_mass_paired_struct):
     Ws: List[jnp.ndarray]
     bs: List[jnp.ndarray]
 
+    #alpha: float
     beta: float
     bottomsmooth: float
     topsmooth: float
@@ -283,15 +182,19 @@ class neural_density(base_mass_paired_struct):
     # Fixed preprocessing constants. These should not be sampled.
     x_mean: float = eqx.field(static=True)
     x_std: float = eqx.field(static=True)
+    x_grid_size: int = eqx.field(static=True)
+    x_grid: jnp.ndarray = eqx.field(static=True)
 
     default = {
         **base_mass_paired_struct.default,
+        #"alpha": 2.3,
         "beta": 1.08,
         "bottomsmooth": 3.3,
         "topsmooth": 3.3,
         "input_size": 1,
-        "hidden_size": 4,
+        "hidden_size": 8,
         "depth": 2,
+        "x_grid_size": 5000,
         "Ws": None,
         "bs": None,
     }
@@ -315,17 +218,15 @@ class neural_density(base_mass_paired_struct):
 
         self.x_mean = 0.5 * (log_m_low + log_m_high)
         self.x_std = 0.5 * (log_m_high - log_m_low)
+        log_m_grid = jnp.linspace(log_m_low, log_m_high, self.x_grid_size)
+        self.x_grid = (log_m_grid - self.x_mean) / self.x_std
 
         # ------------------------------------------------------------------
         # Initialize network if parameters were not explicitly supplied
         # ------------------------------------------------------------------
         if self.Ws is None or self.bs is None:
-            init_key = (
-                key
-                if key is not None
-                else jax.random.PRNGKey(0)
-            )
-
+            init_key = key if key is not None else jax.random.PRNGKey(0)
+            
             self.Ws, self.bs = init_mlp_params(
                 self.hidden_size,
                 self.depth,
@@ -336,12 +237,7 @@ class neural_density(base_mass_paired_struct):
         # ------------------------------------------------------------------
         # Copied from base_mass_paired_struct.__init__
         # ------------------------------------------------------------------
-        self.m_grid = jnp.logspace(
-            jnp.log10(self.m_low),
-            jnp.log10(self.m_high),
-            self.m_grid_res,
-        )
-
+        self.m_grid = jnp.logspace(jnp.log10(self.m_low), jnp.log10(self.m_high), self.m_grid_res)
         self.norm_2d = _compute_norm_2d(self)
 
 
@@ -350,10 +246,7 @@ class neural_density(base_mass_paired_struct):
 # ===========================================================================
 
 @dispatch
-def mass_pdf_notnorm(
-    mass: neural_density,
-    m: jnp.ndarray,
-):
+def mass_pdf_notnorm(mass: neural_density, m: jnp.ndarray):
     """Unnormalized marginal mass density.
 
     The neural network receives standardized log-mass,
@@ -369,35 +262,19 @@ def mass_pdf_notnorm(
 
     The density is zero outside [m_low, m_high].
     """
-    m = jnp.asarray(m)
-
     # Standardized log-mass.
     x = (jnp.log(m) - mass.x_mean) / mass.x_std
 
-    # Permutation-free neural log-density.
-    g = log_density(mass.Ws, mass.bs, x)
+    # neural log-density.
+    g = log_density(mass.Ws, mass.bs, x) # log_density_interpolated(mass.Ws, mass.bs, x, mass.x_grid) # 
 
-    # Jacobian from x = log(m) to m.
-    pdf = jnp.exp(g) / m
-
+    # pdf
+    pdf = jnp.exp(g) / m  #  truncated_pl(m, -mass.alpha, mass.m_low, mass.m_high) 
     # Mass-edge smoothing.
-    pdf *= high_pass_filter(
-        m,
-        mass.bottomsmooth,
-        mass.m_low,
-    )
+    pdf *= high_pass_filter(m, mass.bottomsmooth, mass.m_low) * smooth_step_up(m, mass.m_low, steepness=200)
+    pdf *= low_pass_filter(m, mass.topsmooth, mass.m_high) * smooth_step_down(m, mass.m_high, steepness=200)
 
-    pdf *= low_pass_filter(
-        m,
-        mass.topsmooth,
-        mass.m_high,
-    )
-
-    return jnp.where(
-        (m >= mass.m_low) & (m <= mass.m_high),
-        pdf,
-        0.0,
-    )
+    return pdf
 
 
 # ===========================================================================

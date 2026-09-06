@@ -4,7 +4,7 @@ from numbers import Number
 import jax
 import jax.numpy as jnp
 
-from ..utils.math import trapz
+from ..utils.math import trapz, interp
 from ..utils.config import logger 
 from ..utils.angles import find_pix_RAdec, convert_pixelization
 from ..utils.io import load_set, save_set
@@ -149,7 +149,7 @@ class homogeneous_completeness(object):
     
     # Create a vectorizable interpolation function
     def get_completeness(mask_idx, z):
-      return jnp.interp(z, self.z_int_grid, self.completeness[mask_idx], left=0, right=0)
+      return interp(z, self.z_int_grid, self.completeness[mask_idx], left=0, right=0)
     
     # 1. For a single mask index with multiple z values
     self.get_completeness_z = jax.vmap(get_completeness, in_axes=(None, 0))
@@ -186,7 +186,7 @@ class homogeneous_completeness(object):
     Approx.: P_compl is cosmology independent (true for H0)."""
     
     # Map the processing over all events
-    return jax.vmap(lambda z_ev : jnp.interp(z_ev, self.z_int_grid, self.completeness))(z_grids)
+    return jax.vmap(lambda z_ev : interp(z_ev, self.z_int_grid, self.completeness))(z_grids)
 
 
   def p_bkg(self, cosmo_obj, z, distances=None):
@@ -207,7 +207,7 @@ class homogeneous_completeness(object):
     
     norm = trapz(bkg, self.z_int_grid)
 
-    return jnp.interp(z, self.z_int_grid, bkg/norm, left=0, right=0)
+    return interp(z, self.z_int_grid, bkg/norm, left=0, right=0)
 
 
   def fR(self, cosmo_obj):
@@ -379,10 +379,10 @@ class mask_completeness(object):
     # Count the number of galaxies per pixel 
     pix_gal = find_pix_RAdec(ra_gal, dec_gal, nside=nside, nest=nest)
     uniq, inv = jnp.unique(pix_gal, return_inverse=True)
-    self.ngal_pix = jnp.zeros(hp.nside2npix(nside), dtype=jnp.int64).at[uniq].set(jnp.bincount(inv))
+    self.ngal_pix = jnp.zeros(hp.nside2npix(nside), dtype=jnp.int_).at[uniq].set(jnp.bincount(inv))
 
     # Cluster the non-zero counts with k-means to define the masks, mask 0 is reserved for zero counts
-    kmeans_limits = jnp.sort(kmeans(self.ngal_pix[self.ngal_pix != 0].astype(jnp.float64), nmasks-2)[0])
+    kmeans_limits = jnp.sort(kmeans(self.ngal_pix[self.ngal_pix != 0].astype(jnp.float_), nmasks-2)[0])
     self.kbins = jnp.concatenate([jnp.array([0, 0.5]), kmeans_limits, jnp.array([jnp.max(self.ngal_pix) + 0.5])])
     self.healpix2mask = jnp.digitize(self.ngal_pix, self.kbins, right=False) - 1
 
@@ -427,7 +427,7 @@ class mask_completeness(object):
 
     # Create a vectorizable interpolation function
     def get_completeness(mask_idx, z):
-      return jnp.interp(z, self.z_int_grid, self.completeness[mask_idx], left=0, right=0)
+      return interp(z, self.z_int_grid, self.completeness[mask_idx], left=0, right=0)
     
     # 1. For a single mask index with multiple z values
     self.get_completeness_z = jax.vmap(get_completeness, in_axes=(None, 0))
@@ -484,7 +484,7 @@ class mask_completeness(object):
 
     # Define a function that interpolates one mask's completeness onto a redshift grid
     def interp_single_mask_to_grid(mask_id, z_grid):
-        return jnp.interp(z_grid, self.z_int_grid, self.completeness[mask_id])
+        return interp(z_grid, self.z_int_grid, self.completeness[mask_id])
     
     # For each event, for each pixel, get completeness at each redshift
     def process_event(event_mask_idxs, event_z_grid):
@@ -513,7 +513,7 @@ class mask_completeness(object):
         0.
     )
     norm = trapz(bkg, self.z_int_grid)
-    return jnp.interp(z, self.z_int_grid, bkg/norm, left=0, right=0)
+    return interp(z, self.z_int_grid, bkg/norm, left=0, right=0)
   
   def fR(self, cosmo_obj):
     """Compute fR = ∫ P_compl * p_bkg dz for all masks with a given cosmology.
@@ -588,7 +588,7 @@ def compute_completeness(cosmo_params, rho_gal_theo, z_grid, z_gal, sky_area,
     rho_obs = N_z_obs / V_sky_Mpc
     
     # Interpolate to desired output bins
-    rho_obs = jnp.interp(z_grid, z_bins_lowres, rho_obs)
+    rho_obs = interp(z_grid, z_bins_lowres, rho_obs)
     
     # Apply smoothing if specified
     if smooth:
