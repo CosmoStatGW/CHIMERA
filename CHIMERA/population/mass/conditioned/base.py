@@ -6,7 +6,7 @@ from plum import dispatch
 
 from ....utils.math import cumtrapz, trapz, interp
 from ....data import theta_src
-from ..core import truncated_pl, high_pass_filter
+from ..core import _truncated_pl_notnorm, high_pass_filter
 
 ################
 # MASS PYTREES #
@@ -75,7 +75,7 @@ def p_m1(mass:base_mass_conditioned_struct, theta:theta_src):
 
 @dispatch
 def secondary_mass_conditioned_pdf_notnorm(mass:base_mass_conditioned_struct, m2:jnp.ndarray, m1:Union[Number,jnp.ndarray]):
-  pdf = truncated_pl(m2, mass.beta, mass.m_low, m1)
+  pdf = _truncated_pl_notnorm(m2, mass.beta, mass.m_low, m1)
   pdf *= high_pass_filter(m2, mass.delta_m, mass.m_low)
   return pdf
 
