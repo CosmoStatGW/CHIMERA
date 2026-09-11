@@ -43,8 +43,11 @@ def broken_pl(m, alpha_1, alpha_2, b, m_low, m_high, steepness=200.0):
     pl_low_notnorm = _truncated_pl_notnorm(m, -alpha_1, m_low, m_break, steepness)
     pl_high_notnorm = _truncated_pl_notnorm(m, -alpha_2, m_break, m_high, steepness)
         
-    # Get values at break point
-    scale_factor  = m_break**(-alpha_1) / m_break**(-alpha_2)
+    # Get values at break point (single power, not a ratio of two powers:
+    # dividing m_break**(-alpha_1) by m_break**(-alpha_2) squares the tiny
+    # denominator in the gradient's quotient rule, underflowing float32
+    # once alpha_2 gets large)
+    scale_factor = m_break**(alpha_2 - alpha_1)
    
     # Combine components
     pdf = pl_low_notnorm + scale_factor * pl_high_notnorm
