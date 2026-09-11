@@ -14,7 +14,6 @@ from .population.cosmo import ddLdz_at_z
 from .population import get_theta_src_and_weights, p_cbc
 from .data import theta_pe_det
 
-
 class hyperlikelihood(object):
   r"""A class for computing the cosmological/populationulation hyperlikelihood of gravitational wave (GW) events.
 
@@ -134,7 +133,7 @@ class hyperlikelihood(object):
     # convert thetas
     th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
     norms  = jnp.mean(weights, axis = -1)
-    
+
     if not self.pixelated:
       z_grids = jnp.linspace(jnp.min(th_src.z, axis = -1)*0.5, jnp.max(th_src.z, axis = -1)*2, self.z_int_res).T
       cut_grid = 0
@@ -144,7 +143,7 @@ class hyperlikelihood(object):
       z_grids = self.z_grids
       cut_grid = self.cut_grid
       z_grids_edges = self.z_grids_edges
-      
+
     # Vectorized KDE
     if self.kind_kde == 'binned':
       kde_vec = jax.vmap(binned_kde1d, in_axes=(0,0,0,None,None,None,None))
@@ -179,7 +178,7 @@ class hyperlikelihood(object):
     # Get source frame samples and population weights
     th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
     norms  = jnp.mean(weights, axis = -1)
-    
+
     # Single event routine
     def p_gw_single_event(ev):
       pe_pix = self.theta_gw_det.pixels_pe_opt_nside[ev]
@@ -293,7 +292,7 @@ class hyperlikelihood(object):
     # convert thetas
     th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
     norms  = jnp.mean(weights, axis = -1)
-    
+
     dataset = jnp.array([th_src.z, self.theta_gw_det.ra, self.theta_gw_det.dec]) # dataset for kde, shape: (3, Nevents, Nsamples)
     dataset  = jnp.moveaxis(dataset, 0, 2) # shape (Nevents,Nsamples,3)
 
@@ -384,10 +383,10 @@ class hyperlikelihood(object):
 
     N_exp_ok = N_exp > 0
     safe_N_exp = jnp.where(N_exp_ok, N_exp, 1.0)
-    
-    events_valid = num_valid & N_exp_ok         
-    all_valid = jnp.all(events_valid, axis=-1) & neff_cond  
-    
+
+    events_valid = num_valid & N_exp_ok
+    all_valid = jnp.all(events_valid, axis=-1) & neff_cond
+
     if not pop_lambdas.scale_free:
         log_like_num_evs = log_like_num_evs + jnp.log(pop_lambdas.R0 * pop_lambdas.Tobs)
         log_like_evs = log_like_num_evs - N_exp / self.nevents

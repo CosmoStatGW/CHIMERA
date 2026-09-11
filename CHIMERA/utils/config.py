@@ -4,7 +4,7 @@ USE_x64 = os.getenv('CHIMERA_USE_x64', 'False').lower() == 'true'
 
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 os.environ["XLA_FLAGS"] = (
-    "--xla_gpu_ftz=true "
+    #"--xla_gpu_ftz=true "
     "--xla_gpu_enable_triton_gemm=true "
     "--xla_gpu_enable_latency_hiding_scheduler=true"
 )
