@@ -153,9 +153,9 @@ def mass_pdf_notnorm(mass: bpl_dip_three_peaks, m: jnp.ndarray) -> jnp.ndarray:
     g2 = truncated_gaussian(m, mass.mu_g2, mass.sigma_g2, mass.m_low, mass.mu_g2+5*mass.sigma_g2)
     g3 = truncated_gaussian(m, mass.mu_g3, mass.sigma_g3, mass.m_low, mass.mu_g3+5*mass.sigma_g3)
 
-    one_minus_lambda_g = jnp.exp(jnp.log(1.0 - mass.lambda_g))
-    one_minus_lambda_1 = jnp.exp(jnp.log(1.0 - mass.lambda_1))
-    one_minus_lambda_2 = jnp.exp(jnp.log(1.0 - mass.lambda_2))
+    one_minus_lambda_g = 1.0 - mass.lambda_g
+    one_minus_lambda_1 = 1.0 - mass.lambda_1
+    one_minus_lambda_2 = 1.0 - mass.lambda_2
     gaussian_component = (
       mass.lambda_g * mass.lambda_1 * g1 +
       mass.lambda_g * one_minus_lambda_1 * mass.lambda_2 * g2 +
