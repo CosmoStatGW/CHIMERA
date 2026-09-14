@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from KDExpress import binned_kde1d, fft_kde1d, scott_bw1d, build_hist_edges, fft_kde3d
 
 from .utils.config import logger
-from .utils.math import trapz, kde1d
+from .utils.math import trapz, kde1d, safe_where
 from .population.cosmo import ddLdz_at_z
 from .population import get_theta_src_and_weights, p_cbc
 from .data import theta_pe_det
@@ -220,7 +220,7 @@ class hyperlikelihood(object):
         # value and its gradient finite (double jnp.where pattern).
         w_pix_real = jnp.where(pixel_mask, weights[ev], 0.0)
         w_pix_dummy = jnp.ones_like(weights[ev])
-        w_pix = jnp.where(has_pixel, w_pix_real, w_pix_dummy)
+        w_pix = safe_where(has_pixel, w_pix_real, w_pix_dummy)
         fill = jnp.nan if self.kind_kde == 'many-1d-fft' else 0.0
         z_pix = jnp.where(pixel_mask, th_src.z[ev], fill)
         kde = compute_kde(z_pix, w_pix)
@@ -370,7 +370,7 @@ class hyperlikelihood(object):
 
     like_num_evs = self.compute_like_num_evs(pop_lambdas)
     num_valid = like_num_evs > 0
-    safe_like_num_evs = jnp.where(num_valid, like_num_evs, 1.0)
+    safe_like_num_evs = safe_where(num_valid, like_num_evs, 1.0)
     log_like_num_evs = jnp.log(safe_like_num_evs)
 
     N_exp, dNdtheta, xi = self.selection_function.N_exp(
@@ -383,7 +383,7 @@ class hyperlikelihood(object):
             - xi**2 / self.selection_function.N_inj
         )
         var_ok = variance2 > 0
-        safe_variance2 = jnp.where(var_ok, variance2, 1.0)
+        safe_variance2 = safe_where(var_ok, variance2, 1.0)
         neff = xi**2 / safe_variance2
         neff_cond = var_ok & (neff > self.inj_neff)
     else:
@@ -391,7 +391,7 @@ class hyperlikelihood(object):
         neff_cond = jnp.array(True)
 
     N_exp_ok = N_exp > 0
-    safe_N_exp = jnp.where(N_exp_ok, N_exp, 1.0)
+    safe_N_exp = safe_where(N_exp_ok, N_exp, 1.0)
 
     events_valid = num_valid & N_exp_ok
     all_valid = jnp.all(events_valid, axis=-1) & neff_cond

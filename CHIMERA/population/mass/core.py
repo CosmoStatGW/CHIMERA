@@ -1,6 +1,8 @@
 import jax
 import jax.numpy as jnp
 
+from ...utils.math import safe_where
+
 #########################
 # Useful math functions #
 #######################
@@ -23,7 +25,7 @@ def _pl_norm(alpha, xmin, xmax):
     is_zero = u == 0.
 
     # Inner where: substitute zero denominator with dummy value (1.0) to prevent NaN in unselected branch
-    safe_u = jnp.where(is_zero, 1.0, u)
+    safe_u = safe_where(~is_zero, u, 1.0)
 
     val_power = (xmax**safe_u - xmin**safe_u) / safe_u
     val_limit = jnp.log(xmax / xmin)
@@ -62,7 +64,7 @@ def high_pass_filter(m, delta_m, m_low):
     transition = ~below & ~above
 
     # Safe evaluation of terms: map non-transition indices to safe dummy values (0.5 * delta_m offset)
-    m_shifted = jnp.where(transition, m - m_low, 0.5 * delta_m)
+    m_shifted = safe_where(transition, m - m_low, 0.5 * delta_m)
     
     term1 = delta_m / m_shifted
     term2 = delta_m / (m_shifted - delta_m)
@@ -84,7 +86,7 @@ def low_pass_filter(m, delta_m, m_high):
     transition = ~above & ~below
 
     # Safe evaluation of terms: map non-transition indices to safe dummy values (0.5 * delta_m offset)
-    m_shifted = jnp.where(transition, m_high - m, 0.5 * delta_m)
+    m_shifted = safe_where(transition, m_high - m, 0.5 * delta_m)
 
     term1 = delta_m / m_shifted
     term2 = delta_m / (m_shifted - delta_m)
