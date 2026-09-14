@@ -4,7 +4,7 @@ from numbers import Number
 from plum import dispatch
 import jax.numpy as jnp
 
-from ..utils.math import trapz
+from ..utils.math import trapz, safe_where
 from .cosmo import  z_from_dGW, ddLdz_at_z
 from .mass import p_m1m2
 from .rate import merger_rate
@@ -81,13 +81,13 @@ def get_theta_src_and_weights(pop_lambdas: population, theta_det: theta_pe_det, 
   sum_w_raw = jnp.sum(weights, axis=-1, keepdims=True)
   weights_ok = sum_w_raw > 0
   n_samples = weights.shape[-1]
-  safe_weights = jnp.where(weights_ok, weights, jnp.ones_like(weights) / n_samples)
+  safe_weights = safe_where(weights_ok, weights, jnp.ones_like(weights) / n_samples)
 
   if return_neffs:
       sum_w = jnp.sum(weights, axis=-1)
       sum_w2 = jnp.sum(weights**2, axis=-1)
       denom_ok = sum_w2 > 0
-      safe_sum_w2 = jnp.where(denom_ok, sum_w2, 1.0)
+      safe_sum_w2 = safe_where(denom_ok, sum_w2, 1.0)
       n_effs = jnp.where(denom_ok, sum_w**2 / safe_sum_w2, 0.0)
       return th_src, safe_weights, n_effs
   else:

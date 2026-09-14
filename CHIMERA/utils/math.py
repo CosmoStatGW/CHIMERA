@@ -4,6 +4,31 @@ import jax.numpy as jnp
 import numba as nb
 import numpy as np
 
+from .config import SAFE_WHERE
+
+######################
+# safe_where (NaN/Inf-gradient guard, "double where" trick) #
+######################
+
+def safe_where(is_safe, real_value, dummy_value):
+  """Guard `real_value` against being fed into a risky downstream op (division,
+  log, pow, ...) on the branch where `is_safe` is False, by substituting
+  `dummy_value` there instead. Must always be paired with an outer `jnp.where(is_safe,
+  ..., ...)` that picks the correct final value for each branch -- this function only
+  protects the *input*, so that jax.grad's reverse-mode AD (which still differentiates
+  the untaken branch of a jnp.where) never sees a NaN/Inf coming out of the unsafe
+  branch and propagating into the gradient.
+
+  Controlled globally by CHIMERA_SAFE_WHERE (read once at import time, like USE_x64 /
+  USE_GPU). Set CHIMERA_SAFE_WHERE=False before importing CHIMERA to disable this
+  substitution everywhere in CHIMERA and feed `real_value` straight through instead --
+  forward values are typically unaffected, but gradients can become NaN/Inf. Useful for
+  probing how much these guards actually matter for gradient-based samplers (e.g. NUTS).
+  """
+  if SAFE_WHERE:
+    return jnp.where(is_safe, real_value, dummy_value)
+  return real_value
+
 ##################
 # trapz function #
 ##################
