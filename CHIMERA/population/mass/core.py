@@ -103,7 +103,7 @@ def low_pass_filter(m, delta_m, m_high):
 def notch_filter(m, m_low, m_high, delta_m_low, delta_m_high, A):
     F_high = high_pass_filter(m, delta_m_low, m_low)
     F_low = low_pass_filter(m, delta_m_high, m_high)
-    return jnp.exp(jnp.log(1.0 - A * F_high * F_low))
+    return 1.0 - A * F_high * F_low
 
 # Gaussian distributions
 def gaussian(x, mu, sigma):
