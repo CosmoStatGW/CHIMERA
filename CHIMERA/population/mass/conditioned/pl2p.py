@@ -51,5 +51,10 @@ def primary_mass_pdf_notnorm(mass:pl2p, m: jnp.ndarray):
   G2 = truncated_gaussian(m, mass.mu_g_high, mass.sigma_g_high, mass.m_low, mass.mu_g_high + 5*mass.sigma_g_high)
   pdf = (1-mass.lambda_g)*P + mass.lambda_g*mass.lambda_g_low*G1 + mass.lambda_g*(1. - mass.lambda_g_low)*G2
   pdf *= high_pass_filter(m, mass.delta_m, mass.m_low)
-  #return pdf
-  return jnp.where(mass.mu_g_low <= mass.mu_g_high, pdf, jnp.nan)
+  # 0.0, not NaN: this feeds a normalization integral elsewhere, and the ordering
+  # condition is scalar (doesn't vary with m), so a literal NaN would broadcast
+  # across the whole array and poison that normalization with genuine forward NaN
+  # rather than just marking individual mass points invalid. See bpl_dip_three_peaks
+  # for the same fix and the reasoning -- the point still ends up correctly
+  # rejected downstream (N_exp -> 0 -> N_exp_ok=False) instead of silently NaN.
+  return jnp.where(mass.mu_g_low <= mass.mu_g_high, pdf, 0.0)

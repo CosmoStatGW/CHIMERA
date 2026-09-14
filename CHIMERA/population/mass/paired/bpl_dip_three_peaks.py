@@ -174,7 +174,17 @@ def mass_pdf_notnorm(mass: bpl_dip_three_peaks, m: jnp.ndarray) -> jnp.ndarray:
       mass.deep
     )
     peak_ordering_condition = (mass.mu_g1 <= mass.mu_g2) & (mass.mu_g2 <= mass.mu_g3)
-    return jnp.where(peak_ordering_condition, pdf, jnp.nan)
+    # Zero out (not NaN) the whole PDF when the peaks aren't ordered, matching
+    # bpl_dip_two_peaks. peak_ordering_condition is a *scalar* (doesn't vary with m),
+    # so injecting a literal NaN here broadcasts real NaN across the entire array --
+    # this feeds _compute_norm_2d, poisoning norm_2d/Z/every event's weights with
+    # genuine forward NaN, not just an inert unselected jnp.where branch, so no
+    # decoupling trick can fix it after the fact. Returning 0.0 instead makes
+    # norm_2d=0 -> Z=jnp.maximum(0,tiny)=tiny -> weights=0 everywhere, which the
+    # existing safety nets handle cleanly: on the injection side this makes
+    # N_exp=0 -> N_exp_ok=False, correctly rejecting the point (log_hyperlike=-inf)
+    # via the same all_valid gating used for every other invalid-point case.
+    return jnp.where(peak_ordering_condition, pdf, 0.0)
 
 @dispatch
 def pairing_function(mass: bpl_dip_three_peaks,
