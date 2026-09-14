@@ -212,10 +212,19 @@ class hyperlikelihood(object):
       # Pixels loop
       def pixels_loop(pix, acc):
         pixel_mask = pe_pix == pixels[pix]
-        w_pix = jnp.where(pixel_mask, weights[ev], 0.0)
+        has_pixel = jnp.any(pixel_mask)
+        # KDExpress now divides by sum(weights) directly (no safe_div fallback),
+        # so a pixel with no matching samples must never see an all-zero weight
+        # vector: feed it a safe dummy (uniform) weight vector instead, then
+        # select the real vs. dummy result afterwards. This keeps both the KDE
+        # value and its gradient finite (double jnp.where pattern).
+        w_pix_real = jnp.where(pixel_mask, weights[ev], 0.0)
+        w_pix_dummy = jnp.ones_like(weights[ev])
+        w_pix = jnp.where(has_pixel, w_pix_real, w_pix_dummy)
         fill = jnp.nan if self.kind_kde == 'many-1d-fft' else 0.0
         z_pix = jnp.where(pixel_mask, th_src.z[ev], fill)
         kde = compute_kde(z_pix, w_pix)
+        kde = jnp.where(has_pixel, kde, 0.0)
         return acc.at[pix].set(kde * norms[ev] * gw_pdf[pix])
 
       return jax.lax.fori_loop(
