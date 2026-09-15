@@ -8,6 +8,9 @@ Paired symmetric mass models:
 Available models
 ----------------
 plp : Power-Law + Gaussian Peak with power-law-in-q pairing function.
+random_features_density : Fixed random nonlinear basis (never trained) plus
+    a single trainable linear output layer -- NN-like shape flexibility
+    with only `n_features` free hyperparameters and no pretraining step.
 
 Dispatch functions (also accessible via ``mass.p_m1m2`` etc.)
 -------------------------------------------------------------
@@ -30,7 +33,7 @@ from .plp import plp
 from .pls_free_knots import pls_free_knots
 from .bpl_dip_three_peaks import bpl_dip_three_peaks
 from .bpl_dip_two_peaks import bpl_dip_two_peaks
-from .nn import neural_density
+from .nn import random_features_density
 
 __all__ = [
   'base_mass_paired_struct',
@@ -43,5 +46,5 @@ __all__ = [
   'pls_free_knots',
   'bpl_dip_three_peaks',
   'bpl_dip_two_peaks',
-  'neural_density',
+  'random_features_density',
 ]

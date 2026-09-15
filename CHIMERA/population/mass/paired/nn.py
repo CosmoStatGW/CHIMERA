@@ -1,6 +1,4 @@
-# neural_density.py
-
-from typing import List
+# nn.py
 
 import jax
 import jax.numpy as jnp
@@ -14,85 +12,42 @@ from .base import (
     pairing_function,
     _compute_norm_2d,
 )
-from ..core import high_pass_filter, low_pass_filter, smooth_step_up, smooth_step_down, truncated_pl
+from ..core import high_pass_filter, low_pass_filter, smooth_step_up, smooth_step_down
 
 # ===========================================================================
-# Neural log-density MLP
+# Random-features log-density
 # ===========================================================================
+#
+# A fixed, randomly-initialized nonlinear basis (never trained/sampled) plus
+# a single trainable linear output layer -- the "random features" / extreme
+# learning-machine trick (Rahimi & Recht 2007-style random Fourier
+# features). This gives NN-like shape flexibility while keeping only
+# `n_features` free hyperparameters: no hidden-layer weights to fit, and
+# critically, no pretraining/simulation-matching step needed at all -- the
+# basis is just a fixed random nonlinear feature map, and `w_out` is
+# sampled directly inside the same hierarchical Bayesian fit as every other
+# hyperparameter here.
 
-def init_mlp_params(hidden_size, depth, input_size, key):
-    sizes = [input_size] + [hidden_size] * depth
-    keys = jax.random.split(key, depth + 1)
+def _random_features(x, W_hidden, b_hidden):
+    """phi_k(x) = cos(W_hidden_k . x + b_hidden_k), shape (n_features,)."""
+    x = jnp.atleast_1d(x)
+    return jnp.cos(W_hidden @ x + b_hidden)
 
-    Ws = []
-    bs = []
 
-    for i in range(depth):
-        w_key, b_key = jax.random.split(keys[i])
+def log_density(mass, x):
+    def single(xi):
+        phi = _random_features(xi, mass.W_hidden, mass.b_hidden)
+        return jnp.dot(mass.w_out, phi)
 
-        lim = 1.0 / jnp.sqrt(sizes[i])
-
-        W = jax.random.uniform(
-            w_key,
-            (sizes[i + 1], sizes[i]),
-            minval=-lim,
-            maxval=lim,
-        )
-
-        # These are latent/raw biases. `_ordered_bias` converts them
-        # into the actual strictly ordered biases.
-        b_raw = jax.random.uniform(
-            b_key,
-            (sizes[i + 1],),
-            minval=-lim,
-            maxval=lim,
-        )
-
-        Ws.append(W)
-        bs.append(b_raw)
-
-    # Bias-free output layer.
-    lim = 1.0 / jnp.sqrt(hidden_size)
-
-    Ws.append(
-        jax.random.uniform(
-            keys[-1],
-            (1, hidden_size),
-            minval=-lim,
-            maxval=lim,
-        )
-    )
-
-    return Ws, bs
-
+    flat_g = jax.vmap(single)(x.reshape(-1))
+    return flat_g.reshape(x.shape)
 
 # ===========================================================================
-# Neural log-density forward pass
+# Paired random-features density model
 # ===========================================================================
 
-def _log_density_single(Ws, bs, x):
-    h = jnp.atleast_1d(x)
-    for W, b in zip(Ws[:-1], bs):
-        h = jnp.tanh(W @ h + b)
-    return (Ws[-1] @ h)[0]
-
-def log_density(Ws, bs, x):
-  flat_g = jax.vmap(
-      lambda xi: _log_density_single(Ws, bs, xi)
-  )(x.reshape(-1))
-  return flat_g.reshape(x.shape) 
-
-def log_density_interpolated(Ws, bs, x, x_grid):
-    g_grid = jax.vmap(lambda xi: _log_density_single(Ws, bs, xi))(x_grid)
-    g_grid = g_grid - jnp.mean(g_grid)
-    return jnp.interp(x, x_grid, g_grid)
-
-# ===========================================================================
-# Paired neural density model
-# ===========================================================================
-
-class neural_density(base_mass_paired_struct):
-    r"""Paired neural-density mass model.
+class random_features_density(base_mass_paired_struct):
+    r"""Paired random-features mass model.
 
     The joint distribution is
 
@@ -116,32 +71,42 @@ class neural_density(base_mass_paired_struct):
         \hat x =
         \frac{\log m-\bar x}{\sigma_x}.
 
-    The neural log-density g is represented by a Softplus MLP.
+    The log-density g is a *random-features* expansion:
+
+    .. math::
+
+        g(\hat x) = \sum_{k=1}^{K} w_{\mathrm{out},k}\,
+        \cos\!\left(W_{\mathrm{hidden},k}\,\hat x + b_{\mathrm{hidden},k}\right),
+
+    where ``W_hidden`` and ``b_hidden`` are drawn once at construction
+    time and then fixed (never sampled) -- only the linear output weights
+    ``w_out`` are free hyperparameters. This is deliberately *not* trained
+    or tuned against any simulated population: the random basis is a fixed
+    nonlinear feature map, and ``w_out`` is inferred directly inside the
+    hierarchical Bayesian fit like every other hyperparameter here, so
+    there is no separate pretraining stage and no dependence on assumed
+    simulated mass-function shapes.
 
     -----------------------------------------------------------------------
-    Network shape
+    Parameter count
     -----------------------------------------------------------------------
 
-    ``input_size``, ``hidden_size`` and ``depth`` are static fields.
-
-    ``Ws`` and ``bs`` are ordinary pytree leaves and can therefore be
-    sampled directly by the inference machinery.
-
-    ``Ws`` contain ordinary unconstrained weights.
-
-    ``bs`` contain unconstrained latent variables which are transformed
-    into ordered physical biases by `_ordered_bias`.
+    Only ``w_out`` (shape ``(n_features,)``) is a free/sampled parameter.
+    ``W_hidden`` and ``b_hidden`` are static: fixed at construction from
+    ``key`` and excluded from the sampled pytree entirely.
 
     -----------------------------------------------------------------------
     Standardization
     -----------------------------------------------------------------------
 
-    The neural network input is
+    The network input is
 
         x = (log(m) - x_mean) / x_std
 
-    where ``x_mean`` and ``x_std`` are computed from ``m_low`` and
-    ``m_high`` at construction time.
+    where ``x_mean`` and ``x_std`` are fixed constants computed from
+    ``m_low = 0.4`` and ``m_high = 200`` at construction time (a fixed,
+    wide standardization range -- not the model's own truncation edges
+    ``mass.m_low`` / ``mass.m_high``, which are typically narrower).
 
     The ``1/m`` factor is the Jacobian associated with the transformation
     from log-mass to mass.
@@ -150,31 +115,57 @@ class neural_density(base_mass_paired_struct):
     Parameters
     -----------------------------------------------------------------------
 
-    hidden_size, depth, input_size : int
-        Static network shape.
-
-    Ws, bs : list[jnp.ndarray], optional
-        Explicit network parameters. ``bs`` are latent/raw bias
-        parameters, not the ordered physical biases.
-
+    input_size : int
+        Static; dimensionality of the network input (1 for log-mass only).
+    n_features : int
+        Static; number of fixed random features / free ``w_out`` entries.
+        Keep this modest (tens, not hundreds) to keep the sampled
+        dimensionality low -- see the package README's guidance on
+        gradient-based samplers' dimension scaling.
+    feature_scale : float
+        Static; controls the characteristic frequency of the fixed random
+        basis (``W_hidden ~ N(0, 1/feature_scale**2)``): smaller
+        ``feature_scale`` gives smoother functions, larger gives more
+        wiggly ones.
+    W_hidden, b_hidden : jnp.ndarray, optional
+        Static, fixed (never sampled) random projection and phase. Drawn
+        once at construction from ``key`` if not supplied explicitly.
+    w_out : jnp.ndarray, optional
+        The only trainable/sampled parameter: linear combination of the
+        fixed random features. Bias-free (see note below); defaults to
+        all-zeros (a flat log-density, i.e. uninformative starting point).
     key : jax.random.PRNGKey, optional
-        Constructor-only initialization key.
+        Constructor-only key used to draw the fixed random hidden layer.
+        Irrelevant once ``W_hidden``/``b_hidden`` are supplied explicitly
+        (e.g. when reconstructing a model instance via ``update``).
 
     beta : float
         Mass-ratio power-law index.
 
     bottomsmooth, topsmooth : float
         Low- and high-mass edge smoothing scales.
+
+    Notes
+    -----
+    No bias/intercept term is added to the output layer: an overall
+    additive shift in the log-density is exactly degenerate with the
+    model's own 2-D renormalisation (it exponentiates to a constant
+    factor that cancels between ``p̃(m1)*p̃(m2)`` and ``Z``), so it would
+    only add an unidentifiable direction to the posterior.
     """
 
     input_size: int = eqx.field(static=True)
-    hidden_size: int = eqx.field(static=True)
-    depth: int = eqx.field(static=True)
+    n_features: int = eqx.field(static=True)
+    feature_scale: float = eqx.field(static=True)
 
-    Ws: List[jnp.ndarray]
-    bs: List[jnp.ndarray]
+    # Fixed (static) random hidden layer -- drawn once at construction,
+    # never part of the sampled pytree.
+    W_hidden: jnp.ndarray = eqx.field(static=True)
+    b_hidden: jnp.ndarray = eqx.field(static=True)
 
-    #alpha: float
+    # The only free/sampled network parameter.
+    w_out: jnp.ndarray
+
     beta: float
     bottomsmooth: float
     topsmooth: float
@@ -182,24 +173,21 @@ class neural_density(base_mass_paired_struct):
     # Fixed preprocessing constants. These should not be sampled.
     x_mean: float = eqx.field(static=True)
     x_std: float = eqx.field(static=True)
-    x_grid_size: int = eqx.field(static=True)
-    x_grid: jnp.ndarray = eqx.field(static=True)
 
     default = {
         **base_mass_paired_struct.default,
-        #"alpha": 2.3,
         "beta": 1.08,
         "bottomsmooth": 3.3,
         "topsmooth": 3.3,
         "input_size": 1,
-        "hidden_size": 8,
-        "depth": 2,
-        "x_grid_size": 5000,
-        "Ws": None,
-        "bs": None,
+        "n_features": 16,
+        "feature_scale": 1.0,
+        "W_hidden": None,
+        "b_hidden": None,
+        "w_out": None,
     }
 
-    name = "paired_neural_density"
+    name = "paired_random_features_density"
 
     def __init__(self, key=None, **kwargs):
         # ------------------------------------------------------------------
@@ -218,21 +206,25 @@ class neural_density(base_mass_paired_struct):
 
         self.x_mean = 0.5 * (log_m_low + log_m_high)
         self.x_std = 0.5 * (log_m_high - log_m_low)
-        log_m_grid = jnp.linspace(log_m_low, log_m_high, self.x_grid_size)
-        self.x_grid = (log_m_grid - self.x_mean) / self.x_std
 
         # ------------------------------------------------------------------
-        # Initialize network if parameters were not explicitly supplied
+        # Draw the fixed random hidden layer if not explicitly supplied.
+        # W_hidden_k ~ N(0, 1/feature_scale**2), b_hidden_k ~ U(0, 2*pi):
+        # a standard random-Fourier-features-style nonlinear basis.
         # ------------------------------------------------------------------
-        if self.Ws is None or self.bs is None:
+        if self.W_hidden is None or self.b_hidden is None:
             init_key = key if key is not None else jax.random.PRNGKey(0)
-            
-            self.Ws, self.bs = init_mlp_params(
-                self.hidden_size,
-                self.depth,
-                self.input_size,
-                init_key,
+            w_key, b_key = jax.random.split(init_key)
+
+            self.W_hidden = jax.random.normal(
+                w_key, (self.n_features, self.input_size)
+            ) / self.feature_scale
+            self.b_hidden = jax.random.uniform(
+                b_key, (self.n_features,), minval=0.0, maxval=2 * jnp.pi
             )
+
+        if self.w_out is None:
+            self.w_out = jnp.zeros(self.n_features)
 
         # ------------------------------------------------------------------
         # Copied from base_mass_paired_struct.__init__
@@ -246,14 +238,14 @@ class neural_density(base_mass_paired_struct):
 # ===========================================================================
 
 @dispatch
-def mass_pdf_notnorm(mass: neural_density, m: jnp.ndarray):
+def mass_pdf_notnorm(mass: random_features_density, m: jnp.ndarray):
     """Unnormalized marginal mass density.
 
-    The neural network receives standardized log-mass,
+    The random-features map receives standardized log-mass,
 
         x = (log(m) - x_mean) / x_std.
 
-    The permutation-free neural density is then
+    The permutation-free density is then
 
         p_tilde(m) = exp(g(x)) / m * S(m),
 
@@ -265,11 +257,11 @@ def mass_pdf_notnorm(mass: neural_density, m: jnp.ndarray):
     # Standardized log-mass.
     x = (jnp.log(m) - mass.x_mean) / mass.x_std
 
-    # neural log-density.
-    g = log_density(mass.Ws, mass.bs, x) # log_density_interpolated(mass.Ws, mass.bs, x, mass.x_grid) # 
+    # random-features log-density.
+    g = log_density(mass, x)
 
     # pdf
-    pdf = jnp.exp(g) / m  #  truncated_pl(m, -mass.alpha, mass.m_low, mass.m_high) 
+    pdf = jnp.exp(g) / m
     # Mass-edge smoothing.
     pdf *= high_pass_filter(m, mass.bottomsmooth, mass.m_low) * smooth_step_up(m, mass.m_low, steepness=200)
     pdf *= low_pass_filter(m, mass.topsmooth, mass.m_high) * smooth_step_down(m, mass.m_high, steepness=200)
@@ -283,7 +275,7 @@ def mass_pdf_notnorm(mass: neural_density, m: jnp.ndarray):
 
 @dispatch
 def pairing_function(
-    mass: neural_density,
+    mass: random_features_density,
     m1: jnp.ndarray,
     m2: jnp.ndarray,
 ):
