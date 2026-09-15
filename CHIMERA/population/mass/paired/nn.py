@@ -118,15 +118,33 @@ class random_features_density(base_mass_paired_struct):
     input_size : int
         Static; dimensionality of the network input (1 for log-mass only).
     n_features : int
-        Static; number of fixed random features / free ``w_out`` entries.
-        Keep this modest (tens, not hundreds) to keep the sampled
+        Static; total number of fixed random features / free ``w_out``
+        entries, split as evenly as possible across ``feature_scales``
+        (below). Keep this modest (tens, not hundreds) to keep the sampled
         dimensionality low -- see the package README's guidance on
         gradient-based samplers' dimension scaling.
-    feature_scale : float
-        Static; controls the characteristic frequency of the fixed random
-        basis (``W_hidden ~ N(0, 1/feature_scale**2)``): smaller
-        ``feature_scale`` gives smoother functions, larger gives more
-        wiggly ones.
+    feature_scales : tuple[float, ...]
+        Static; a *mixture* of characteristic lengthscales for the fixed
+        random basis, not a single scale. For block ``i``,
+        ``W_hidden ~ N(0, 1/feature_scales[i]**2)``: smaller values give
+        higher-frequency (more wiggly / narrower-feature) components,
+        larger values give smoother/broader ones.
+
+        A single scale is a real limitation, not just a convenience
+        default: a typical GW mass function mixes a broad, smooth
+        power-law-ish continuum with a few much narrower Gaussian peaks,
+        and no number of features fixes a lengthscale that's simply wrong
+        for the structure you're trying to resolve -- e.g. one peak with
+        `sigma/mu ~ 0.03` standardized needs a much finer scale than the
+        smooth body spanning most of the domain, and a single global scale
+        can't serve both regimes at once (empirically: with a single
+        scale, MSE against `bpl_dip_three_peaks` stayed high regardless
+        of how many features were used, because the narrow low-mass peak
+        was simply invisible at that scale; splitting the same feature
+        budget across several scales fixes this without per-target
+        tuning). The default ``(1.0, 0.3, 0.1, 0.03)`` spans broad-body to
+        narrow-peak scales in standardized log-mass; widen/narrow it if
+        your target has structure outside that range.
     W_hidden, b_hidden : jnp.ndarray, optional
         Static, fixed (never sampled) random projection and phase. Drawn
         once at construction from ``key`` if not supplied explicitly.
@@ -156,7 +174,7 @@ class random_features_density(base_mass_paired_struct):
 
     input_size: int = eqx.field(static=True)
     n_features: int = eqx.field(static=True)
-    feature_scale: float = eqx.field(static=True)
+    feature_scales: tuple = eqx.field(static=True)
 
     # Fixed (static) random hidden layer -- drawn once at construction,
     # never part of the sampled pytree.
@@ -180,8 +198,8 @@ class random_features_density(base_mass_paired_struct):
         "bottomsmooth": 3.3,
         "topsmooth": 3.3,
         "input_size": 1,
-        "n_features": 16,
-        "feature_scale": 1.0,
+        "n_features": 64,
+        "feature_scales": (1.0, 0.3, 0.1, 0.03),
         "W_hidden": None,
         "b_hidden": None,
         "w_out": None,
@@ -209,16 +227,29 @@ class random_features_density(base_mass_paired_struct):
 
         # ------------------------------------------------------------------
         # Draw the fixed random hidden layer if not explicitly supplied.
-        # W_hidden_k ~ N(0, 1/feature_scale**2), b_hidden_k ~ U(0, 2*pi):
-        # a standard random-Fourier-features-style nonlinear basis.
+        # W_hidden_k ~ N(0, 1/feature_scales[i]**2), b_hidden_k ~ U(0, 2*pi):
+        # a mixture of random-Fourier-features-style nonlinear bases, one
+        # block of features per entry in `feature_scales`, so the fixed
+        # basis spans several lengthscales at once (see the class
+        # docstring for why a single scale isn't enough in general).
         # ------------------------------------------------------------------
         if self.W_hidden is None or self.b_hidden is None:
             init_key = key if key is not None else jax.random.PRNGKey(0)
             w_key, b_key = jax.random.split(init_key)
 
-            self.W_hidden = jax.random.normal(
-                w_key, (self.n_features, self.input_size)
-            ) / self.feature_scale
+            n_scales = len(self.feature_scales)
+            base_count, remainder = divmod(self.n_features, n_scales)
+            # Spread any remainder over the first few scales so the total
+            # is always exactly n_features regardless of divisibility.
+            counts = [base_count + (1 if i < remainder else 0) for i in range(n_scales)]
+
+            w_keys = jax.random.split(w_key, n_scales)
+            W_blocks = [
+                jax.random.normal(wk, (count, self.input_size)) / scale
+                for wk, count, scale in zip(w_keys, counts, self.feature_scales)
+                if count > 0
+            ]
+            self.W_hidden = jnp.concatenate(W_blocks, axis=0)
             self.b_hidden = jax.random.uniform(
                 b_key, (self.n_features,), minval=0.0, maxval=2 * jnp.pi
             )
