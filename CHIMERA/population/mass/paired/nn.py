@@ -42,6 +42,158 @@ def log_density(mass, x):
     flat_g = jax.vmap(single)(x.reshape(-1))
     return flat_g.reshape(x.shape)
 
+
+def _block_feature_counts(n_features, feature_scales):
+    """Split n_features as evenly as possible across len(feature_scales)
+    blocks (one per lengthscale), spreading any remainder over the first
+    few blocks so the total is always exactly n_features."""
+    n_scales = len(feature_scales)
+    base_count, remainder = divmod(n_features, n_scales)
+    return [base_count + (1 if i < remainder else 0) for i in range(n_scales)]
+
+
+# ===========================================================================
+# Fitting-free capacity diagnostics
+# ===========================================================================
+#
+# An MSE fit to some target shape (see fit_to_target_p_m1 in
+# examples/nn.ipynb) is NOT a reliable way to answer "is n_features enough
+# for these feature_scales": the answer it gives is confounded by the
+# comparison grid resolution, floating-point precision, and gradient-descent
+# local minima (see the notebook's discussion) -- none of which are
+# properties of the *basis*. The two functions below answer that question
+# directly, with no target shape, no optimizer, and no grid-comparison step
+# at all: `suggested_n_features` gives a closed-form starting point from
+# domain width and lengthscale alone, and `kernel_approximation_error`
+# exactly (deterministically) checks how well the *actual drawn* fixed
+# random basis approximates the theoretical GP kernel it's meant to.
+
+def suggested_n_features(feature_scales, m_low, m_high, coverage=8.0):
+    """Closed-form, fitting-free estimate of how many random features each
+    block of `feature_scales` needs to adequately cover its frequency band
+    over ``[m_low, m_high]``.
+
+    This is a standard Monte-Carlo-coverage rule of thumb, not a fit to any
+    target: a block at lengthscale ``ell`` needs on the order of
+    ``coverage * domain_width / ell`` random draws before it has sampled
+    enough of its own frequency band to behave like the lengthscale it's
+    supposed to approximate (``domain_width`` measured in the model's own
+    standardized log-mass units, i.e. after the fixed ``x = (log m -
+    x_mean) / x_std`` transform). It says nothing about whether that
+    lengthscale itself is the right choice for your data -- see the class
+    docstring / package discussion for how to set `feature_scales` from
+    measurement precision and catalog size.
+
+    Parameters
+    ----------
+    feature_scales : tuple[float, ...]
+        The lengthscale mixture to size, e.g. ``(1.0, 0.3, 0.1, 0.03)``.
+    m_low, m_high : float
+        The mass range to cover (typically the model's own truncation
+        edges, not the fixed 0.4-200 standardization range).
+    coverage : float
+        Draws-per-wavelength constant (default 8; higher is more
+        conservative / demands more features per block).
+
+    Returns
+    -------
+    dict with keys:
+      ``domain_width`` -- the standardized-log-mass span of [m_low, m_high].
+      ``per_block`` -- list[int], one suggested count per feature_scales entry.
+      ``total`` -- int, sum of per_block (a reasonable starting n_features).
+    """
+    log_m_low_std = jnp.log(0.4)
+    log_m_high_std = jnp.log(200.0)
+    x_mean = 0.5 * (log_m_low_std + log_m_high_std)
+    x_std = 0.5 * (log_m_high_std - log_m_low_std)
+    x_low = (jnp.log(m_low) - x_mean) / x_std
+    x_high = (jnp.log(m_high) - x_mean) / x_std
+    domain_width = float(x_high - x_low)
+
+    per_block = [int(jnp.ceil(coverage * domain_width / scale)) for scale in feature_scales]
+    return {
+        "domain_width": domain_width,
+        "per_block": per_block,
+        "total": int(sum(per_block)),
+    }
+
+
+def kernel_approximation_error(mass, w_out_prior_scale=1.0, n_points=200):
+    r"""Fitting-free check of how well `mass`'s FIXED random-feature
+    realization approximates the theoretical mixture-RBF kernel implied by
+    its `feature_scales`, over its own ``[m_low, m_high]`` mass range.
+
+    Draws no samples: `mass.W_hidden`/`mass.b_hidden` were already drawn
+    once at construction, so the kernel that *this specific realization*
+    implies,
+
+    .. math::
+
+        K_\mathrm{realized}(x, x') = \sigma^2 \sum_k
+        \cos(w_k x + b_k)\cos(w_k x' + b_k),
+
+    is computed exactly (a single matrix product over the fixed features),
+    and compared against the ensemble-averaged theoretical kernel this
+    configuration is *supposed* to approximate (see the class docstring
+    for the Bochner's-theorem / mixture-RBF derivation),
+
+    .. math::
+
+        K_\mathrm{theory}(x, x') = \frac{\sigma^2}{2} \sum_i n_i
+        \exp\!\left(-\frac{(x-x')^2}{2\,\ell_i^2}\right),
+
+    with one term per ``feature_scales`` entry :math:`\ell_i` and
+    :math:`n_i` features in that block (:math:`\sigma^2` =
+    ``w_out_prior_scale**2``, the assumed i.i.d. prior variance on
+    ``w_out``). A small relative error means `mass.n_features` is enough
+    for `mass.feature_scales` to behave like the intended GP kernel
+    mixture *for this drawn realization*; a large one -- especially
+    concentrated at short ``|x - x'|`` -- means the finer scales need more
+    features (see `suggested_n_features` for a starting point).
+
+    Parameters
+    ----------
+    mass : random_features_density
+        The model instance to check (uses its own W_hidden/b_hidden,
+        feature_scales, n_features, m_low/m_high/x_mean/x_std).
+    w_out_prior_scale : float
+        The assumed i.i.d. prior std on each w_out entry -- doesn't need
+        to match any specific prior you'll actually use for inference,
+        it's just an overall normalization of the comparison.
+    n_points : int
+        Grid resolution for the (n_points, n_points) kernel matrices.
+
+    Returns
+    -------
+    dict with keys ``x`` (standardized-log-mass grid, shape (n_points,)),
+    ``K_realized``, ``K_theory`` (both (n_points, n_points)), and
+    ``relative_frobenius_error`` (scalar summary: ||K_realized -
+    K_theory||_F / ||K_theory||_F).
+    """
+    x_low = (jnp.log(mass.m_low) - mass.x_mean) / mass.x_std
+    x_high = (jnp.log(mass.m_high) - mass.x_mean) / mass.x_std
+    x = jnp.linspace(x_low, x_high, n_points)
+
+    Phi = jax.vmap(lambda xi: _random_features(xi, mass.W_hidden, mass.b_hidden))(x)
+    sigma2 = w_out_prior_scale ** 2
+    K_realized = sigma2 * (Phi @ Phi.T)
+
+    counts = _block_feature_counts(mass.n_features, mass.feature_scales)
+    dx = x[:, None] - x[None, :]
+    K_theory = jnp.zeros_like(K_realized)
+    for n_i, ell_i in zip(counts, mass.feature_scales):
+        K_theory = K_theory + (sigma2 / 2.0) * n_i * jnp.exp(-(dx ** 2) / (2.0 * ell_i ** 2))
+
+    rel_err = float(jnp.linalg.norm(K_realized - K_theory) / jnp.linalg.norm(K_theory))
+
+    return {
+        "x": x,
+        "K_realized": K_realized,
+        "K_theory": K_theory,
+        "relative_frobenius_error": rel_err,
+    }
+
+
 # ===========================================================================
 # Paired random-features density model
 # ===========================================================================
@@ -237,13 +389,8 @@ class random_features_density(base_mass_paired_struct):
             init_key = key if key is not None else jax.random.PRNGKey(0)
             w_key, b_key = jax.random.split(init_key)
 
-            n_scales = len(self.feature_scales)
-            base_count, remainder = divmod(self.n_features, n_scales)
-            # Spread any remainder over the first few scales so the total
-            # is always exactly n_features regardless of divisibility.
-            counts = [base_count + (1 if i < remainder else 0) for i in range(n_scales)]
-
-            w_keys = jax.random.split(w_key, n_scales)
+            counts = _block_feature_counts(self.n_features, self.feature_scales)
+            w_keys = jax.random.split(w_key, len(self.feature_scales))
             W_blocks = [
                 jax.random.normal(wk, (count, self.input_size)) / scale
                 for wk, count, scale in zip(w_keys, counts, self.feature_scales)
