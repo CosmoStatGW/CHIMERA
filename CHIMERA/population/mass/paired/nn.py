@@ -12,7 +12,6 @@ from .base import (
     pairing_function,
     _compute_norm_2d,
 )
-from ..core import high_pass_filter, low_pass_filter, smooth_step_up, smooth_step_down
 
 # ===========================================================================
 # Random-features log-density
@@ -27,6 +26,51 @@ from ..core import high_pass_filter, low_pass_filter, smooth_step_up, smooth_ste
 # basis is just a fixed random nonlinear feature map, and `w_out` is
 # sampled directly inside the same hierarchical Bayesian fit as every other
 # hyperparameter here.
+#
+# The fixed random noise and the mixture lengthscales are deliberately kept
+# SEPARATE: `raw_W_hidden` is drawn once as plain N(0, 1) noise (never
+# touched again), and each block's `feature_scales[i]` is applied as an
+# ordinary differentiable division at call time to get the effective
+# W_hidden. This is what lets `feature_scales` be a genuine dynamic
+# (traced) pytree leaf -- and therefore a live, jointly-sampled
+# hyperparameter alongside `w_out` -- instead of a `static` field: a static
+# field's *value* (not just shape/dtype) has to be identical across calls
+# for JAX's jit cache to reuse a compiled trace, which is unworkable for a
+# hyperparameter that a sampler proposes a new value for on every draw (see
+# `random_features_density`'s docstring for the full reasoning).
+
+
+def _block_feature_counts(n_features, n_scales):
+    """Split n_features as evenly as possible across `n_scales` blocks (one
+    per lengthscale), spreading any remainder over the first few blocks so
+    the total is always exactly n_features."""
+    base_count, remainder = divmod(n_features, n_scales)
+    return [base_count + (1 if i < remainder else 0) for i in range(n_scales)]
+
+
+def _block_index_array(n_features, n_scales):
+    """Static int32 array of shape (n_features,): for each fixed random
+    feature row, which `feature_scales` block it belongs to. Depends only
+    on the static `n_features`/`n_scales`, never on the lengthscale
+    *values*, so it never needs to change across `update()` calls."""
+    counts = _block_feature_counts(n_features, n_scales)
+    idx = [i for i, count in enumerate(counts) for _ in range(count)]
+    return jnp.array(idx, dtype=jnp.int32)
+
+
+def _effective_W_hidden(raw_W_hidden, feature_scales, block_index):
+    """W_hidden_k = raw_W_hidden_k / feature_scales[block_index_k].
+
+    `raw_W_hidden` is fixed i.i.d. N(0, 1) noise; dividing it by the
+    lengthscale of its block is what makes row k behave as if it had been
+    drawn from N(0, 1/feature_scales[block]**2) -- but, unlike drawing it
+    that way directly, this division is an ordinary differentiable
+    elementwise op, so gradients/vmap over `feature_scales` work exactly
+    like they do for `w_out`.
+    """
+    scales_per_row = feature_scales[block_index]  # (n_features,)
+    return raw_W_hidden / scales_per_row[:, None]
+
 
 def _random_features(x, W_hidden, b_hidden):
     """phi_k(x) = cos(W_hidden_k . x + b_hidden_k), shape (n_features,)."""
@@ -35,163 +79,14 @@ def _random_features(x, W_hidden, b_hidden):
 
 
 def log_density(mass, x):
+    W_hidden = _effective_W_hidden(mass.raw_W_hidden, mass.feature_scales, mass.block_index)
+
     def single(xi):
-        phi = _random_features(xi, mass.W_hidden, mass.b_hidden)
+        phi = _random_features(xi, W_hidden, mass.b_hidden)
         return jnp.dot(mass.w_out, phi)
 
     flat_g = jax.vmap(single)(x.reshape(-1))
     return flat_g.reshape(x.shape)
-
-
-def _block_feature_counts(n_features, feature_scales):
-    """Split n_features as evenly as possible across len(feature_scales)
-    blocks (one per lengthscale), spreading any remainder over the first
-    few blocks so the total is always exactly n_features."""
-    n_scales = len(feature_scales)
-    base_count, remainder = divmod(n_features, n_scales)
-    return [base_count + (1 if i < remainder else 0) for i in range(n_scales)]
-
-
-# ===========================================================================
-# Fitting-free capacity diagnostics
-# ===========================================================================
-#
-# An MSE fit to some target shape (see fit_to_target_p_m1 in
-# examples/nn.ipynb) is NOT a reliable way to answer "is n_features enough
-# for these feature_scales": the answer it gives is confounded by the
-# comparison grid resolution, floating-point precision, and gradient-descent
-# local minima (see the notebook's discussion) -- none of which are
-# properties of the *basis*. The two functions below answer that question
-# directly, with no target shape, no optimizer, and no grid-comparison step
-# at all: `suggested_n_features` gives a closed-form starting point from
-# domain width and lengthscale alone, and `kernel_approximation_error`
-# exactly (deterministically) checks how well the *actual drawn* fixed
-# random basis approximates the theoretical GP kernel it's meant to.
-
-def suggested_n_features(feature_scales, m_low, m_high, coverage=8.0):
-    """Closed-form, fitting-free estimate of how many random features each
-    block of `feature_scales` needs to adequately cover its frequency band
-    over ``[m_low, m_high]``.
-
-    This is a standard Monte-Carlo-coverage rule of thumb, not a fit to any
-    target: a block at lengthscale ``ell`` needs on the order of
-    ``coverage * domain_width / ell`` random draws before it has sampled
-    enough of its own frequency band to behave like the lengthscale it's
-    supposed to approximate (``domain_width`` measured in the model's own
-    standardized log-mass units, i.e. after the fixed ``x = (log m -
-    x_mean) / x_std`` transform). It says nothing about whether that
-    lengthscale itself is the right choice for your data -- see the class
-    docstring / package discussion for how to set `feature_scales` from
-    measurement precision and catalog size.
-
-    Parameters
-    ----------
-    feature_scales : tuple[float, ...]
-        The lengthscale mixture to size, e.g. ``(1.0, 0.3, 0.1, 0.03)``.
-    m_low, m_high : float
-        The mass range to cover (typically the model's own truncation
-        edges, not the fixed 0.4-200 standardization range).
-    coverage : float
-        Draws-per-wavelength constant (default 8; higher is more
-        conservative / demands more features per block).
-
-    Returns
-    -------
-    dict with keys:
-      ``domain_width`` -- the standardized-log-mass span of [m_low, m_high].
-      ``per_block`` -- list[int], one suggested count per feature_scales entry.
-      ``total`` -- int, sum of per_block (a reasonable starting n_features).
-    """
-    log_m_low_std = jnp.log(0.4)
-    log_m_high_std = jnp.log(200.0)
-    x_mean = 0.5 * (log_m_low_std + log_m_high_std)
-    x_std = 0.5 * (log_m_high_std - log_m_low_std)
-    x_low = (jnp.log(m_low) - x_mean) / x_std
-    x_high = (jnp.log(m_high) - x_mean) / x_std
-    domain_width = float(x_high - x_low)
-
-    per_block = [int(jnp.ceil(coverage * domain_width / scale)) for scale in feature_scales]
-    return {
-        "domain_width": domain_width,
-        "per_block": per_block,
-        "total": int(sum(per_block)),
-    }
-
-
-def kernel_approximation_error(mass, w_out_prior_scale=1.0, n_points=200):
-    r"""Fitting-free check of how well `mass`'s FIXED random-feature
-    realization approximates the theoretical mixture-RBF kernel implied by
-    its `feature_scales`, over its own ``[m_low, m_high]`` mass range.
-
-    Draws no samples: `mass.W_hidden`/`mass.b_hidden` were already drawn
-    once at construction, so the kernel that *this specific realization*
-    implies,
-
-    .. math::
-
-        K_\mathrm{realized}(x, x') = \sigma^2 \sum_k
-        \cos(w_k x + b_k)\cos(w_k x' + b_k),
-
-    is computed exactly (a single matrix product over the fixed features),
-    and compared against the ensemble-averaged theoretical kernel this
-    configuration is *supposed* to approximate (see the class docstring
-    for the Bochner's-theorem / mixture-RBF derivation),
-
-    .. math::
-
-        K_\mathrm{theory}(x, x') = \frac{\sigma^2}{2} \sum_i n_i
-        \exp\!\left(-\frac{(x-x')^2}{2\,\ell_i^2}\right),
-
-    with one term per ``feature_scales`` entry :math:`\ell_i` and
-    :math:`n_i` features in that block (:math:`\sigma^2` =
-    ``w_out_prior_scale**2``, the assumed i.i.d. prior variance on
-    ``w_out``). A small relative error means `mass.n_features` is enough
-    for `mass.feature_scales` to behave like the intended GP kernel
-    mixture *for this drawn realization*; a large one -- especially
-    concentrated at short ``|x - x'|`` -- means the finer scales need more
-    features (see `suggested_n_features` for a starting point).
-
-    Parameters
-    ----------
-    mass : random_features_density
-        The model instance to check (uses its own W_hidden/b_hidden,
-        feature_scales, n_features, m_low/m_high/x_mean/x_std).
-    w_out_prior_scale : float
-        The assumed i.i.d. prior std on each w_out entry -- doesn't need
-        to match any specific prior you'll actually use for inference,
-        it's just an overall normalization of the comparison.
-    n_points : int
-        Grid resolution for the (n_points, n_points) kernel matrices.
-
-    Returns
-    -------
-    dict with keys ``x`` (standardized-log-mass grid, shape (n_points,)),
-    ``K_realized``, ``K_theory`` (both (n_points, n_points)), and
-    ``relative_frobenius_error`` (scalar summary: ||K_realized -
-    K_theory||_F / ||K_theory||_F).
-    """
-    x_low = (jnp.log(mass.m_low) - mass.x_mean) / mass.x_std
-    x_high = (jnp.log(mass.m_high) - mass.x_mean) / mass.x_std
-    x = jnp.linspace(x_low, x_high, n_points)
-
-    Phi = jax.vmap(lambda xi: _random_features(xi, mass.W_hidden, mass.b_hidden))(x)
-    sigma2 = w_out_prior_scale ** 2
-    K_realized = sigma2 * (Phi @ Phi.T)
-
-    counts = _block_feature_counts(mass.n_features, mass.feature_scales)
-    dx = x[:, None] - x[None, :]
-    K_theory = jnp.zeros_like(K_realized)
-    for n_i, ell_i in zip(counts, mass.feature_scales):
-        K_theory = K_theory + (sigma2 / 2.0) * n_i * jnp.exp(-(dx ** 2) / (2.0 * ell_i ** 2))
-
-    rel_err = float(jnp.linalg.norm(K_realized - K_theory) / jnp.linalg.norm(K_theory))
-
-    return {
-        "x": x,
-        "K_realized": K_realized,
-        "K_theory": K_theory,
-        "relative_frobenius_error": rel_err,
-    }
 
 
 # ===========================================================================
@@ -230,22 +125,53 @@ class random_features_density(base_mass_paired_struct):
         g(\hat x) = \sum_{k=1}^{K} w_{\mathrm{out},k}\,
         \cos\!\left(W_{\mathrm{hidden},k}\,\hat x + b_{\mathrm{hidden},k}\right),
 
-    where ``W_hidden`` and ``b_hidden`` are drawn once at construction
-    time and then fixed (never sampled) -- only the linear output weights
-    ``w_out`` are free hyperparameters. This is deliberately *not* trained
-    or tuned against any simulated population: the random basis is a fixed
-    nonlinear feature map, and ``w_out`` is inferred directly inside the
-    hierarchical Bayesian fit like every other hyperparameter here, so
-    there is no separate pretraining stage and no dependence on assumed
-    simulated mass-function shapes.
+    where ``W_hidden`` is built from a fixed standard-normal noise tensor
+    ``raw_W_hidden`` (drawn once at construction and never touched again)
+    rescaled block-by-block by ``feature_scales``:
+    ``W_hidden[k] = raw_W_hidden[k] / feature_scales[block_of(k)]``. Both
+    ``feature_scales`` and the linear output weights ``w_out`` are free
+    hyperparameters, inferred directly inside the hierarchical Bayesian fit
+    like every other hyperparameter here -- there is no separate
+    pretraining stage and no dependence on assumed simulated mass-function
+    shapes.
 
     -----------------------------------------------------------------------
-    Parameter count
+    Free hyperparameters
     -----------------------------------------------------------------------
 
-    Only ``w_out`` (shape ``(n_features,)``) is a free/sampled parameter.
-    ``W_hidden`` and ``b_hidden`` are static: fixed at construction from
-    ``key`` and excluded from the sampled pytree entirely.
+    ``w_out`` (shape ``(n_features,)``) and ``feature_scales`` (shape
+    ``(len(feature_scales),)``, 4 by default) are the sampled parameters.
+    ``raw_W_hidden`` and ``b_hidden`` are fixed at construction from
+    ``key`` and never touched again (no prior is ever placed on them, no
+    sampler ever proposes a new value for them).
+
+    Unlike ``raw_W_hidden``/``b_hidden`` (fixed noise, kept as ordinary
+    non-``static`` pytree leaves so jit only needs to compare their
+    shape/dtype -- see the note below), ``feature_scales`` is deliberately
+    **not** ``eqx.field(static=True)`` either, for a stronger reason: a
+    ``static`` field's *value* must be hashable and identical across calls
+    for JAX to reuse a compiled trace, which is fundamentally incompatible
+    with a sampler proposing a new continuous value for it on every draw
+    (as opposed to being fixed once like the noise). Making
+    ``feature_scales`` an ordinary dynamic leaf, and applying it to the
+    fixed noise via a plain elementwise division at call time (see
+    ``_effective_W_hidden``), is what makes it safe to sample: the jit
+    trace only depends on ``feature_scales``'s shape (always 4), and
+    ``jax.grad``/``vmap`` over its value works exactly like they already do
+    for ``w_out``.
+
+    ``raw_W_hidden``/``b_hidden`` themselves are ordinary (non-``static``)
+    pytree leaves, not ``eqx.field(static=True)``: JAX's jit-cache needs to
+    compare a traced function's *static* metadata via plain ``==`` to
+    decide whether to reuse a compiled trace, and comparing two
+    different-valued multi-element arrays that way raises exactly the
+    "truth value of an array... is ambiguous" error the first time the
+    same jitted function sees two model instances whose
+    ``raw_W_hidden``/``b_hidden`` values differ (e.g. constructed from
+    different ``key``s). Keeping them as regular leaves sidesteps this
+    entirely: jit only needs their *shape/dtype* to decide on a retrace,
+    the same way it already treats ``w_out``, and ``base_mass_paired_struct``
+    already treats its own ``m_grid``/``norm_2d``.
 
     -----------------------------------------------------------------------
     Standardization
@@ -275,12 +201,16 @@ class random_features_density(base_mass_paired_struct):
         (below). Keep this modest (tens, not hundreds) to keep the sampled
         dimensionality low -- see the package README's guidance on
         gradient-based samplers' dimension scaling.
-    feature_scales : tuple[float, ...]
-        Static; a *mixture* of characteristic lengthscales for the fixed
-        random basis, not a single scale. For block ``i``,
-        ``W_hidden ~ N(0, 1/feature_scales[i]**2)``: smaller values give
-        higher-frequency (more wiggly / narrower-feature) components,
-        larger values give smoother/broader ones.
+    feature_scales : array-like of float
+        Dynamic (sampled); a *mixture* of characteristic lengthscales for
+        the fixed random basis, not a single scale. For block ``i``, the
+        effective ``W_hidden ~ N(0, 1/feature_scales[i]**2)`` (realized by
+        rescaling the fixed ``raw_W_hidden`` noise -- see above): smaller
+        values give higher-frequency (more wiggly / narrower-feature)
+        components, larger values give smoother/broader ones. Its *length*
+        (number of blocks, 4 by default) is fixed at construction and
+        should not change across ``update()`` calls; the lengthscale
+        *values* are free to vary continuously and can be sampled.
 
         A single scale is a real limitation, not just a convenience
         default: a typical GW mass function mixes a broad, smooth
@@ -297,26 +227,33 @@ class random_features_density(base_mass_paired_struct):
         tuning). The default ``(1.0, 0.3, 0.1, 0.03)`` spans broad-body to
         narrow-peak scales in standardized log-mass; widen/narrow it if
         your target has structure outside that range.
-    W_hidden, b_hidden : jnp.ndarray, optional
-        Static, fixed (never sampled) random projection and phase. Drawn
-        once at construction from ``key`` if not supplied explicitly.
+    raw_W_hidden, b_hidden : jnp.ndarray, optional
+        Static-shaped, fixed (never sampled) i.i.d. N(0, 1) noise and
+        phase. Drawn once at construction from ``key`` if not supplied
+        explicitly.
     w_out : jnp.ndarray, optional
-        The only trainable/sampled parameter: linear combination of the
-        fixed random features. Bias-free (see note below); defaults to
-        all-zeros (a flat log-density, i.e. uninformative starting point).
+        Dynamic (sampled); linear combination of the effective random
+        features. Bias-free (see note below); defaults to all-zeros (a
+        flat log-density, i.e. uninformative starting point).
     key : jax.random.PRNGKey, optional
-        Constructor-only key used to draw the fixed random hidden layer.
-        Irrelevant once ``W_hidden``/``b_hidden`` are supplied explicitly
-        (e.g. when reconstructing a model instance via ``update``).
+        Constructor-only key used to draw the fixed random noise/phase.
+        Irrelevant once ``raw_W_hidden``/``b_hidden`` are supplied
+        explicitly (e.g. when reconstructing a model instance via
+        ``update``).
 
     beta : float
         Mass-ratio power-law index.
 
-    bottomsmooth, topsmooth : float
-        Low- and high-mass edge smoothing scales.
-
     Notes
     -----
+    ``p̃(m)`` is truncated to exactly zero outside ``[m_low, m_high]`` by a
+    hard mask, with no separate edge-smoothing scale: unlike an analytic
+    power-law-ish shape, ``g`` is already a smooth (infinitely
+    differentiable) function of mass by construction, so there is no sharp
+    edge feature to soften -- a smoothing scale here would only add two
+    unnecessary hyperparameters (as ``bottomsmooth``/``topsmooth`` used to
+    be) without changing the fitted shape in any meaningful way.
+
     No bias/intercept term is added to the output layer: an overall
     additive shift in the log-density is exactly degenerate with the
     model's own 2-D renormalisation (it exponentiates to a constant
@@ -326,19 +263,30 @@ class random_features_density(base_mass_paired_struct):
 
     input_size: int = eqx.field(static=True)
     n_features: int = eqx.field(static=True)
-    feature_scales: tuple = eqx.field(static=True)
 
-    # Fixed (static) random hidden layer -- drawn once at construction,
-    # never part of the sampled pytree.
-    W_hidden: jnp.ndarray = eqx.field(static=True)
-    b_hidden: jnp.ndarray = eqx.field(static=True)
+    # Dynamic (sampled) mixture of lengthscales -- see the class docstring
+    # for why this is deliberately NOT eqx.field(static=True).
+    feature_scales: jnp.ndarray
 
-    # The only free/sampled network parameter.
+    # Fixed random noise/phase -- drawn once at construction and never
+    # sampled, but deliberately NOT eqx.field(static=True): jit needs to
+    # compare static metadata via `==`, and comparing two different-valued
+    # arrays that way raises "truth value of an array is ambiguous" (see
+    # the class docstring). Regular (non-static) leaves avoid that; jit
+    # only needs their shape/dtype to decide on a retrace, values just
+    # flow through as normal traced data.
+    raw_W_hidden: jnp.ndarray
+    b_hidden: jnp.ndarray
+
+    # Static row -> feature_scales-block lookup, derived purely from the
+    # static n_features/len(feature_scales); recomputed (cheaply) every
+    # __init__ call, same as m_grid/norm_2d below.
+    block_index: jnp.ndarray
+
+    # The only other free/sampled network parameter.
     w_out: jnp.ndarray
 
     beta: float
-    bottomsmooth: float
-    topsmooth: float
 
     # Fixed preprocessing constants. These should not be sampled.
     x_mean: float = eqx.field(static=True)
@@ -347,12 +295,10 @@ class random_features_density(base_mass_paired_struct):
     default = {
         **base_mass_paired_struct.default,
         "beta": 1.08,
-        "bottomsmooth": 3.3,
-        "topsmooth": 3.3,
         "input_size": 1,
         "n_features": 64,
         "feature_scales": (1.0, 0.3, 0.1, 0.03),
-        "W_hidden": None,
+        "raw_W_hidden": None,
         "b_hidden": None,
         "w_out": None,
     }
@@ -369,6 +315,14 @@ class random_features_density(base_mass_paired_struct):
             setattr(self, k, kwargs.get(k, self.default[k]))
 
         # ------------------------------------------------------------------
+        # `feature_scales` is a dynamic leaf: normalize to a jnp array so
+        # it flows through jit/grad/vmap like `w_out` does (accepts a
+        # plain python tuple, e.g. the default, or an already-traced array
+        # coming back through `update()`).
+        # ------------------------------------------------------------------
+        self.feature_scales = jnp.asarray(self.feature_scales, dtype=jnp.float_)
+
+        # ------------------------------------------------------------------
         # Standardization constants
         # ------------------------------------------------------------------
         log_m_low = jnp.log(0.4)
@@ -378,31 +332,32 @@ class random_features_density(base_mass_paired_struct):
         self.x_std = 0.5 * (log_m_high - log_m_low)
 
         # ------------------------------------------------------------------
-        # Draw the fixed random hidden layer if not explicitly supplied.
-        # W_hidden_k ~ N(0, 1/feature_scales[i]**2), b_hidden_k ~ U(0, 2*pi):
-        # a mixture of random-Fourier-features-style nonlinear bases, one
-        # block of features per entry in `feature_scales`, so the fixed
-        # basis spans several lengthscales at once (see the class
-        # docstring for why a single scale isn't enough in general).
+        # Draw the fixed random noise/phase if not explicitly supplied.
+        # raw_W_hidden_k ~ N(0, 1), b_hidden_k ~ U(0, 2*pi). This noise is
+        # independent of `feature_scales`: the lengthscale mixture is
+        # applied at call time (see `_effective_W_hidden`), never baked
+        # into the draw, precisely so that `feature_scales` can vary
+        # continuously (and be sampled) without ever needing to redraw
+        # this noise.
         # ------------------------------------------------------------------
-        if self.W_hidden is None or self.b_hidden is None:
+        if self.raw_W_hidden is None or self.b_hidden is None:
             init_key = key if key is not None else jax.random.PRNGKey(0)
             w_key, b_key = jax.random.split(init_key)
 
-            counts = _block_feature_counts(self.n_features, self.feature_scales)
-            w_keys = jax.random.split(w_key, len(self.feature_scales))
-            W_blocks = [
-                jax.random.normal(wk, (count, self.input_size)) / scale
-                for wk, count, scale in zip(w_keys, counts, self.feature_scales)
-                if count > 0
-            ]
-            self.W_hidden = jnp.concatenate(W_blocks, axis=0)
+            self.raw_W_hidden = jax.random.normal(w_key, (self.n_features, self.input_size))
             self.b_hidden = jax.random.uniform(
                 b_key, (self.n_features,), minval=0.0, maxval=2 * jnp.pi
             )
 
         if self.w_out is None:
             self.w_out = jnp.zeros(self.n_features)
+
+        # ------------------------------------------------------------------
+        # Static row -> block lookup (depends only on the static
+        # n_features and the static *length* of feature_scales, never on
+        # its values) -- cheap to recompute every call, same as m_grid.
+        # ------------------------------------------------------------------
+        self.block_index = _block_index_array(self.n_features, len(self.feature_scales))
 
         # ------------------------------------------------------------------
         # Copied from base_mass_paired_struct.__init__
@@ -425,12 +380,12 @@ def mass_pdf_notnorm(mass: random_features_density, m: jnp.ndarray):
 
     The permutation-free density is then
 
-        p_tilde(m) = exp(g(x)) / m * S(m),
+        p_tilde(m) = exp(g(x)) / m,
 
-    where S(m) is the product of the low- and high-mass smoothing
-    functions.
-
-    The density is zero outside [m_low, m_high].
+    hard-masked to zero outside [m_low, m_high]. No edge-smoothing scale is
+    applied: g is already a smooth function of mass by construction (it's a
+    sum of cosines), so there is no sharp analytic feature at the truncation
+    edges to soften the way e.g. a power-law's edge needs to be.
     """
     # Standardized log-mass.
     x = (jnp.log(m) - mass.x_mean) / mass.x_std
@@ -438,11 +393,9 @@ def mass_pdf_notnorm(mass: random_features_density, m: jnp.ndarray):
     # random-features log-density.
     g = log_density(mass, x)
 
-    # pdf
+    # pdf, hard-truncated to [m_low, m_high]
     pdf = jnp.exp(g) / m
-    # Mass-edge smoothing.
-    pdf *= high_pass_filter(m, mass.bottomsmooth, mass.m_low) * smooth_step_up(m, mass.m_low, steepness=200)
-    pdf *= low_pass_filter(m, mass.topsmooth, mass.m_high) * smooth_step_down(m, mass.m_high, steepness=200)
+    pdf = jnp.where((m >= mass.m_low) & (m <= mass.m_high), pdf, 0.0)
 
     return pdf
 
