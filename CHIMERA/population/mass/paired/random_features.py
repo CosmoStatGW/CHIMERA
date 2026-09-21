@@ -47,16 +47,26 @@ def _effective_W_hidden(raw_W_hidden, feature_scales, block_index):
     return raw_W_hidden / scales_per_row[:, None]
 
 
-def _random_features(x, W_hidden, b_hidden):
-    """phi_k(x) = cos(W_hidden_k . x + b_hidden_k), shape (n_features,)."""
+def _random_features(x, W_hidden, b_hidden, activation):
+    """phi_k(x) = activation(W_hidden_k . x + b_hidden_k), shape (n_features,).
+
+    `activation` is a static string ('cos' or 'tanh'), so this branch is
+    resolved once at trace time -- no runtime cost, no extra jit retracing.
+    """
     x = jnp.atleast_1d(x)
-    return jnp.cos(W_hidden @ x + b_hidden)
+    pre = W_hidden @ x + b_hidden
+    if activation == 'cos':
+        return jnp.cos(pre)
+    elif activation == 'tanh':
+        return jnp.tanh(pre)
+    else:
+        raise ValueError(f"Unknown activation {activation!r}, must be 'cos' or 'tanh'.")
 
 def log_density(mass, x):
     W_hidden = _effective_W_hidden(mass.raw_W_hidden, mass.feature_scales, mass.block_index)
 
     def single(xi):
-        phi = _random_features(xi, W_hidden, mass.b_hidden)
+        phi = _random_features(xi, W_hidden, mass.b_hidden, mass.activation)
         return jnp.dot(mass.w_out, phi)
 
     flat_g = jax.vmap(single)(x.reshape(-1))
@@ -96,9 +106,10 @@ class random_features_density(base_mass_paired_struct):
     .. math::
 
         g(\hat x) = \sum_{k=1}^{K} w_{\mathrm{out},k}\,
-        \cos\!\left(W_{\mathrm{hidden},k}\,\hat x + b_{\mathrm{hidden},k}\right),
+        \phi\!\left(W_{\mathrm{hidden},k}\,\hat x + b_{\mathrm{hidden},k}\right),
 
-    where ``W_hidden`` is built from a fixed standard-normal noise tensor
+    where ``phi`` is ``cos`` (default) or ``tanh``, selected by ``activation``.
+    ``W_hidden`` is built from a fixed standard-normal noise tensor
     ``raw_W_hidden`` (drawn once at construction and never touched again)
     rescaled block-by-block by ``feature_scales``:
     ``W_hidden[k] = raw_W_hidden[k] / feature_scales[block_of(k)]``. Both
@@ -107,6 +118,35 @@ class random_features_density(base_mass_paired_struct):
     like every other hyperparameter here -- there is no separate
     pretraining stage and no dependence on assumed simulated mass-function
     shapes.
+
+    -----------------------------------------------------------------------
+    ``activation='cos'`` vs. ``activation='tanh'``
+    -----------------------------------------------------------------------
+
+    With ``phi = cos`` and ``b_hidden ~ Uniform(0, 2*pi)``, this is the
+    classical Rahimi & Recht random-Fourier-features estimator: by Bochner's
+    theorem, ``E_b[cos(w.x+b) cos(w.x'+b)] = 0.5*cos(w.(x-x'))`` depends only
+    on ``x - x'``, so averaging over ``w ~ p(w)`` (here, the ``raw_W_hidden``
+    draw rescaled by ``feature_scales``) makes ``g`` an approximate draw from
+    a genuine *stationary* GP -- a mixture of squared-exponential-ish
+    kernels, one per lengthscale block. ``feature_scales`` is then literally
+    that GP's lengthscale mixture.
+
+    With ``phi = tanh``, that derivation no longer applies (``tanh`` isn't
+    periodic, so the phase-averaging trig identity doesn't hold): this
+    becomes an ordinary fixed-random-basis expansion (an "Extreme Learning
+    Machine" / reservoir-computing-style model, sitting between this class
+    and ``nn_density``'s fully-trained tanh-MLP) rather than a Monte-Carlo
+    estimator of a *named* kernel. ``feature_scales`` still controls how
+    quickly each feature saturates with ``x``, it just no longer corresponds
+    to a textbook GP lengthscale. In exchange, ``tanh`` is not periodic, so
+    it cannot introduce the genuine repeated-peak structure in log-mass that
+    ``cos`` risks under a wide ``feature_scales`` prior -- the same
+    H0-degeneracy concern documented in ``nn.py`` (which is why that model
+    uses ``tanh`` rather than ``cos``). The fixed bias ``b_hidden`` is drawn
+    differently per activation for this reason (see ``__init__``): a
+    ``Uniform(0, 2*pi)`` *phase* for ``cos``, vs. an ordinary ``N(0, 1)``
+    bias for ``tanh``.
 
     -----------------------------------------------------------------------
     Free hyperparameters
@@ -174,6 +214,13 @@ class random_features_density(base_mass_paired_struct):
         (below). Keep this modest (tens, not hundreds) to keep the sampled
         dimensionality low -- see the package README's guidance on
         gradient-based samplers' dimension scaling.
+    activation : str
+        Static; ``'cos'`` (default) or ``'tanh'``. See the
+        "``activation='cos'`` vs. ``activation='tanh'``" section above --
+        this also changes how the fixed ``b_hidden`` is drawn at
+        construction (phase vs. ordinary bias), so switching it on an
+        already-constructed instance via ``update()`` has no effect on
+        ``b_hidden`` (only a fresh construction re-draws it).
     feature_scales : array-like of float
         Dynamic (sampled); a *mixture* of characteristic lengthscales for
         the fixed random basis, not a single scale. For block ``i``, the
@@ -236,6 +283,7 @@ class random_features_density(base_mass_paired_struct):
 
     input_size: int = eqx.field(static=True)
     n_features: int = eqx.field(static=True)
+    activation: str = eqx.field(static=True)
     feature_scales: jnp.ndarray
     raw_W_hidden: jnp.ndarray
     b_hidden: jnp.ndarray
@@ -250,6 +298,7 @@ class random_features_density(base_mass_paired_struct):
         "beta": 1.08,
         "input_size": 1,
         "n_features": 64,
+        "activation": "cos",
         "feature_scales": (1.0, 0.3, 0.1, 0.03),
         "raw_W_hidden": None,
         "b_hidden": None,
@@ -271,14 +320,27 @@ class random_features_density(base_mass_paired_struct):
         self.x_mean = 0.5 * (log_m_low + log_m_high)
         self.x_std = 0.5 * (log_m_high - log_m_low)
 
+        if self.activation not in ('cos', 'tanh'):
+            raise ValueError(f"Unknown activation {self.activation!r}, must be 'cos' or 'tanh'.")
+
         if self.raw_W_hidden is None or self.b_hidden is None:
             init_key = key if key is not None else jax.random.PRNGKey(0)
             w_key, b_key = jax.random.split(init_key)
 
             self.raw_W_hidden = jax.random.normal(w_key, (self.n_features, self.input_size))
-            self.b_hidden = jax.random.uniform(
-                b_key, (self.n_features,), minval=0.0, maxval=2 * jnp.pi
-            )
+            if self.activation == 'cos':
+                # Uniform(0, 2*pi) phase is what makes E_b[cos(.+b)cos(.+b)] collapse to a
+                # function of (x - x') alone via a trig identity -- the Bochner/random-Fourier-
+                # features derivation of a stationary kernel. Only meaningful for a *periodic*
+                # activation.
+                self.b_hidden = jax.random.uniform(
+                    b_key, (self.n_features,), minval=0.0, maxval=2 * jnp.pi
+                )
+            else:  # 'tanh'
+                # tanh isn't periodic, so a phase-like bias has no special meaning here --
+                # an ordinary O(1) bias (same spirit as nn.py's fan-in-scaled bs) is enough to
+                # avoid every feature saturating at the same sign for x ~ 0.
+                self.b_hidden = jax.random.normal(b_key, (self.n_features,))
 
         if self.w_out is None:
             self.w_out = jnp.zeros(self.n_features)
@@ -303,9 +365,10 @@ def mass_pdf_notnorm(mass: random_features_density, m: jnp.ndarray):
         p_tilde(m) = exp(g(x)) / m,
 
     hard-masked to zero outside [m_low, m_high]. No edge-smoothing scale is
-    applied: g is already a smooth function of mass by construction (it's a
-    sum of cosines), so there is no sharp analytic feature at the truncation
-    edges to soften the way e.g. a power-law's edge needs to be.
+    applied: g is already a smooth function of mass by construction (a sum
+    of `cos` or `tanh` features, depending on `mass.activation`), so there
+    is no sharp analytic feature at the truncation edges to soften the way
+    e.g. a power-law's edge needs to be.
     """
     # Standardized log-mass.
     x = (jnp.log(m) - mass.x_mean) / mass.x_std
