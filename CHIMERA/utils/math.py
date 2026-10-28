@@ -59,6 +59,50 @@ def cumtrapz(y,x):
 def interp(x, xp, fp, left=None, right=None):
   return jnp.interp(x, xp, fp, left, right)
   
+##################################
+# interp2d (separable, bilinear) #
+##################################
+
+@jax.jit
+def interp2d(x_query, y_query, x_grid, y_grid, z_grid):
+  """Bilinear interpolation of ``z_grid`` (shape ``(len(x_grid),
+  len(y_grid))``, values of some f(x,y) on a regular tensor grid) at
+  arbitrary, broadcastable-shape query points ``(x_query, y_query)``.
+
+  Implemented directly (bracket + 4-corner blend) rather than via two
+  chained ``jnp.interp`` calls: an earlier version vmapped ``jnp.interp``
+  over every grid row, which re-runs each row's O(len(grid)) search
+  against the *full* query array per row, costing O(n_rows * n_queries)
+  memory/time -- fine for a handful of queries, but it blew up to
+  multi-GB intermediates once both the grid and the query count were in
+  the hundreds/thousands (exactly the regime this is used in). This
+  version does one O(n_queries) bracket search per axis up front (cost
+  independent of grid size beyond the search itself) and then a cheap
+  O(n_queries) 4-corner gather-and-blend -- no per-row repetition.
+  """
+  shape = x_query.shape
+  xq = x_query.reshape(-1)
+  yq = y_query.reshape(-1)
+
+  def _bracket(q, grid):
+    n = grid.shape[0]
+    i = jnp.clip(jnp.searchsorted(grid, q) - 1, 0, n - 2)
+    x0, x1 = grid[i], grid[i + 1]
+    t = (q - x0) / (x1 - x0)
+    return i, t
+
+  ix, tx = _bracket(xq, x_grid)
+  iy, ty = _bracket(yq, y_grid)
+
+  z00 = z_grid[ix, iy]
+  z01 = z_grid[ix, iy + 1]
+  z10 = z_grid[ix + 1, iy]
+  z11 = z_grid[ix + 1, iy + 1]
+
+  out = ((1 - tx) * (1 - ty) * z00 + (1 - tx) * ty * z01
+         + tx * (1 - ty) * z10 + tx * ty * z11)
+  return out.reshape(shape)
+
 ##############
 # 1d binning #
 ##############

@@ -6,7 +6,7 @@ from plum import dispatch
 from typing import List
 from .base import base_mass_conditioned_struct, secondary_mass_conditioned_pdf_notnorm
 from ..core import truncated_pl, high_pass_filter
-from ....utils.math import trapz, cumtrapz
+from ....utils.math import trapz, cumtrapz, safe_where
 
 # Semi-paramtrice PL+spline model:
 # slightly modified w.r.t base_struct_mass to handle spline_basis and spline_coefficients
@@ -66,12 +66,29 @@ def bspline_basis(i, x, knots, degree):
   if degree == 0:
     return jnp.where((knots[i] <= x) & (x < knots[i+1]), 1.0, 0.0)
   else:
-    # Cox-de Boor recursion formula
-    left = jnp.where(knots[i+degree] != knots[i],
-                    (x - knots[i]) / (knots[i+degree] - knots[i]) * bspline_basis(i, x, knots, degree-1),
+    # Cox-de Boor recursion formula. Every knot vector used in this package is
+    # clamped (the first/last knot repeated `degree` times -- see
+    # `setup_spline`/`bspline_utils.fixed_knots`), so `knots[i+degree]==knots[i]`
+    # (and the symmetric `right` condition) is a real, expected case, not an edge
+    # case -- the plain `jnp.where(cond, risky_division, 0.0)` below gives the
+    # right *value* there (0.0), but when knots are differentiable (free knots,
+    # or free m_low/m_high/mc_low/... boundary parameters that knots are rebuilt
+    # from every call), reverse-mode autodiff still evaluates the untaken
+    # `risky_division` branch, which divides by exactly zero -> inf/nan, and
+    # `jnp.where`'s backward rule multiplies that by a zero cotangent --
+    # `0 * nan = nan`, not `0` -- silently poisoning the gradient even though the
+    # forward value is correct. `safe_where` (see its docstring in
+    # `CHIMERA.utils.math`) is exactly the guard for this: substitute a safe,
+    # finite denominator on the branch that won't be selected, so the untaken
+    # branch's gradient is finite and the outer `jnp.where` still zeroes it out
+    # correctly (`0 * finite = 0`).
+    denom_l = knots[i+degree] - knots[i]
+    left = jnp.where(denom_l != 0,
+                    (x - knots[i]) / safe_where(denom_l != 0, denom_l, 1.0) * bspline_basis(i, x, knots, degree-1),
                     0.0)
-    right = jnp.where(knots[i+degree+1] != knots[i+1],
-                      (knots[i+degree+1] - x) / (knots[i+degree+1] - knots[i+1]) * bspline_basis(i+1, x, knots, degree-1),
+    denom_r = knots[i+degree+1] - knots[i+1]
+    right = jnp.where(denom_r != 0,
+                      (knots[i+degree+1] - x) / safe_where(denom_r != 0, denom_r, 1.0) * bspline_basis(i+1, x, knots, degree-1),
                       0.0)
     return left + right
 

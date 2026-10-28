@@ -118,24 +118,64 @@ def lambda_default(band):
 
 
 def schechter_mags(M, alpha, M_star, phi_star, h=1.):
-    """Computes Schechter LF in the absolute magnitude space.
+    """Computes the Schechter luminosity function in absolute-magnitude space,
+    including the standard 0.4*ln(10) magnitude-space Jacobian prefactor (so the
+    result is phi(M), density per unit magnitude -- integrable directly over M to
+    get an absolute number density, e.g. `CHIMERA.utils.mags.SchechterLF`) and the
+    standard h-scaling (M_star -> M_star + 5*log10(h), phi_star -> phi_star*h^3).
+
+    phi(M) = 0.4*ln(10) * phi_star * x^(alpha+1) * exp(-x),
+             x = 10**(0.4*(M_star - M))
+
+    NOTE ON SIGN CONVENTION (2026-10-20, FINAL): `x` is `L/L_star`, the
+    standard astronomical convention (brighter/more negative M => larger x
+    => more exponential suppression at the bright end). This function went
+    through three states in one day. It was originally found to use the
+    opposite (bright-end-favoring) sign, which was a real bug: it caused an
+    8.57% normalization error in `SchechterLF` and was fixed to this standard
+    form. It was then deliberately reverted to `x = 10**(0.4*(M - M_star))`
+    (the inverse) on explicit user instruction, to match the convention used
+    by the (otherwise unused/dormant) `schechter_mags` in the `CHIMERA_private`
+    repo's `utils/mags.py`. That revert was then verified to break
+    `mth_completeness`'s agreement with arXiv:2605.27227 Appendix B: at
+    z=0.05/0.1/0.2 the reverted sign gave F~0.9997/0.9821/0.7905 (still highly
+    "complete"), while the standard sign gives F~0.6289/0.1472/0.0002 --
+    matching the paper's description of completeness dropping below 1% by
+    z~0.2. (`_luminosity_weight(M) = 10**(-0.4*M)` in
+    `CHIMERA.catalog.completeness._build_cumulative_schechter` depends on
+    absolute M, not M-M_star, so it does NOT symmetrize away the sign choice
+    -- contrary to an earlier, overly reassuring note here claiming the ratio
+    was convention-independent.) The apparent "the mask-based completeness
+    plot looked better" impression under the reverted sign was also diagnosed
+    as a normalization artifact: `SchechterLF._n0` (the fixed theoretical
+    reference density used by `mask_completeness`) is ~2.3x smaller under the
+    reverted sign for GLADE+ Ks parameters (0.00734 vs 0.01715), which
+    uniformly inflates every empirical completeness ratio -- not a genuine
+    improvement in agreement. Given this, the user asked to switch back to
+    the standard sign, which is the state implemented here. Note this also
+    does NOT achieve numeric parity with `CHIMERA_private`'s real
+    `MaskCompleteness`/`phiSchL_normL` pipeline, which never calls
+    `schechter_mags` at all; see `completeness.py`'s `mask_completeness`
+    docstring for the remaining architectural differences.
 
     Args:
-        M (np.array, float): absolute magnitudes
+        M (jnp.ndarray, float): absolute magnitudes
         alpha (float): faint-end slope of the Schechter LF
-        M_star (float): characteristic magnitude of the Schechter LF
-        phi_star (float): normalization of the Schechter LF at M_star
+        M_star (float): characteristic magnitude of the Schechter LF (standard
+            h=1 convention; shifted internally by +5*log10(h))
+        phi_star (float): normalization of the Schechter LF at M_star, at h=1
+            (standard convention; scaled internally by h**3)
         h (float, optional): Small h=H0/100. Defaults to 1.
 
     Returns:
-        np.ndarray: Schechter LF in the absolute magnitude space
+        jnp.ndarray: phi(M), Schechter LF density per unit magnitude
     """
 
-    M_star   = M_star + 5.*np.log10(h)
-    phi_star = phi_star * h**3
-    x        = np.power(10., 0.4*(M-M_star))
+    M_star_h   = M_star + 5.*jnp.log10(h)
+    phi_star_h = phi_star * h**3
+    x          = jnp.power(10., 0.4*(M_star_h - M))  # L/L_star, standard convention (see NOTE above)
 
-    return 0.4 * np.log(10.0) * phi_star * x**(1.+alpha) * np.exp(-x)
+    return 0.4 * jnp.log(10.0) * phi_star_h * jnp.power(x, 1.+alpha) * jnp.exp(-x)
 
 
 def phiSchL_normL(lambda_mag):
@@ -192,12 +232,96 @@ def phiSchL_normN(lambda_mag):
     return phi_star * gamma(alpha + 1) * gammaincc(alpha + 1, L_cut)
 
 
+##################################
+# Single (non-evolving) Schechter LF, as a theoretical reference density
+##################################
+
+class SchechterLF:
+  r"""Single (non-evolving), fixed-magnitude-range Schechter luminosity function in
+  absolute-magnitude space, meant as a drop-in ``theory_density_func``/``rho_gal_theo``
+  for CHIMERA's *empirical* density-ratio completeness classes
+  (:class:`CHIMERA.catalog.completeness.homogeneous_completeness`,
+  :class:`CHIMERA.catalog.completeness.mask_completeness`) -- an alternative to the
+  stellar-mass-based :class:`EvolvingDoubleSchechter` for a luminosity-selected
+  catalog like GLADE+ (Ks-band) or DES (r-band).
+
+  ``number_density(z)`` returns a **fixed** (redshift-independent) comoving number
+  density, the Schechter integral over the full ``[M_bright, M_faint]`` range --
+  deliberately *not* flux-limited at each z. This matches the gwcosmo/icarogw
+  convention (and the analytic definition used by
+  :class:`CHIMERA.catalog.completeness.mth_completeness`): the magnitude limit of
+  the survey lives on the *observed* side only (the real, flux-limited galaxy
+  counts assembled by ``compute_completeness``/``mask_completeness``), while the
+  theoretical reference represents the full assumed population. Applying a
+  z-dependent flux limit to *both* sides would make the empirical ratio
+  double-count the survey's depth and hide genuine incompleteness (sky-coverage
+  gaps, extinction, cross-matching failures) instead of revealing it.
+
+  Unlike :class:`CHIMERA.catalog.completeness.mth_completeness` (which only ever
+  needs the *ratio* of two Schechter integrals, so ``phi_star`` and the
+  ``+5log10(h)`` magnitude shift cancel exactly), here ``number_density(z)`` must
+  return a true physical comoving number density in galaxies/Mpc^3 -- to be
+  compared against the catalog's actual observed galaxy density by
+  ``compute_completeness``, which works in Mpc^3 (see ``CHIMERA.catalog.completeness
+  .compute_completeness``: ``V_sky_Mpc = dz*1e9*dVdz*sky_area/(4*pi)``, where the
+  ``1e9`` converts CHIMERA's internal Gpc^3 volumes to Mpc^3). ``phi_star`` and the
+  ``h``-scaling therefore matter here and must be set correctly, unlike in
+  ``mth_completeness``.
+
+  Args:
+    alpha (float): Schechter faint-end slope.
+    M_star (float): Schechter characteristic absolute magnitude, standard
+      ``h=1`` convention (shifted internally by ``+5*log10(h)``).
+    phi_star (float): Schechter normalization at ``h=1``, in Mpc^-3 h^3 (standard
+      convention; e.g. 0.0117 for DES r-band, 0.0102 for GLADE+ Ks-band, per the
+      reference values in arXiv:2605.27227 App. B); scaled internally by ``h**3``.
+    M_bright (float): bright-end integration bound (fixed, not z-dependent).
+    M_faint (float): faint-end integration bound (fixed, not z-dependent).
+    h (float, optional): H0/100, used for the standard Schechter h-scaling.
+      Defaults to 1.
+    M_int_res (int, optional): resolution of the magnitude integration grid.
+      Defaults to 3000.
+  """
+
+  def __init__(self, alpha, M_star, phi_star, M_bright, M_faint, h=1., M_int_res=3000):
+    self.alpha, self.M_star, self.phi_star = alpha, M_star, phi_star
+    self.M_bright, self.M_faint, self.h = M_bright, M_faint, h
+    self.M_int_res = M_int_res
+    self._n0 = self._integrate_number_density()
+
+  def _integrate_number_density(self):
+    """∫_{M_bright}^{M_faint} phi(M) dM, in galaxies/Mpc^3 (standard h-scaling applied).
+
+    Delegates to the module-level `schechter_mags`, which includes the full
+    0.4*ln(10) magnitude-space Jacobian prefactor -- this method needs a true
+    *absolute* density (not a ratio, unlike
+    `CHIMERA.catalog.completeness.mth_completeness`'s self-normalizing F(M)
+    ratio, which also uses `schechter_mags` but where that prefactor cancels
+    exactly and so is harmless either way). An earlier version of this method
+    duplicated the formula inline and dropped that prefactor by mistake
+    (copied from the ratio-safe ``mth_completeness`` pattern without
+    re-deriving whether that was still valid here), silently overestimating
+    the theoretical density by a factor of 1/(0.4*ln(10)) =~ 1.086 (~8.6%),
+    biasing every completeness value low by the same amount.
+    """
+    M_grid = jnp.linspace(self.M_bright, self.M_faint, self.M_int_res)
+    phi = schechter_mags(M_grid, self.alpha, self.M_star, self.phi_star, self.h)
+
+    return trapz(phi, M_grid)
+
+  def number_density(self, z):
+    """Fixed theoretical comoving number density [galaxies/Mpc^3], broadcast to the
+    shape of ``z`` (see class docstring for why this does not depend on z)."""
+    z = jnp.atleast_1d(z)
+    return jnp.full_like(z, self._n0)
 
 
 
 
 
-__all__ = ['EvolvingDoubleSchechter']
+
+
+__all__ = ['EvolvingDoubleSchechter', 'SchechterLF']
 
 class EvolvingDoubleSchechter:
     """

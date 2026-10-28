@@ -98,13 +98,22 @@ def load_galaxy_catalog(file_path,
     backend: Array backend ('numpy' or 'jax')
 
   Returns:
-    Dictionary with 'ra' (right ascension), 'dec' (declination), 'z' (redshift).
+    Dictionary with 'ra' (right ascension), 'dec' (declination), 'z' (redshift),
+    and 'z_err' (per-galaxy redshift uncertainty) if the file provides it --
+    e.g. GLADE+ catalogs built by `preprocessing/build_glade_catalog.py` ship
+    their own per-galaxy `z_err` (GLADE+ col 32); older/simulated catalogs
+    without one simply omit the key, and
+    `CHIMERA.catalog.catalog.precompute_p_cat` falls back to its flat
+    `z_err * (1+z)` TOML setting for any galaxy lacking a real value.
   """
   # Validate inputs
   if units not in ['rad', 'deg']:
     raise ValueError("units must be either 'rad' or 'deg'")
 
-  # Load data with validation
+  # `load_data_h5` loads every dataset in the file regardless of `parameters`
+  # (which only drives `require_keys`'s existence check below), so an
+  # optional extra column like `z_err` is already sitting in `data` if the
+  # file has one -- it just wasn't being copied into `result`.
   data = load_data_h5(file_path, backend=backend, require_keys=parameters)
 
   # Prepare output dictionary with standardized names
@@ -113,6 +122,8 @@ def load_galaxy_catalog(file_path,
     'dec': data['dec_gal'],
     'z': data['z_cgal']
   }
+  if 'z_err' in data:
+    result['z_err'] = data['z_err']
 
   # Convert units if requested
   if units == 'rad':
@@ -437,7 +448,7 @@ def pixelize_gw_catalog(theta_gw,
   dec_grids = np.full((num_events, max_dec_size), np.nan)
   ra_edges = np.full((num_events, max_ra_size + 1), np.nan)
   dec_edges = np.full((num_events, max_dec_size + 1), np.nan)
-  pixel_indices = np.full((num_events, max_npixels, 2), -1, dtype=np.float_)
+  pixel_indices = np.full((num_events, max_npixels, 2), -1, dtype=np.float64)
 
   # Second pass: process all events and populate grid metadata
   for e in range(num_events):
@@ -491,7 +502,7 @@ def pixelize_gw_catalog(theta_gw,
       dec_edges[e, :dec_size+1] = dec_edges_ev
 
       # Create pixel to grid index mapping
-      indices = np.full((max_npixels, 2), -1, dtype=np.float_)
+      indices = np.full((max_npixels, 2), -1, dtype=np.float64)
       for i in range(npix):
         ra_val, dec_val = pixel_ra[e][i], pixel_dec[e][i]
         ra_idx = np.argmin(np.abs(ra_unique - ra_val))
@@ -500,7 +511,19 @@ def pixelize_gw_catalog(theta_gw,
       pixel_indices[e] = indices
 
   # Create padded arrays for the main pixel data
-  padded_event_pixels = _pad_arr_list(event_pixels, pad_value=np.nan, dtype=np.float_)
+  # NOTE (2026-10-20): `pixels_opt_nsides` must be padded with the project-wide
+  # `-100` sentinel, not NaN: `catalog.precompute_p_cat`'s `_select`/`_compute_event`
+  # (`event_pix_indexes != -100`), `pixelated_catalog.p_gal` (`self.p_cat != -100.`),
+  # and both completeness classes' `set_gw_mask_idxs` (their docstrings document
+  # `-100`-padded input explicitly, e.g. `mth_completeness.set_gw_mask_idxs`) all
+  # test padding against `-100`, not `isnan`. A NaN-padded array here silently broke
+  # `convert_pixelization`'s `hp.pix2ang` call (NaN can't cast to an integer pixel
+  # index) the first time this function's output was ever fed into a completeness
+  # class's `set_gw_mask_idxs` -- i.e. the two halves of this pipeline (GW
+  # pixelization and the catalog/completeness machinery) had never actually been
+  # exercised together before. `neff_pixels` below is unaffected by this change:
+  # both NaN and -100 fail the `>= 0` test the same way.
+  padded_event_pixels = _pad_arr_list(event_pixels, pad_value=-100, dtype=np.float64)
   padded_pixel_ra = _pad_arr_list(pixel_ra, pad_value=np.nan)
   padded_pixel_dec = _pad_arr_list(pixel_dec, pad_value=np.nan)
   padded_pixel_probs = _pad_arr_list(pixel_probabilities, pad_value=np.nan)

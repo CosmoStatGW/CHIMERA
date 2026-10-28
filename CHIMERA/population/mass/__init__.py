@@ -14,8 +14,12 @@ paired
   Models: plp
 
 joint
-  p(m1, m2) = p(Mc, q) * |d(Mc,q)/d(m1,m2)|,   Mc, q native coordinates
-  Models: random_features_joint_density
+  Two genuinely-joint 2-D sibling families, sharing one package:
+  - (Mc, q)-native: p(m1, m2) = p(Mc, q) * |d(Mc,q)/d(m1,m2)|
+    Models: random_features_joint_density
+  - (m1, m2)-native: p(m1, m2) = exp(h(m1,m2)) / Z, shared m_min/m_max,
+    explicit m2 <= m1 mask
+    Models: bspline2d_m1m2_density
 
 Usage
 -----
@@ -24,15 +28,17 @@ Import models by namespace, use dispatch functions from the top level::
   from CHIMERA.mass import p_m1m2, p_m1, pdf_joint_and_marg
   from CHIMERA.mass.conditioned import plp as plp_cond
   from CHIMERA.mass.paired     import plp as plp_paired
-  from CHIMERA.mass.joint      import random_features_joint_density
+  from CHIMERA.mass.joint      import random_features_joint_density, bspline2d_m1m2_density
 
   model_c = plp_cond()
   model_p = plp_paired()
   model_j = random_features_joint_density()
+  model_jm = bspline2d_m1m2_density()
 
   p_m1m2(model_c, m1, m2)   # conditioned joint PDF
   p_m1m2(model_p, m1, m2)   # paired joint PDF
   p_m1m2(model_j, m1, m2)   # joint (Mc,q)-native PDF
+  p_m1m2(model_jm, m1, m2)  # joint (m1,m2)-native PDF
 """
 
 # ── 1. Import the plum generic functions from conditioned (they are created
@@ -55,10 +61,17 @@ from .paired.base import (  # noqa: F401  (side-effect: registers overloads)
   pdf_joint_and_marg as _paired_pdf_joint_and_marg,
 )
 
-# ── 2b. Same for `joint` -- registers its p_m1m2 overload onto the same
-#        global dispatcher too. `joint` has no p_m1 (see its base module).
+# ── 2b. Same for `joint`'s two sibling families -- registers both of their
+#        p_m1m2 overloads onto the same global dispatcher too. Neither has
+#        a p_m1 (see their base modules). `joint.base_m1m2`'s overload is
+#        imported directly (not via `joint`'s own `__init__`, which already
+#        aliases it as `_m1m2_p_m1m2` for its own namespace's sake) so this
+#        file doesn't need to know that alias name.
 from .joint.base import (  # noqa: F401  (side-effect: registers overload)
   p_m1m2 as _joint_p_m1m2,
+)
+from .joint.base_m1m2 import (  # noqa: F401  (side-effect: registers overload)
+  p_m1m2 as _joint_m1m2_p_m1m2,
 )
 
 # ── 3. Make sub-packages accessible as mass.conditioned / mass.paired / mass.joint

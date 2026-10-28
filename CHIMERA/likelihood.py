@@ -287,7 +287,7 @@ class hyperlikelihood(object):
         kde_vals = np.zeros(npix * self.z_int_res)
         kde_vals[eff_mask] = numba_gkde_nd(dat, eff_grid, weights=w, bw_method=self.bw_method, in_log=False)
         result[ev, :npix, :] = kde_vals.reshape(npix, self.z_int_res) * norm
-      return result.astype(np.float_)
+      return result.astype(np.float64)
 
     return io_callback(
       all_events_callback,
@@ -377,18 +377,25 @@ class hyperlikelihood(object):
         pop_lambdas, ret_dNdtheta_and_xi=True
     )
 
-    if self.inj_neff is not None:
-        variance2 = (
-            jnp.sum(dNdtheta**2, axis=-1) / self.selection_function.N_inj**2
-            - xi**2 / self.selection_function.N_inj
-        )
-        var_ok = variance2 > 0
-        safe_variance2 = safe_where(var_ok, variance2, 1.0)
-        neff = xi**2 / safe_variance2
-        neff_cond = var_ok & (neff > self.inj_neff)
-    else:
-        neff = None
-        neff_cond = jnp.array(True)
+    # `self.inj_neff` is already defaulted to 5*nevents in __init__ when the
+    # caller passes `inj_neff=None` (the standard Farr et al. 2019
+    # convention -- the same `neffINJ=5*nev` the old icarogw-based spectral-
+    # siren run script passed explicitly). But this branch used to treat a
+    # `None` here as "skip the injection-Neff safety cut entirely"
+    # (neff_cond = True, unconditionally), which would silently let the
+    # sampler accept points in mass/rate-prior space where the injection-
+    # based N_exp estimate is pure Monte Carlo noise (very low effective
+    # number of surviving injections). Resolve the effective threshold
+    # locally and always enforce it -- there is no "skip" path any more.
+    effective_inj_neff = self.inj_neff if self.inj_neff is not None else 5 * self.nevents
+    variance2 = (
+        jnp.sum(dNdtheta**2, axis=-1) / self.selection_function.N_inj**2
+        - xi**2 / self.selection_function.N_inj
+    )
+    var_ok = variance2 > 0
+    safe_variance2 = safe_where(var_ok, variance2, 1.0)
+    neff = xi**2 / safe_variance2
+    neff_cond = var_ok & (neff > effective_inj_neff)
 
     N_exp_ok = N_exp > 0
     safe_N_exp = safe_where(N_exp_ok, N_exp, 1.0)
