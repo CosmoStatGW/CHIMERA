@@ -1,0 +1,25 @@
+# Base environment for CHIMERA (CPU). Used by the HPC guide in
+# docs/user_guide/hpc_gpu_installation.rst.
+#
+#   micromamba create -n chimera -f environment.yml
+#   micromamba activate chimera
+#   pip install -e ".[plots,samplers]"
+#
+# MPI (mpi4py, mpi4jax) and GPU JAX are installed afterwards with pip, against
+# the cluster's own MPI and CUDA driver: see the docs.
+name: chimera
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - numpy>=2.0
+  - scipy>=1.11
+  - astropy>=5.2
+  - healpy>=1.14
+  - h5py>=3.5
+  - scikit-learn>=1.0
+  - numba>=0.58
+  - matplotlib>=3.4
+  - cython
+  - wheel

@@ -145,6 +145,7 @@ Documentation
   api/selection_function
   api/population
   api/catalog
+  api/utils
 
 
 .. Changelog
