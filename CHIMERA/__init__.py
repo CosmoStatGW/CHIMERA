@@ -17,11 +17,15 @@ __bibtex__ = """
 """
 __url__ = "https://chimera-gw.readthedocs.io"
 __author__ = "Nicola Borghi, Matteo Tagliazucchi"
-__email__ = "nicola.borghi6#unibo.it"
-__license__ = "MIT"
+__email__ = "nicola.borghi6@unibo.it"
+__license__ = "GPL-3.0-only"
 __description__ = "Python tool for gravitational-wave cosmology with galaxy catalogs"
 
-__version__ = "2.0.0"
+from importlib.metadata import PackageNotFoundError as _PNF, version as _version
+try:
+  __version__ = _version("chimera-gw")  # single source of truth: pyproject.toml
+except _PNF:
+  __version__ = "unknown"
 
 from typing import Any
 import sys
