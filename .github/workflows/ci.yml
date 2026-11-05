@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  import-and-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install ".[docs,samplers]"
+      - name: Import all modules
+        run: |
+          python - <<'PY'
+          import importlib, pkgutil, CHIMERA
+          # CHIMERA.parallel still targets the v1 API (CHIMERA.bias) and needs a port.
+          skip = {"CHIMERA.parallel"}
+          mods = [m.name for m in pkgutil.walk_packages(CHIMERA.__path__, "CHIMERA.") if m.name not in skip]
+          for m in mods:
+              importlib.import_module(m)
+          print(f"imported {len(mods)} modules, CHIMERA {CHIMERA.__version__}")
+          PY
+      - name: Build docs
+        run: python -m sphinx -T -b dirhtml -d docs/_build/doctrees docs docs/_build/html
