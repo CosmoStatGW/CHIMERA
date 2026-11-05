@@ -10,7 +10,7 @@ The latest version delivers 10-1000× speedup through JAX and GPU acceleration, 
 [![GitHub](https://img.shields.io/badge/GitHub-CHIMERA-9e8ed7)](https://github.com/CosmoStatGW/CHIMERA/)
 [![arXiv](https://img.shields.io/badge/arXiv-2106.14894-5185C4)](https://arxiv.org/abs/2106.14894)
 [![arXiv](https://img.shields.io/badge/arXiv-2504.02034-45bbd5)](https://arxiv.org/abs/2504.02034)
-[![Read the Docs](https://readthedocs.org/projects/chimera-gw/badge/?version=latest)](https://chimera-gw.readthedocs.io/en/latest/?badge=latest)
+[![Read the Docs](https://app.readthedocs.org/projects/chimera-gw/badge/?version=latest)](https://chimera-gw.readthedocs.io/latest/)
 [![License](https://img.shields.io/badge/license-GPLv3-fb7e21)](https://github.com/CosmoStatGW/CHIMERA/blob/main/LICENSE)
 [![GitLab](https://img.shields.io/github/v/tag/CosmoStatGW/CHIMERA?label=latest-release&color=da644d)](https://github.com/CosmoStatGW/CHIMERA/releases)
 
