@@ -29,7 +29,7 @@ Changelog
 - New example notebooks.
 
 
-2.3 (unreleased)
+2.3 (2026-11-05)
 ++++++++++++++++++
 
 - New mass models: paired BPL + dip with two/three peaks, PLS with free knots, random-features and

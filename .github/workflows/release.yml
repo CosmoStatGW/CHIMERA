@@ -1,9 +1,10 @@
 # Build, check and publish chimera-gw when a version tag is pushed.
 #
-#   git tag -a v2.3.0 -m "CHIMERA 2.3.0" && git push origin v2.3.0
+#   git tag -a v2.3 -m "CHIMERA 2.3" && git push origin v2.3
 #
-# - The tag must match `version` in pyproject.toml (v2.3.0 <-> 2.3.0).
-# - Pre-release tags (v2.3.0rc1, v2.3.0b1, ...) go to TestPyPI, final tags to PyPI.
+# - The tag must match `version` in pyproject.toml (v2.3 <-> 2.3, compared as
+#   PEP 440 versions, so v2.3.1 <-> 2.3.1 also works).
+# - Pre-release tags (v2.4rc1, v2.4b1, ...) go to TestPyPI, final tags to PyPI.
 # - Publishing uses PyPI Trusted Publishing (OIDC): no API token in the repo.
 name: Release
 
@@ -36,7 +37,7 @@ jobs:
           from packaging.version import Version
           tag = os.environ["GITHUB_REF_NAME"]
           version = tomllib.load(open("pyproject.toml", "rb"))["tool"]["poetry"]["version"]
-          if tag != f"v{version}":
+          if not tag.startswith("v") or Version(tag[1:]) != Version(version):
               sys.exit(f"Tag {tag} does not match pyproject.toml version {version} (expected v{version})")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"version={version}\n")

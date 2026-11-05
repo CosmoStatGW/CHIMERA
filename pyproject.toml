@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "chimera-gw"
-version = "2.3.0"
+version = "2.3"
 description = "Combined Hierarchical Inference Model for Electromagnetic and gRavitational-wave Analysis"
 authors = ["Nicola Borghi <nicola.borghi6@unibo.it>", "Matteo Tagliazucchi <matteo.tagliazucchi2@unibo.it>"]
 license = "GPL-3.0-only"
