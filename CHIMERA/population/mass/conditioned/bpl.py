@@ -24,7 +24,7 @@ class bpl(base_mass_conditioned_struct):
       and values are their corresponding `float` values.
 
   Methods:
-    - update(**kwargs) (bpl): Creates a new instance of the model, updating any parameters provided in `kwargs`.
+    - ``update(**kwargs)`` (bpl): Creates a new instance of the model, updating any parameters provided in `kwargs`.
       Parameters are automatically broadcasted to the same shape as the largest parameter provided in the input.
   """
   alpha_1: float

@@ -9,13 +9,16 @@ class madau_dickinson(base_rate_struct):
     gamma (float): Primary power-law exponent.
     kappa (float): Secondary power-law exponent.
     zp (float): Pivot redshift scale.
+
   Class Attributes:
     - name (str): The name of the model.
     - keys (List[str]): A list of parameter names used in the model.
+
   Properties:
     - as_dict (Dict[str, float]): Returns the current model parameters as a dictionary.
+
   Methods:
-    - update(**kwargs) (madau_dickisnon): Creates a new instance of the model, updating any parameters provided in `kwargs`.
+    - ``update(**kwargs)`` (madau_dickisnon): Creates a new instance of the model, updating any parameters provided in `kwargs`.
       Parameters are automatically broadcasted to the same shape as the largest parameter.
   """
   gamma: float

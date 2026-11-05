@@ -119,9 +119,7 @@ class random_features_density(base_mass_paired_struct):
     pretraining stage and no dependence on assumed simulated mass-function
     shapes.
 
-    -----------------------------------------------------------------------
-    ``activation='cos'`` vs. ``activation='tanh'``
-    -----------------------------------------------------------------------
+    **``activation='cos'`` vs. ``activation='tanh'``**
 
     With ``phi = cos`` and ``b_hidden ~ Uniform(0, 2*pi)``, this is the
     classical Rahimi & Recht random-Fourier-features estimator: by Bochner's
@@ -148,9 +146,7 @@ class random_features_density(base_mass_paired_struct):
     ``Uniform(0, 2*pi)`` *phase* for ``cos``, vs. an ordinary ``N(0, 1)``
     bias for ``tanh``.
 
-    -----------------------------------------------------------------------
-    Free hyperparameters
-    -----------------------------------------------------------------------
+    **Free hyperparameters**
 
     ``w_out`` (shape ``(n_features,)``) and ``feature_scales`` (shape
     ``(len(feature_scales),)``, 4 by default) are the sampled parameters.
@@ -186,9 +182,7 @@ class random_features_density(base_mass_paired_struct):
     the same way it already treats ``w_out``, and ``base_mass_paired_struct``
     already treats its own ``m_grid``/``norm_2d``.
 
-    -----------------------------------------------------------------------
-    Standardization
-    -----------------------------------------------------------------------
+    **Standardization**
 
     The network input is
 
@@ -202,9 +196,7 @@ class random_features_density(base_mass_paired_struct):
     The ``1/m`` factor is the Jacobian associated with the transformation
     from log-mass to mass.
 
-    -----------------------------------------------------------------------
-    Parameters
-    -----------------------------------------------------------------------
+    **Parameters**
 
     input_size : int
         Static; dimensionality of the network input (1 for log-mass only).

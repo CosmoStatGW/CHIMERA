@@ -6,7 +6,7 @@ from ..core import broken_pl, truncated_gaussian, high_pass_filter, low_pass_fil
 
 class bpl_dip_two_peaks(base_mass_paired_struct):
   """
-  Paired Broken Power Law + Three Gaussian Peaks with Dip (Broken Triple Peak)
+  Paired Broken Power Law + Two Gaussian Peaks with Dip::
 
     p(m) = [(1-λ_g) * BPL(m) +
               λ_g * λ_1 * G₁(m) +

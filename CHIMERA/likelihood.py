@@ -41,8 +41,8 @@ class hyperlikelihood(object):
     - pixelization metadata
 
   Other Methods:
-    - p_gw3d(**hyper_lambdas): wrapper for `p_gw3dapprox`, `p_gw3dmarg`, or `p_gw3dfull` depenging on `kind_p_gw3d`
-    - compute_log_like_nums(**hyper_lambdas): compute the single-events contributions to the hyper-likelihood numerator.
+    - ``p_gw3d(**hyper_lambdas)``: wrapper for `p_gw3dapprox`, `p_gw3dmarg`, or `p_gw3dfull` depenging on `kind_p_gw3d`
+    - ``compute_log_like_nums(**hyper_lambdas)``: compute the single-events contributions to the hyper-likelihood numerator.
   """
   def __init__(
     self,

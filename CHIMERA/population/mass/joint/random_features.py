@@ -92,9 +92,7 @@ class random_features_joint_density(base_mass_joint_struct):
     ``|d(Mc,q)/d(m1,m2)| = Mc/m1^2`` (see
     ``CHIMERA.population.mass.joint.base.jacobian_mc_q_from_m1m2``).
 
-    -----------------------------------------------------------------------
-    Free hyperparameters
-    -----------------------------------------------------------------------
+    **Free hyperparameters**
 
     ``w_out`` (shape ``(n_features,)``) and ``feature_scales`` are the
     sampled parameters, exactly as in ``random_features_density``.
@@ -107,9 +105,7 @@ class random_features_joint_density(base_mass_joint_struct):
     implemented here to keep this a direct, minimal-changes generalization
     of ``random_features_density``.
 
-    -----------------------------------------------------------------------
-    Parameters
-    -----------------------------------------------------------------------
+    **Parameters**
 
     mc_low, mc_high : float
         Dynamic (sampled); chirp-mass truncation range (see base class).

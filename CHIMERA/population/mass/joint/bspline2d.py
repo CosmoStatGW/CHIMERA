@@ -89,9 +89,7 @@ class bspline2d_m1m2_density(base_mass_joint_m1m2_struct):
     ``bspline2d_joint_density``, was retired in favor of this one -- native
     (m1,m2) coordinates plus an exp-link density, described next).
 
-    -----------------------------------------------------------------------
-    Design: native (m1, m2), with an exp-link density
-    -----------------------------------------------------------------------
+    **Design: native (m1, m2), with an exp-link density**
 
     Two central design choices:
 
@@ -119,9 +117,7 @@ class bspline2d_m1m2_density(base_mass_joint_m1m2_struct):
     ``n_band_coeffs(n_basis, degree) < n_basis**2`` strictly whenever
     ``degree < n_basis - 1`` -- see "Live-band parametrization" below.
 
-    -----------------------------------------------------------------------
-    Live-band parametrization: not the full ``n_basis**2`` dense matrix
-    -----------------------------------------------------------------------
+    **Live-band parametrization: not the full ``n_basis**2`` dense matrix**
 
     ``coeffs`` is **not** the full dense ``(n_basis, n_basis)`` matrix --
     it is a flat vector over only the "live band" ``{(i,j) : j <= i +
@@ -149,9 +145,7 @@ class bspline2d_m1m2_density(base_mass_joint_m1m2_struct):
     ``_dense_coeffs`` only because *any* fixed value is equally and
     provably inert.
 
-    -----------------------------------------------------------------------
-    Parametrization: ``n_basis``, not knot count
-    -----------------------------------------------------------------------
+    **Parametrization: ``n_basis``, not knot count**
 
     Configured directly by how many coefficients ("basis functions") the
     (shared) basis has -- ``n_basis`` -- rather than by the
@@ -167,9 +161,7 @@ class bspline2d_m1m2_density(base_mass_joint_m1m2_struct):
     row/column of ``C`` and is a genuine, optional modeling choice, left
     out here.
 
-    -----------------------------------------------------------------------
-    Parameters
-    -----------------------------------------------------------------------
+    **Parameters**
 
     m_min, m_max : float
         Dynamic (sampled); shared mass truncation range for both m1 and

@@ -16,15 +16,18 @@ class flrw(eqx.Module):
     Or0 (float, optional): The radiation density parameter. Default is 0.
     w0 (float, optional): The present value of the dark energy equation of state parameter. Default is -1.
     wa (float, optional): The rate of change of the dark energy equation of state parameter. Default is 0
+
   Class Attributes:
     - name (str): The name of the model.
     - keys (List[str]): A list of parameter names used in the model.
+
   Properties:
     - as_dict (Dict[str, float]): Returns the current model parameters as a dictionary.
     - Ode0 (float): The dark energy density parameter, calculated as `1 - Om0 - Or0 - Ok0`.
     - dH (float): The Hubble distance in units of Mpc, calculated as `299792.458e-3 / H0`.
+
   Methods:
-    - update(**kwargs) (flrw): Creates a new instance of the model, updating any parameters provided in `kwargs`.
+    - ``update(**kwargs)`` (flrw): Creates a new instance of the model, updating any parameters provided in `kwargs`.
       Parameters are automatically broadcasted to the same shape as the largest parameter.
   """
   H0: float
@@ -93,7 +96,7 @@ class mg_flrw(flrw):
     - dH (float): The Hubble distance in units of Mpc, calculated as `299792.458e-3 / H0`.
 
   Methods:
-    - update(**kwargs) (mg_flrw): Creates a new instance of the model, updating any parameters provided in `kwargs`.
+    - ``update(**kwargs)`` (mg_flrw): Creates a new instance of the model, updating any parameters provided in `kwargs`.
       Parameters are automatically broadcasted to the same shape as the largest parameter.
   """
   Xi0: float

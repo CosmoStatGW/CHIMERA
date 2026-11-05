@@ -1,25 +1,23 @@
-"""
-mass
-====
-Joint mass-distribution models for compact binary populations.
+"""Joint mass-distribution models for compact binary populations.
 
-Sub-packages
-------------
-conditioned
-  p(m1, m2) = p(m1) * p(m2|m1)
-  Models: bpl, plp, pl2p, pls
+Sub-packages::
 
-paired
-  p(m1, m2) = p̃(m1) * p̃(m2) * f(m1,m2) / Z
-  Models: plp
+  conditioned
+    p(m1, m2) = p(m1) * p(m2|m1)
+    Models: bpl, plp, pl2p, pls
 
-joint
-  Two genuinely-joint 2-D sibling families, sharing one package:
-  - (Mc, q)-native: p(m1, m2) = p(Mc, q) * |d(Mc,q)/d(m1,m2)|
-    Models: random_features_joint_density
-  - (m1, m2)-native: p(m1, m2) = exp(h(m1,m2)) / Z, shared m_min/m_max,
-    explicit m2 <= m1 mask
-    Models: bspline2d_m1m2_density
+  paired
+    p(m1, m2) = p̃(m1) * p̃(m2) * f(m1,m2) / Z
+    Models: plp, pls_free_knots, bpl_dip_two_peaks, bpl_dip_three_peaks,
+            random_features_density, nn_density
+
+  joint
+    Two genuinely-joint 2-D sibling families, sharing one package:
+    - (Mc, q)-native: p(m1, m2) = p(Mc, q) * |d(Mc,q)/d(m1,m2)|
+      Models: random_features_joint_density
+    - (m1, m2)-native: p(m1, m2) = exp(h(m1,m2)) / Z, shared m_min/m_max,
+      explicit m2 <= m1 mask
+      Models: bspline2d_m1m2_density
 
 Usage
 -----

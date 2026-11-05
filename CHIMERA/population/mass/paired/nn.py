@@ -206,9 +206,7 @@ class nn_density(base_mass_paired_struct):
     is smooth and strictly non-periodic at any weight scale, so it cannot
     introduce that degeneracy.
 
-    -----------------------------------------------------------------------
-    Free hyperparameters
-    -----------------------------------------------------------------------
+    **Free hyperparameters**
 
     ``Ws`` and ``bs`` (lists of weight matrices / bias vectors, one entry
     per hidden layer, plus one bias-free output weight matrix in ``Ws``)
@@ -225,9 +223,7 @@ class nn_density(base_mass_paired_struct):
     of its layer's fan-in -- there is nothing left to calibrate per-layer
     in the prior specification itself.
 
-    -----------------------------------------------------------------------
-    Symmetry breaking
-    -----------------------------------------------------------------------
+    **Symmetry breaking**
 
     See "Symmetry breaking (``break_symmetry``)" in the module-level
     comment above. In short: ``break_symmetry=True`` (the default)
@@ -237,9 +233,7 @@ class nn_density(base_mass_paired_struct):
     otherwise forces any sampler to re-explore many copies of the same
     function) without changing the function class at all.
 
-    -----------------------------------------------------------------------
-    Standardization
-    -----------------------------------------------------------------------
+    **Standardization**
 
     The network input is
 
@@ -253,9 +247,7 @@ class nn_density(base_mass_paired_struct):
     The ``1/m`` factor is the Jacobian associated with the transformation
     from log-mass to mass.
 
-    -----------------------------------------------------------------------
-    Parameters
-    -----------------------------------------------------------------------
+    **Parameters**
 
     input_size : int
         Static; dimensionality of the network input (1 for log-mass only).

@@ -28,7 +28,7 @@ class pl2p(base_mass_conditioned_struct):
       and values are their corresponding `float` values.
 
   Methods:
-    - update(**kwargs) (pl2p): Creates a new instance of the model, updating any parameters provided in `kwargs`.
+    - ``update(**kwargs)`` (pl2p): Creates a new instance of the model, updating any parameters provided in `kwargs`.
       Parameters are automatically broadcasted to the same shape as the largest parameter provided in the input.
   """
 
