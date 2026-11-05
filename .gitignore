@@ -41,3 +41,9 @@ Thumbs.db
 
 # Dockerfile
 Dockerfile
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Claude outputs
+Claude outputs/

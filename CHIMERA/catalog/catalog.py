@@ -1,5 +1,5 @@
 import equinox as eqx
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, Union
 from numbers import Number
 import numpy as np
 import jax
@@ -7,7 +7,6 @@ import jax.numpy as jnp
 import h5py
 
 from ..utils.config import logger
-from ..utils.math import trapz
 from ..utils import angles
 from ..population.cosmo import dVcdz_at_z
 from .completeness import mask_completeness
@@ -20,6 +19,11 @@ __all__ = [
     "save_p_cat",
     "load_p_cat",
 ]
+
+# `[catalog] z_err` sentinel strings (case-insensitive) meaning "use the
+# catalog's own per-galaxy z_err only, with no z_err*(1+z) flat fallback" --
+# see `precompute_p_cat`.
+Z_ERR_CATALOG_ONLY_SENTINELS = {"none", "catalog", "catalog_only", "off"}
 
 #####################################
 # EMPTY CATALOG FOR SPECTRAL SIRENS #
@@ -131,7 +135,7 @@ def precompute_p_cat(
     z_grids: jnp.ndarray,
     fname_data_gal: str,
     data_gw_pixelated: theta_pe_det,
-    z_err: Number = 1,
+    z_err: Union[Number, str] = 1,
     weights: Optional[jnp.ndarray] = None,
     mask_gal=None,
     sumgauss: str = "dVdz",
@@ -149,7 +153,19 @@ def precompute_p_cat(
     z_grids (jnp.ndarray): Per-event redshift grids, shape ``(Nev, Nz)``.
     fname_data_gal (str): Path to the galaxy catalog HDF5 file.
     data_gw_pixelated (theta_pe_det): Pixelated GW data structure.
-    z_err (Number): Fractional redshift error; applied as ``z_err * (1 + z)``.
+    z_err (Number or str): Fallback fractional redshift error, applied as
+        ``z_err * (1 + z)`` -- used only for galaxies that don't have their
+        own per-galaxy uncertainty. If ``fname_data_gal`` provides a
+        ``'z_err'`` column (as `load_galaxy_catalog` passes through when
+        present, e.g. for GLADE+ catalogs built by
+        ``preprocessing/build_glade_catalog.py``), that per-galaxy value is
+        used wherever it is finite and positive instead -- *unless* `z_err`
+        is one of the sentinel strings in `Z_ERR_CATALOG_ONLY_SENTINELS`
+        (``"none"``/``"catalog"``/``"catalog_only"``/``"off"``,
+        case-insensitive), which disables the flat fallback entirely and
+        requires every galaxy to have a real per-galaxy value (raising a
+        ``ValueError`` naming how many don't, rather than silently filling
+        them in).
     weights (jnp.ndarray, optional): Per-galaxy weights.
     mask_gal (array-like, optional): Boolean mask to apply to the galaxy catalog.
     sumgauss (str): Galaxy kernel: ``"dVdz"`` (default) or ``"pbkg"``.
@@ -163,8 +179,68 @@ def precompute_p_cat(
   """
   # ---- load & prepare galaxy data (numpy throughout for speed) ---------------
   data_gal = load_galaxy_catalog(fname_data_gal, backend='numpy')
-  data_gal['w']     = weights if weights is not None else np.ones_like(data_gal['z'])
-  data_gal['z_err'] = z_err * (1. + data_gal['z'])
+  data_gal['w'] = weights if weights is not None else np.ones_like(data_gal['z'])
+
+  # `z_err` is normally a float (the `z_err*(1+z)` fallback width for
+  # galaxies without their own per-galaxy uncertainty). It can also be one of
+  # a few sentinel strings -- "none" / "catalog" / "catalog_only" / "off"
+  # (case-insensitive) -- meaning "use the catalog's own per-galaxy z_err
+  # only, with no flat fallback"; this requires every surviving galaxy to
+  # have a real per-galaxy value, and raises a clear error otherwise, rather
+  # than the opaque `UFuncTypeError` that came from passing a non-numeric
+  # TOML string straight into `z_err * (1. + data_gal['z'])` below.
+  z_err_catalog_only = isinstance(z_err, str) and z_err.strip().lower() in Z_ERR_CATALOG_ONLY_SENTINELS
+  if isinstance(z_err, str) and not z_err_catalog_only:
+    raise ValueError(
+      f"[catalog] z_err={z_err!r} is not a number and is not one of the "
+      f"recognized sentinels for 'use the catalog's own z_err only, no "
+      f"flat fallback' ({sorted(Z_ERR_CATALOG_ONLY_SENTINELS)}, "
+      "case-insensitive). Set z_err to a float (e.g. 0.001) for the "
+      "z_err*(1+z) fallback, or to one of those sentinels to require a "
+      "real per-galaxy z_err for every galaxy."
+    )
+  fallback_z_err = None if z_err_catalog_only else z_err * (1. + data_gal['z'])
+
+  if 'z_err' in data_gal:
+    # Per-galaxy value from the catalog file (e.g. GLADE+ col 32, see
+    # `load_galaxy_catalog`), wherever it's finite and positive; the flat
+    # `z_err * (1+z)` TOML setting is only a fallback for galaxies missing
+    # one -- NOT applied to every galaxy regardless of whether the catalog
+    # already gives a real per-galaxy measurement (the previous behaviour).
+    per_gal_err = np.asarray(data_gal['z_err'], dtype=float)
+    has_real_err = np.isfinite(per_gal_err) & (per_gal_err > 0)
+    n_missing = int(np.sum(~has_real_err))
+    if fallback_z_err is None:
+      if n_missing > 0:
+        raise ValueError(
+          f"[catalog] z_err={z_err!r} requires every galaxy to have a real "
+          f"per-galaxy z_err, but {n_missing:,}/{len(has_real_err):,} "
+          "galaxies in the catalog are missing one (non-finite or <= 0). "
+          "Fix/filter the catalog, or set [catalog] z_err to a float to "
+          "fall back to z_err*(1+z) for those galaxies."
+        )
+      data_gal['z_err'] = per_gal_err
+      logger.info(
+        f"precompute_p_cat: using the catalog's own per-galaxy z_err for "
+        f"all {len(has_real_err):,} galaxies (z_err={z_err!r}: no flat "
+        "fallback configured)."
+      )
+    else:
+      data_gal['z_err'] = np.where(has_real_err, per_gal_err, fallback_z_err)
+      logger.info(
+        f"precompute_p_cat: using the catalog's own per-galaxy z_err for "
+        f"{int(np.sum(has_real_err)):,}/{len(has_real_err):,} galaxies; "
+        f"falling back to z_err={z_err}*(1+z) for the remaining "
+        f"{n_missing:,}."
+      )
+  else:
+    if fallback_z_err is None:
+      raise ValueError(
+        f"[catalog] z_err={z_err!r} requires the catalog to provide a "
+        f"per-galaxy 'z_err' column, but none was found in "
+        f"{fname_data_gal!r} (see load_galaxy_catalog)."
+      )
+    data_gal['z_err'] = fallback_z_err
 
   nevents     = len(data_gw_pixelated.dL)
   max_npixels = data_gw_pixelated.pixels_opt_nsides.shape[1]
@@ -175,7 +251,7 @@ def precompute_p_cat(
     data_gal = {k: v[mask_gal] for k, v in data_gal.items()}
 
   if reshuffle:
-    logger.info(f"Perturbing galaxy redshifts with sigma=(1+z)*{z_err}")
+    logger.info("Perturbing galaxy redshifts with each galaxy's own resolved z_err")
     data_gal['z'] = np.random.normal(data_gal['z'], data_gal['z_err'])
 
   # Precompute pixel indices for every nside present in the GW data
@@ -297,8 +373,33 @@ def _sum_gaussians_ucv(z_grid, mu, sigma, cosmo_params, weights=None):
     weights = np.ones(len(mu))
   zgrid = z_grid[:, np.newaxis]
   gauss = _gaussian(zgrid, mu, sigma)
-  gauss *= np.asarray(dVcdz_at_z(cosmo_params, jnp.asarray(zgrid)))
-  norm  = trapz(gauss, zgrid, axis=0)
+  dVcdz_grid = np.asarray(dVcdz_at_z(cosmo_params, jnp.asarray(z_grid)))
+  gauss *= dVcdz_grid[:, np.newaxis]
+  # Analytic per-galaxy normalization (a Gaussian integrates to 1 exactly;
+  # dVc/dz is smooth on scales >> any realistic z_err, so it's pulled out of
+  # the integral and evaluated at the galaxy's own z) instead of
+  # trapz(gauss, zgrid, axis=0): the discretized integral is 0 exactly
+  # whenever a narrow-z_err galaxy's kernel underflows at every sampled grid
+  # point (grid too coarse relative to that galaxy's z_err), which turns
+  # gauss/norm into 0/0 = NaN and -- since this is a per-event, per-pixel SUM
+  # over every matched galaxy -- silently wipes the entire pixel's p_cat(z)
+  # to zero via the isfinite() guard below, discarding every other matched
+  # galaxy's perfectly good contribution along with it. This was confirmed
+  # directly against GWTC-5/GLADE+: events with large sky pixels (coarse
+  # nside) and tens of thousands of matched galaxies were *guaranteed* to
+  # hit at least one such galaxy -- switching to float64 only reduced the
+  # per-galaxy failure rate (~1.1% -> ~0.4%), it did not eliminate it, since
+  # the failure probability scales with how many galaxies are summed per
+  # pixel, not with float precision.
+  # Performance: get the per-galaxy norm by linearly interpolating dVcdz_grid
+  # (computed once above, same cost as before this fix) rather than calling
+  # dVcdz_at_z directly on `mu`. A pixel can carry tens of thousands of
+  # matched galaxies, so a fresh cosmological evaluation per galaxy is
+  # 50-100x more work than the single ~z_grid-sized call this used to be.
+  # dVc/dz varies smoothly on scales >> the z_grid spacing -- the same
+  # smoothness assumption the original trapz-based normalization relied on
+  # -- so interpolating it introduces no meaningful error.
+  norm = np.interp(mu, z_grid, dVcdz_grid)
   return np.sum(weights * gauss / norm, axis=1) / np.sum(weights)
 
 
@@ -308,6 +409,13 @@ def _sum_gaussians_pbkg(z_grid, mu, sigma, cosmo_params, p_bkg, weights=None):
   if weights is None:
     weights = np.ones(len(mu))
   zgrid = z_grid[:, np.newaxis]
-  gauss = _gaussian(zgrid, mu, sigma) * np.asarray(p_bkg(cosmo_params, jnp.asarray(zgrid)))
-  norm  = trapz(gauss, zgrid, axis=0)
+  p_bkg_grid = np.asarray(p_bkg(cosmo_params, jnp.asarray(z_grid)))
+  gauss = _gaussian(zgrid, mu, sigma) * p_bkg_grid[:, np.newaxis]
+  # Same fix as _sum_gaussians_ucv above: analytic per-galaxy norm (p_bkg
+  # evaluated at the galaxy's own z) instead of a grid-dependent trapz that
+  # can spuriously vanish for narrow-z_err galaxies on a coarse z_grid.
+  # Also interpolated rather than evaluated directly at `mu` for the same
+  # performance reason as above (p_bkg_grid is computed once, at the same
+  # cost as before this fix).
+  norm = np.interp(mu, z_grid, p_bkg_grid)
   return np.sum(weights * gauss / norm, axis=1) / np.sum(weights)

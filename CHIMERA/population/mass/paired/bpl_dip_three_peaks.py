@@ -1,0 +1,205 @@
+import jax.numpy as jnp
+from plum import dispatch
+
+from .base import base_mass_paired_struct, mass_pdf_notnorm, pairing_function
+from ..core import broken_pl, truncated_gaussian, high_pass_filter, low_pass_filter, notch_filter
+
+class bpl_dip_three_peaks(base_mass_paired_struct):
+  """
+  Paired Broken Power Law + Three Gaussian Peaks with Dip (Broken Triple Peak)
+
+    p(m) = [(1-λ_g) * BPL(m) +
+              λ_g * λ_1 * G₁(m) +
+              λ_g * (1-λ_1) * λ_2 * G₂(m) +
+              λ_g * (1-λ_1) * (1-λ_2) * G₃(m)] *
+            F_h(m; m_min, δ_m_min) *
+            F_l(m; m_max, δ_m_max) *
+            F_n(m; m_d_low, m_d_high, δ_d_min, δ_d_max, A)
+
+  where:
+      - BPL(m) is a broken power law with indices α₁ (low) and α₂ (high)
+      - G₁, G₂, G₃ are truncated Gaussians with means μ_g1, μ_g2, μ_g3
+      - F_h is the high-pass filter (smoothing at low mass end)
+      - F_l is the low-pass filter (smoothing at high mass end)
+      - F_n is the notch filter (creates the dip/gap)
+      - Pairing function: f(m1,m2) = q^β with q=m2/m1, and β depends on q
+
+  The break point b for the broken power law is derived from the dip position:
+      b = (m_break - m_min) / (m_max - m_min)
+      m_break = 0.5 * (m_d_low + m_d_high + δ_d_min - δ_d_max)
+
+  Parameters
+  ----------
+  m_low : float
+      Minimum source mass [M☉] (mmin in ICAROGW)
+  m_high : float
+      Maximum source mass [M☉] (mmax in ICAROGW)
+  alpha_1 : float
+      First power law index for primary mass (below break)
+  alpha_2 : float
+      Second power law index for primary mass (above break)
+  beta_bottom : float
+      First power law index for secondary mass pairing (below m_break)
+  beta_top : float
+      Second power law index for secondary mass pairing (above m_break)
+  mu_g1 : float
+      Mean of Gaussian 1 [M☉]
+  sigma_g1 : float
+      Std. dev. of Gaussian 1 [M☉]
+  mu_g2 : float
+      Mean of Gaussian 2 [M☉]
+  sigma_g2 : float
+      Std. dev. of Gaussian 2 [M☉]
+  mu_g3 : float
+      Mean of Gaussian 3 [M☉]
+  sigma_g3 : float
+      Std. dev. of Gaussian 3 [M☉]
+  lambda_g : float
+      Fraction of events in the Gaussians (∈ [0,1])
+  lambda_1 : float
+      Fraction of Gaussian events in Gaussian 1 (∈ [0,1])
+  lambda_2 : float
+      Fraction of Gaussian events in Gaussian 2 (∈ [0,1])
+  bottomsmooth : float
+      Smoothing parameter at low mass end [M☉] (delta_m_min in ICAROGW)
+  topsmooth : float
+      Smoothing parameter at high mass end [M☉] (delta_m_max in ICAROGW)
+  leftdip : float
+      Left side of the dip [M☉] (m_d_low in ICAROGW)
+  rightdip : float
+      Right side of the dip [M☉] (m_d_high in ICAROGW)
+  leftdipsmooth : float
+      Smoothing of left side of the dip [M☉] (delta_d_min in ICAROGW)
+  rightdipsmooth : float
+      Smoothing of right side of the dip [M☉] (delta_d_max in ICAROGW)
+  deep : float
+      Deepness of the dip (∈ [0,1]) (A in ICAROGW)
+  """
+
+  # Model parameters
+  alpha_1: float
+  alpha_2: float
+  beta_bottom: float  # beta_1 in PDF
+  beta_top: float     # beta_2 in PDF
+  mu_g1: float
+  sigma_g1: float
+  mu_g2: float
+  sigma_g2: float
+  mu_g3: float
+  sigma_g3: float
+  lambda_g: float
+  lambda_1: float
+  lambda_2: float
+  bottomsmooth: float   # delta_m_min
+  topsmooth: float      # delta_m_max
+  leftdip: float        # m_d_low
+  rightdip: float       # m_d_high
+  leftdipsmooth: float  # delta_d_min
+  rightdipsmooth: float # delta_d_max
+  deep: float           # A
+  m_break: float
+  b: float
+  name = 'paired_broken_triple_peak_dip'
+
+  default = {
+    **base_mass_paired_struct.default,
+    'm_low': 0.9245569825399548,
+    'm_high': 124.20678928592034,
+    'alpha_1': 1.7723937807650858,
+    'alpha_2': 5.063826317550281,
+    'beta_bottom': 1.5835680997888992,
+    'beta_top': 2.4359528976425393,
+    'mu_g1': 8.903700220355121,
+    'sigma_g1': 0.8391676748455468,
+    'mu_g2': 24.556312970528175,
+    'sigma_g2': 10.002284990279694,
+    'mu_g3': 62.73443845058334,
+    'sigma_g3': 8.683579188378397,
+    'lambda_g': 0.3274896479007529,
+    'lambda_1': 0.6348482960571541,
+    'lambda_2': 0.9357685300341941,
+    'bottomsmooth': 0.08456654031744229,
+    'topsmooth': 0.07731696292920931,
+    'leftdip': 2.416688462245518,
+    'rightdip': 8.017044339987327,
+    'leftdipsmooth': 0.11437807134426872,
+    'rightdipsmooth': 0.081615513156543,
+    'deep': 0.5744362121512125,
+    }
+
+  @property
+  def m_break(self):
+    return 0.5 * (self.leftdip + self.leftdipsmooth + self.rightdip - self.rightdipsmooth)
+
+  @property
+  def b(self):
+    return (self.m_break - self.m_low) / (self.m_high - self.m_low)
+
+# ---------------------------------------------------------------------------
+# Marginal shape (same for m1 and m2)
+# ---------------------------------------------------------------------------
+
+@dispatch
+def mass_pdf_notnorm(mass: bpl_dip_three_peaks, m: jnp.ndarray) -> jnp.ndarray:
+    """
+    Un-normalised marginal mass PDF p(m) for the Broken Triple Peak model.
+    p(m) = [(1-λ_g) * BPL(m) + λ_g * λ_1 * G₁(m) + λ_g * (1-λ_1) * λ_2 * G₂(m) + λ_g * (1-λ_1) * (1-λ_2) * G₃(m)] * F_h(m) * F_l(m) * F_n(m)
+    """
+    # 1. Broken Power Law component (normalized between m_low and m_high)
+    bpl = broken_pl(m, mass.alpha_1, mass.alpha_2, mass.b, mass.m_low, mass.m_high)
+
+    # 2. Gaussian components (truncated between m_low and m_high)
+    g1 = truncated_gaussian(m, mass.mu_g1, mass.sigma_g1, mass.m_low, mass.mu_g1+5*mass.sigma_g1)
+    g2 = truncated_gaussian(m, mass.mu_g2, mass.sigma_g2, mass.m_low, mass.mu_g2+5*mass.sigma_g2)
+    g3 = truncated_gaussian(m, mass.mu_g3, mass.sigma_g3, mass.m_low, mass.mu_g3+5*mass.sigma_g3)
+
+    one_minus_lambda_g = 1.0 - mass.lambda_g
+    one_minus_lambda_1 = 1.0 - mass.lambda_1
+    one_minus_lambda_2 = 1.0 - mass.lambda_2
+    gaussian_component = (
+      mass.lambda_g * mass.lambda_1 * g1 +
+      mass.lambda_g * one_minus_lambda_1 * mass.lambda_2 * g2 +
+      mass.lambda_g * one_minus_lambda_1 * one_minus_lambda_2 * g3
+    )
+
+    pdf = one_minus_lambda_g * bpl + gaussian_component
+
+    # 4. Apply filters
+    pdf *= high_pass_filter(m, mass.bottomsmooth, mass.m_low) # High-pass filter (smoothing at low mass end)
+    pdf *= low_pass_filter(m, mass.topsmooth, mass.m_high) # Low-pass filter (smoothing at high mass end)
+    pdf *= notch_filter(  # Notch filter (creates the dip/gap)
+      m,
+      mass.leftdip, mass.rightdip,
+      mass.leftdipsmooth, mass.rightdipsmooth,
+      mass.deep
+    )
+    peak_ordering_condition = (mass.mu_g1 <= mass.mu_g2) & (mass.mu_g2 <= mass.mu_g3)
+    # Zero out (not NaN) the whole PDF when the peaks aren't ordered, matching
+    # bpl_dip_two_peaks. peak_ordering_condition is a *scalar* (doesn't vary with m),
+    # so injecting a literal NaN here broadcasts real NaN across the entire array --
+    # this feeds _compute_norm_2d, poisoning norm_2d/Z/every event's weights with
+    # genuine forward NaN, not just an inert unselected jnp.where branch, so no
+    # decoupling trick can fix it after the fact. Returning 0.0 instead makes
+    # norm_2d=0 -> Z=jnp.maximum(0,tiny)=tiny -> weights=0 everywhere, which the
+    # existing safety nets handle cleanly: on the injection side this makes
+    # N_exp=0 -> N_exp_ok=False, correctly rejecting the point (log_hyperlike=-inf)
+    # via the same all_valid gating used for every other invalid-point case.
+    return jnp.where(peak_ordering_condition, pdf, 0.0)
+
+@dispatch
+def pairing_function(mass: bpl_dip_three_peaks,
+                     m1: jnp.ndarray,
+                     m2: jnp.ndarray) -> jnp.ndarray:
+    """
+    Pairing function f(m1, m2) with two power law indices.
+
+    f(m1, m2) = (m2/m1)^β₁ for m2 < m_break
+    f(m1, m2) = (m2/m1)^β₂ for m2 ≥ m_break
+
+    where the break point is determined by the dip position.
+    This models binaries that include at least one neutron star (NS) or black hole (BH).
+    """
+    q = m2 / m1
+    mask = q <= 1.0
+    beta = jnp.where(m2 < mass.m_break, mass.beta_bottom, mass.beta_top)
+    return jnp.where(mask, jnp.power(q, beta), 0.0)

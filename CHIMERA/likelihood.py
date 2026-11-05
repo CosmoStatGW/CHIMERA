@@ -9,11 +9,10 @@ import jax.numpy as jnp
 from KDExpress import binned_kde1d, fft_kde1d, scott_bw1d, build_hist_edges, fft_kde3d
 
 from .utils.config import logger
-from .utils.math import trapz, kde1d
+from .utils.math import trapz, kde1d, safe_where
 from .population.cosmo import ddLdz_at_z
 from .population import get_theta_src_and_weights, p_cbc
 from .data import theta_pe_det
-
 
 class hyperlikelihood(object):
   r"""A class for computing the cosmological/populationulation hyperlikelihood of gravitational wave (GW) events.
@@ -59,6 +58,7 @@ class hyperlikelihood(object):
     cut_grid: Number = 2.0,
     binning: bool = True,
     num_bins: int = 200,
+    log_z_grid_kde: bool = False,
   ):
 
     # Initialize attributes
@@ -73,6 +73,12 @@ class hyperlikelihood(object):
     self.kernel = kernel
     assert self.kernel in ['epan', 'gaussian'], "Kernel must be either 'epan' or 'gaussian'"
     self.kde_bw = kde_bw
+    # log_z_grid_kde: whether self.z_grids (pixelated/catalog mode only) is
+    # uniform in log(z) rather than linear z. Only meaningful when pixelated,
+    # since the non-pixelated (spectral siren) branch of `p_gw1d` always
+    # builds its own on-the-fly LINEAR z_grids regardless of this flag --
+    # the flag never reaches, and never needs to reach, that code path.
+    self.log_z_grid_kde = log_z_grid_kde
     if self.kde_bw is None:
       logger.warning("`kde_bw` is None, using Scott rule for bandwidth.")
     self.cut_grid = cut_grid
@@ -80,14 +86,29 @@ class hyperlikelihood(object):
 
     # Other useful quantity
     self.pixelated = True if self.theta_gw_det.pixels_opt_nsides is not None else False
-    
+
     # Handle pixelated likelihood
     if self.pixelated:
       self.z_grids = self.population.gal_cat.z_grids
-      self.z_int_res = self.z_grids.shape[1] 
+      self.z_int_res = self.z_grids.shape[1]
+      # NOTE: self.z_grids / self.z_grids_edges are ALWAYS built the same way
+      # here, regardless of log_z_grid_kde -- z_grids, p_cat, P_compl and the
+      # on-disk cache are completely untouched by log_z_grid_kde. The fix lives
+      # entirely inside the FFT-KDE dispatch (_fft_kde1d_logz/
+      # _fft_kde3d_logz below): it builds its OWN auxiliary grid uniform in
+      # log(z), spanning the same [z_min, z_max] as this event's (still
+      # linear) self.z_grids[ev], and interpolates its result back onto
+      # self.z_grids before returning -- exactly matching the standalone
+      # validation this was checked against end-to-end. An earlier design
+      # made self.z_grids itself log-uniform (requiring p_cat to be
+      # recomputed on it too), but that was found to badly under-resolve the
+      # astrophysically relevant z range for most events: ~91% of this
+      # pipeline's events have z_grids[:,0] == 0 exactly, so a naive log
+      # floor forces the grid to span 5-7 decades down to that floor,
+      # starving the z~0.01-1 band of points. That approach is NOT used here.
       self.z_grids_edges = jax.vmap(build_hist_edges)(self.z_grids)
       kdes_available = ['single-1d-binned', 'single-1d-fft', 'single-1d-standard',
-                        'many-1d-binned', 'many-1d-fft', 'many-1d-standard', '3d']
+                        'many-1d-binned', 'many-1d-fft', 'many-1d-standard', '3d-fft']
       assert self.kind_kde in kdes_available, f"`kind_kde` must be in {kdes_available}"
       kde_handlers = {
         'single-1d-binned': self.p_gw3d_single1d,
@@ -96,7 +117,7 @@ class hyperlikelihood(object):
         'many-1d-binned': self.p_gw3d_many1d,
         'many-1d-fft': self.p_gw3d_many1d,
         'many-1d-standard': self.p_gw3d_many1d,
-        'fft-3d': self.p_gw3d_full
+        '3d-fft': self.p_gw3d_full
       }
       self.p_gw3d = kde_handlers[self.kind_kde]
       # Handle warnings
@@ -108,7 +129,7 @@ class hyperlikelihood(object):
           logger.info(f"`kind_kde` is {self.kind_kde}. Ignoring `num_bins`")
         if self.cut_grid is not None:
           logger.info(f"`kind_kde` is {self.kind_kde}. Ignoring `cut_grid`")
-      if self.kind_kde == '3d':
+      if self.kind_kde == '3d-fft':
         if self.kernel != 'gaussian':
           logger.info("3D KDE only supports Gaussian kernel. Setting it to 'gaussian'")
           self.kernel = 'gaussian'
@@ -116,17 +137,112 @@ class hyperlikelihood(object):
           logger.info("3D KDE ignores `cut_grid` and `num_bins`")
 
       self.compute_like_num_evs = self._compute_like_num_evs_pixelated
-      
+
     # Handle spectral sirens likelihood
     else:
       kdes_available = ['binned', 'fft', 'standard']
       assert self.kind_kde in kdes_available, f"`kind_kde` must be in {kdes_available}"
-      if self.kind_kde == 'fft' and self.kernel == 'epan':
-        logger.info("FFT KDE only supports Gaussian kernel. Setting to 'gaussian'")
-        self.kernel = 'gaussian'
       self.compute_like_num_evs = self._compute_like_num_evs_no_pixels
 
     logger.info(f'Created hyperlikelihood model. Using {self.nevents} GW events.')
+
+  ##########################################
+  # log-z-grid FFT-KDE helpers             #
+  # (only used when pixelated and          #
+  #  self.log_z_grid_kde is True)              #
+  ##########################################
+
+  def _fft_kde1d_logz(self, points, data, weights=None, bw=None, kernel='gaussian', bin_edges=None):
+    r"""Drop-in log-space replacement for `fft_kde1d`, used when log_z_grid_kde
+    is True. `points` (this event's `self.z_grids[ev]`) is used ONLY to
+    read off its [z_min, z_max] domain -- it, `self.z_grids`, `p_cat`,
+    `P_compl` and the on-disk cache are all completely UNCHANGED (still
+    linear) by log_z_grid_kde; see the note in `__init__` for why an earlier
+    design that made `self.z_grids` itself log-uniform was abandoned.
+
+    Builds an auxiliary grid uniform in log(z) spanning that same domain,
+    runs the ordinary `fft_kde1d` there (where the grid genuinely is
+    uniform, fixing the kernel-under-resolution pathology that appears at
+    low H0 on a fixed, wide, LINEAR grid), undoes the density Jacobian
+    (p_z(z) = p_u(log z) / z), then interpolates the result back onto
+    `points` and renormalizes over it. This exactly mirrors the standalone
+    monkeypatch validation this was checked against end-to-end on the real
+    242-event GWTC-5 pipeline (single-1d-fft delta=-76.4 at the H0=10/
+    gamma=12 corner, vs. -81.5 to -85.9 ground truth and +125.5 for the
+    unfixed, plain-linear-grid FFT path).
+
+    `bw`, when given, is in the SAME linear-z units as plain `fft_kde1d`'s
+    `bw` (and as `self.kde_bw`/the precomputed per-event `fft_bw` elsewhere
+    in this file) -- it is converted to log-z units via the local Jacobian
+    du/dz=1/z evaluated at the (NaN-safe) mean of `data`. `jnp.nanmean` is
+    used deliberately: `p_gw3d_many1d`'s per-pixel calls fill unselected
+    samples with NaN, and `fft_bw` must still convert correctly against
+    just the real samples. If `bw` is None, a bandwidth is instead fit
+    internally via Scott's rule on `data` -- safe only when `data` has no
+    NaN fill values (true for `p_gw1d`'s direct per-event calls; NOT true
+    for `p_gw3d_many1d`'s per-pixel calls, which must always pass an
+    explicit, pre-fit `bw`).
+
+    `bin_edges` is accepted for call-signature compatibility with
+    `fft_kde1d` (so both can share one `jax.vmap`/dict-dispatch call site)
+    but is unused: the bin edges actually needed are built fresh from the
+    internal log-uniform grid.
+    """
+    eps = 1e-12
+    z0 = jnp.maximum(points[0], eps)
+    z1 = points[-1]
+    n = points.shape[0]
+    u_grid = jnp.linspace(jnp.log(z0), jnp.log(z1), n)
+    u_data = jnp.log(jnp.maximum(data, eps))
+    safe_w = jnp.ones_like(data) if weights is None else weights
+    w_norm = safe_w / jnp.sum(safe_w)
+    if bw is None:
+      bw_u = scott_bw1d(u_data, w_norm)
+    else:
+      bw_u = bw / jnp.exp(jnp.nanmean(u_data))
+    u_edges = build_hist_edges(u_grid)
+    kde_u = fft_kde1d(u_grid, u_data, w_norm, bw=bw_u, kernel=kernel, bin_edges=u_edges)
+    z_from_u = jnp.exp(u_grid)
+    kde_z_on_u = kde_u / z_from_u
+    kde_z = jnp.interp(points, z_from_u, kde_z_on_u, left=0., right=0.)
+    grid_step = points[1] - points[0]
+    denom = jnp.sum(kde_z) * grid_step
+    return jnp.where(denom > 0, kde_z / denom, kde_z)
+
+  def _fft_kde3d_logz(self, points_z, points_ra, points_dec, data, weights, bin_edges):
+    r"""Drop-in log-space replacement for `fft_kde3d`'s z-axis, used when
+    log_z_grid_kde is True (see `_fft_kde1d_logz`'s docstring for the overall
+    design -- `points_z`/`self.z_grids`/`p_cat`/`P_compl` stay linear and
+    unchanged; only the internal KDE evaluation happens on an auxiliary
+    log-uniform grid, interpolated back before returning). Only the z-axis
+    (column 0 of `data`, matching `p_gw3d_full`'s dataset layout) is
+    log-transformed; RA/Dec (`points_ra`/`points_dec`, and `bin_edges[1]`/
+    `bin_edges[2]`) are passed through unchanged, since they are
+    H0-independent and not under-resolved the way z is (see
+    nexp_bias_investigation.md). Validated end-to-end on the real pipeline:
+    3d-fft delta=-82.4 at the corner, vs. -81.5 to -85.9 ground truth and
+    +238.7 for the unfixed path.
+    """
+    eps = 1e-12
+    z0 = jnp.maximum(points_z[0], eps)
+    z1 = points_z[-1]
+    n_z = points_z.shape[0]
+    u_grid = jnp.linspace(jnp.log(z0), jnp.log(z1), n_z)
+    data_u = jnp.log(jnp.maximum(data[:, 0], eps))
+    data_logz = data.at[:, 0].set(data_u)
+    u_edges = build_hist_edges(u_grid)
+    edges_for_call = [u_edges, bin_edges[1], bin_edges[2]]
+    kde_u = fft_kde3d(u_grid, points_ra, points_dec, data_logz, weights=weights, bw=None, bin_edges=edges_for_call)
+    z_from_u = jnp.exp(u_grid)
+    kde_u_jac = kde_u / z_from_u[:, None, None]
+    def interp_z(col):
+      return jnp.interp(points_z, z_from_u, col, left=0., right=0.)
+    kde_z = jax.vmap(jax.vmap(interp_z, in_axes=1, out_axes=1), in_axes=2, out_axes=2)(kde_u_jac)
+    grid_step_z = points_z[1] - points_z[0]
+    grid_step_ra = points_ra[1] - points_ra[0]
+    grid_step_dec = points_dec[1] - points_dec[0]
+    denom = jnp.sum(kde_z) * grid_step_z * grid_step_ra * grid_step_dec
+    return jnp.where(denom > 0, kde_z / denom, kde_z)
 
   ######################
   # p_gw1d computation #
@@ -135,28 +251,38 @@ class hyperlikelihood(object):
   def p_gw1d(self, pop_lambdas):
     r"""Computes :math:`p_gw(z | \lambda)`. Used for non-pixelated catalogs or when "king_kde='single-1d-'"."""
     # convert thetas
-    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
+    th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
+    norms  = jnp.mean(weights, axis = -1)
+
     if not self.pixelated:
       z_grids = jnp.linspace(jnp.min(th_src.z, axis = -1)*0.5, jnp.max(th_src.z, axis = -1)*2, self.z_int_res).T
       cut_grid = 0
-      if self.kind_kde == 'fft':
+      if self.kind_kde.endswith('fft'):
         z_grids_edges = jax.vmap(build_hist_edges)(z_grids)
     else:
       z_grids = self.z_grids
       cut_grid = self.cut_grid
       z_grids_edges = self.z_grids_edges
 
-    # compute normalization and n_effective
-    norms  = jnp.mean(weights, axis = -1)
-    n_effs = jnp.sum(weights, axis = -1)**2 / jnp.sum(weights**2, axis = -1)
-
     # Vectorized KDE
-    if self.kind_kde == 'binned':
+    # NOTE: this is shared by both non-pixelated mode (bare 'binned'/'fft'/
+    # 'standard') and p_gw3d_single1d (prefixed 'single-1d-binned'/
+    # 'single-1d-fft'/'single-1d-standard'), so the method must be identified
+    # by suffix, not exact equality -- an exact match against 'fft' silently
+    # never matched 'single-1d-fft', which made every "single-1d-*" variant
+    # fall through to the dense, non-FFT `kde1d` kernel regardless of which
+    # one was requested.
+    if self.kind_kde.endswith('binned'):
       kde_vec = jax.vmap(binned_kde1d, in_axes=(0,0,0,None,None,None,None))
       _p_gw = kde_vec(z_grids, th_src.z, weights, self.kde_bw, self.kernel, self.num_bins, cut_grid)
-    elif self.kind_kde == 'fft':
-      kde_vec = jax.vmap(fft_kde1d, in_axes=(0,0,0,None,0))
-      _p_gw = kde_vec(z_grids, th_src.z, weights, self.kde_bw, z_grids_edges)
+    elif self.kind_kde.endswith('fft'):
+      # self.pixelated is always True here when self.log_z_grid_kde is True: the
+      # non-pixelated (spectral siren) branch above builds its own linear
+      # z_grids and never sets self.log_z_grid_kde, so it can never reach
+      # _fft_kde1d_logz regardless of this flag's value.
+      fft_fn = self._fft_kde1d_logz if (self.pixelated and self.log_z_grid_kde) else fft_kde1d
+      kde_vec = jax.vmap(fft_fn, in_axes=(0,0,0,None,None,0))
+      _p_gw = kde_vec(z_grids, th_src.z, weights, self.kde_bw, self.kernel, z_grids_edges)
     else:
       kde_vec = jax.vmap(kde1d, in_axes=(0,0,0,None,None))
       _p_gw = kde_vec(th_src.z, z_grids, weights, self.kernel, self.kde_bw)
@@ -182,9 +308,8 @@ class hyperlikelihood(object):
   def p_gw3d_many1d(self, pop_lambdas):
     """Computes p_gw(z, RA, Dec | λ) when kind_p_gw3d='marginalized'."""
     # Get source frame samples and population weights
-    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
-    norms = jnp.mean(weights, axis=-1)
-    n_effs = jnp.sum(weights, axis=-1) ** 2 / jnp.sum(weights**2, axis=-1)
+    th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
+    norms  = jnp.mean(weights, axis = -1)
 
     # Single event routine
     def p_gw_single_event(ev):
@@ -192,14 +317,22 @@ class hyperlikelihood(object):
       pixels = self.theta_gw_det.pixels_opt_nsides[ev]
       gw_pdf = self.theta_gw_det.gw_loc2d_pdf[ev]
 
-      # Pre-compute FFT bandwidth once per event (same for all pixels)
+      # Pre-compute FFT bandwidth once per event (same for all pixels), in
+      # LINEAR z units -- identical whether or not log_z_grid_kde is set.
+      # _fft_kde1d_logz accepts a bw in these same linear units (converting
+      # internally via a NaN-safe nanmean, since z_pix below is NaN-filled
+      # for unselected samples), so no special-casing is needed here; this
+      # MUST still happen on the full, clean per-event samples th_src.z[ev]
+      # though, never on a per-pixel z_pix, to match the pre-fit bandwidth
+      # fft_kde1d itself has always expected in the non-log case.
       if self.kind_kde == 'many-1d-fft':
-        fft_bw = scott_bw1d(th_src.z[ev], weights[ev]) if self.kde_bw is None else self.kde_bw  
+        fft_bw = scott_bw1d(th_src.z[ev], weights[ev]) if self.kde_bw is None else self.kde_bw
       else:
         fft_bw = None
 
+      fft1d_fn = self._fft_kde1d_logz if (self.pixelated and self.log_z_grid_kde) else fft_kde1d
       kde_fns = {
-        'many-1d-fft': lambda z_pix, w_pix: fft_kde1d(
+        'many-1d-fft': lambda z_pix, w_pix: fft1d_fn(
           self.z_grids[ev], z_pix, w_pix, bw=fft_bw, bin_edges=self.z_grids_edges[ev]
         ),
         'many-1d-binned': lambda z_pix, w_pix: binned_kde1d(
@@ -219,10 +352,19 @@ class hyperlikelihood(object):
       # Pixels loop
       def pixels_loop(pix, acc):
         pixel_mask = pe_pix == pixels[pix]
-        w_pix = jnp.where(pixel_mask, weights[ev], 0.0)
+        has_pixel = jnp.any(pixel_mask)
+        # KDExpress now divides by sum(weights) directly (no safe_div fallback),
+        # so a pixel with no matching samples must never see an all-zero weight
+        # vector: feed it a safe dummy (uniform) weight vector instead, then
+        # select the real vs. dummy result afterwards. This keeps both the KDE
+        # value and its gradient finite (double jnp.where pattern).
+        w_pix_real = jnp.where(pixel_mask, weights[ev], 0.0)
+        w_pix_dummy = jnp.ones_like(weights[ev])
+        w_pix = safe_where(has_pixel, w_pix_real, w_pix_dummy)
         fill = jnp.nan if self.kind_kde == 'many-1d-fft' else 0.0
         z_pix = jnp.where(pixel_mask, th_src.z[ev], fill)
         kde = compute_kde(z_pix, w_pix)
+        kde = jnp.where(has_pixel, kde, 0.0)
         return acc.at[pix].set(kde * norms[ev] * gw_pdf[pix])
 
       return jax.lax.fori_loop(
@@ -244,9 +386,9 @@ class hyperlikelihood(object):
 
   def p_gw3d_full_old(self, pop_lambdas):
     from .utils.math import numba_gkde_nd
-    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
+    # convert thetas
+    th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
     norms  = jnp.mean(weights, axis = -1)
-    n_effs = jnp.sum(weights, axis = -1)**2 / jnp.sum(weights**2, axis = -1)
 
     # Manage dataset
     dataset = jnp.array([th_src.z, self.theta_gw_det.ra, self.theta_gw_det.dec]) # dataset for kde, shape: (3, Nevents, Nsamples)
@@ -289,29 +431,43 @@ class hyperlikelihood(object):
 
     return io_callback(
       all_events_callback,
-      jax.ShapeDtypeStruct((self.nevents, self.theta_gw_det.max_npixels, self.z_int_res), jnp.float64),
+      jax.ShapeDtypeStruct((self.nevents, self.theta_gw_det.max_npixels, self.z_int_res), jnp.float_),
       callback_input
     )
 
   def p_gw3d_full(self, pop_lambdas):
     r"""Computes :math:`p_gw(z, RA, Dec | \lambda)` when "king_p_gw3d='full'"."""
     # Get source frame samples and population weights
-    th_src, weights = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det)
+    # convert thetas
+    th_src, weights, n_effs = get_theta_src_and_weights(pop_lambdas, self.theta_gw_det, return_neffs = True)
     norms  = jnp.mean(weights, axis = -1)
-    n_effs = jnp.sum(weights, axis = -1)**2 / jnp.sum(weights**2, axis = -1)
+
     dataset = jnp.array([th_src.z, self.theta_gw_det.ra, self.theta_gw_det.dec]) # dataset for kde, shape: (3, Nevents, Nsamples)
     dataset  = jnp.moveaxis(dataset, 0, 2) # shape (Nevents,Nsamples,3)
 
     # Single event routine
+    fft3d_fn = self._fft_kde3d_logz if self.log_z_grid_kde else fft_kde3d
     def p_gw_single_event(ev):
-      pgw_ev = fft_kde3d(self.z_grids[ev], self.theta_gw_det.ra_grids[ev], self.theta_gw_det.dec_grids[ev],
+      pgw_ev = fft3d_fn(self.z_grids[ev], self.theta_gw_det.ra_grids[ev], self.theta_gw_det.dec_grids[ev],
           dataset[ev], weights=weights[ev],
           bin_edges=[self.z_grids_edges[ev], self.theta_gw_det.ra_edges[ev], self.theta_gw_det.dec_edges[ev]]
       )*norms[ev]
       # Pixels loop
       def pixels_loop(pix, acc):
-        ra_idx, dec_idx = self.theta_gw_det.pixel_indices[ev, pix]
-        return acc.at[pix].set(pgw_ev[:, ra_idx, dec_idx])
+        raw_ra_idx, raw_dec_idx = self.theta_gw_det.pixel_indices[ev, pix]
+        # pixel_indices is padded with -1 for slots beyond this event's real
+        # pixel count. -1 is a VALID array index in JAX (wraps to the last
+        # element), so it must be masked explicitly rather than relied on to
+        # fail: without this, a padding slot silently gathers a real, nonzero
+        # density from the grid's last (ra, dec) bin instead of contributing
+        # zero, which then multiplies into the -100 padding sentinel carried
+        # by p_cat/p_z for that same fake pixel and poisons the z-integral
+        # with large bogus (often negative) values.
+        valid = (raw_ra_idx >= 0) & (raw_dec_idx >= 0)
+        ra_idx = jnp.where(valid, raw_ra_idx, 0).astype(int)
+        dec_idx = jnp.where(valid, raw_dec_idx, 0).astype(int)
+        val = jnp.where(valid, pgw_ev[:, ra_idx, dec_idx], 0.0)
+        return acc.at[pix].set(val)
       return jax.lax.fori_loop(0, self.theta_gw_det.max_npixels, pixels_loop, jnp.zeros((self.theta_gw_det.max_npixels, self.z_int_res)))
 
     # Map over events and check Neff
@@ -323,38 +479,38 @@ class hyperlikelihood(object):
   ####################################
 
   def _compute_like_num_evs_pixelated(self, pop_lambdas):
-    
+
     # p_gw(z, ra, dec | \theta_gw, \lambda_c, \lambda_m)
     p_gw3d = self.p_gw3d(pop_lambdas) # (Nevents, MaxPixels, ResGrids)
     p_gw3d = jnp.where(jnp.isnan(p_gw3d), jnp.zeros_like(p_gw3d), p_gw3d) # avoid fake pixels
-    
+
     # p_z of having a cbc at z
     p_z = p_cbc(pop_lambdas, self.z_grids) # (Nevents, MaxPixels, ResGrids)
-    
+
     # jacobian
     jacobian = ddLdz_at_z(pop_lambdas.cosmo, self.z_grids) * (1.+self.z_grids)**2
-    
-    # Integral 
+
+    # Integral
     integrand = p_gw3d * p_z / jacobian[:,None,:] # (Nevents, MaxPixels, ResGrids) -> integrand
     like_num_evs_pixels = trapz(integrand, self.z_grids[:,None,:], axis = -1) # (Nevents, MaxPixels) -> integrate on z_grids
     like_num_evs = jnp.sum(like_num_evs_pixels, axis = -1) # (Nevents,) ->  Sum pixel contributions
-    
+
     return like_num_evs
 
   def _compute_like_num_evs_no_pixels(self, pop_lambdas):
-    
+
     # p_gw(z,| \theta_gw, \lambda_c, \lambda_m)
     p_gw, z_grids = self.p_gw1d(pop_lambdas)
-    
+
     # p_z of having a cbc at z
     p_z = p_cbc(pop_lambdas, z_grids)
-    
+
     # jacobian
     jacobian = ddLdz_at_z(pop_lambdas.cosmo, z_grids) * (1.+z_grids)**2
-    
+
     # Integral
     like_num_evs = trapz(p_gw*p_z/jacobian, z_grids, axis = -1)
-    
+
     return like_num_evs
 
   ################################
@@ -364,25 +520,50 @@ class hyperlikelihood(object):
   @partial(jax.jit, static_argnums=(0,))
   def compute_all(self, **hyper_lambdas):
     pop_lambdas = self.population.update(**hyper_lambdas)
-    log_like_num_evs = jnp.log(self.compute_like_num_evs(pop_lambdas))
-    N_exp, dNdtheta, xi = self.selection_function.N_exp(pop_lambdas, ret_dNdtheta_and_xi=True)
-    if not pop_lambdas.scale_free:
-      log_like_num_evs += jnp.log(pop_lambdas.R0*pop_lambdas.Tobs)
-      log_like_evs = log_like_num_evs  - N_exp/self.nevents
-    else:
-      log_like_evs = log_like_num_evs - jnp.log(N_exp)
-    log_hyperlike = jnp.sum(log_like_evs, axis=-1)
 
-    # Check Neff
-    if self.inj_neff is not None:
-      variance2 = jnp.sum((dNdtheta)**2, axis = -1) / self.selection_function.N_inj**2  - xi**2 / self.selection_function.N_inj
-      neff = xi**2 / variance2
-      neff_cond = neff > self.inj_neff
-      log_hyperlike = jnp.where(neff_cond, log_hyperlike, -jnp.inf)
+    like_num_evs = self.compute_like_num_evs(pop_lambdas)
+    num_valid = like_num_evs > 0
+    safe_like_num_evs = safe_where(num_valid, like_num_evs, 1.0)
+    log_like_num_evs = jnp.log(safe_like_num_evs)
+
+    N_exp, dNdtheta, xi = self.selection_function.N_exp(
+        pop_lambdas, ret_dNdtheta_and_xi=True
+    )
+
+    # `self.inj_neff` is already defaulted to 5*nevents in __init__ when the
+    # caller passes `inj_neff=None` (the standard Farr et al. 2019
+    # convention -- the same `neffINJ=5*nev` the old icarogw-based spectral-
+    # siren run script passed explicitly). But this branch used to treat a
+    # `None` here as "skip the injection-Neff safety cut entirely"
+    # (neff_cond = True, unconditionally), which would silently let the
+    # sampler accept points in mass/rate-prior space where the injection-
+    # based N_exp estimate is pure Monte Carlo noise (very low effective
+    # number of surviving injections). Resolve the effective threshold
+    # locally and always enforce it -- there is no "skip" path any more.
+    effective_inj_neff = self.inj_neff if self.inj_neff is not None else 5 * self.nevents
+    variance2 = (
+        jnp.sum(dNdtheta**2, axis=-1) / self.selection_function.N_inj**2
+        - xi**2 / self.selection_function.N_inj
+    )
+    var_ok = variance2 > 0
+    safe_variance2 = safe_where(var_ok, variance2, 1.0)
+    neff = xi**2 / safe_variance2
+    neff_cond = var_ok & (neff > effective_inj_neff)
+
+    N_exp_ok = N_exp > 0
+    safe_N_exp = safe_where(N_exp_ok, N_exp, 1.0)
+
+    events_valid = num_valid & N_exp_ok
+    all_valid = jnp.all(events_valid, axis=-1) & neff_cond
+
+    if not pop_lambdas.scale_free:
+        log_like_num_evs = log_like_num_evs + jnp.log(pop_lambdas.R0 * pop_lambdas.Tobs)
+        log_like_evs = log_like_num_evs - N_exp / self.nevents
     else:
-      neff = None
-    # Filter nan/-inf to very small number
-    log_hyperlike = jnp.nan_to_num(log_hyperlike, nan=-jnp.inf)
+        log_like_evs = log_like_num_evs - jnp.log(safe_N_exp)
+
+    log_hyperlike = jnp.sum(log_like_evs, axis=-1)
+    log_hyperlike = jnp.where(all_valid, log_hyperlike, -jnp.inf)
     return log_like_evs, N_exp, neff, log_hyperlike
 
   @partial(jax.jit, static_argnums=(0,))
