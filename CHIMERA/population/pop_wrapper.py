@@ -149,6 +149,7 @@ def compute_z_grids(cosmo: eqx.Module,
   cosmo_prior: Optional[Dict[str, List[Number]]] = None,
   z_int_res: int = 300,
   z_conf_range: Optional[Union[Number, list]] = None,
+  log_grid: bool = False,
 ):
   """Computes the redshift grids on which GW events have support, given some cosmological priors.
 
@@ -158,6 +159,26 @@ def compute_z_grids(cosmo: eqx.Module,
     cosmo_prior (optional, Dict[str, List[Numbers]]): dict containing tuple of parameters, describing the priors over cosmological parameters.
     z_int_res (int): number fo points of the redshift grid.
     z_conf_range (Number or List): sigma or quantiles defining the redshift grid extenstion.
+    log_grid (bool): if True, build each event's grid uniform in log(z) instead of
+      linear z (same [z_min, z_max] support, same z_int_res points). Defaults to
+      False, which reproduces the exact previous (linear-grid) behavior -- required
+      for spectral-siren configs, which build their own linear z_grids on the fly
+      inside `hyperlikelihood.p_gw1d` and never call this function's log branch.
+
+      NOTE: this is NOT what fixes the FFT-KDE kernel-under-resolution pathology at
+      low H0 / steep-rate corners (see nexp_bias_investigation.md) -- that fix is
+      `hyperlikelihood(..., log_z_grid_kde=True)`, which works internally on an
+      auxiliary log-spaced grid without needing z_grids/p_cat themselves to be
+      log-spaced, and is independent of this flag. This `log_grid` option is a
+      separate, experimental building block for ALSO resolving p_cat/P_compl on a
+      log-spaced grid (as hypothesized in nexp_bias_investigation.md), and an
+      initial attempt at that was found to REGRESS accuracy: ~91% of the GWTC-5
+      pipeline's events have a z_min of exactly 0, so flooring at a fixed epsilon
+      forces the grid to span 5-7 decades, starving the astrophysically relevant
+      z~0.01-1 band of resolution even relative to the linear grid. Do not wire
+      this into production without first using a less naive low-z floor (e.g. one
+      informed by the event's actual posterior support) and re-validating against
+      the dense-KDE ground truth.
 
   Returns:
     jnp.ndarray: the redshift grids.
@@ -218,5 +239,14 @@ def compute_z_grids(cosmo: eqx.Module,
 
   z_min  = z_from_dGW(cosmo1, dL_min)
   z_max  = z_from_dGW(cosmo2, dL_max)
-  z_grids = jnp.linspace(z_min, z_max, z_int_res, axis=1)
+  if log_grid:
+    # Floor z_min away from 0 so log() stays finite; z_min is already a
+    # conservative lower bound (0.5x the min observed dL-implied z, or a
+    # confidence-range/percentile bound), so this floor is never reached in
+    # practice except for the degenerate dL_min->0 clip a few lines above.
+    eps = 1.e-6
+    z_min_safe = jnp.where(z_min < eps, eps, z_min)
+    z_grids = jnp.exp(jnp.linspace(jnp.log(z_min_safe), jnp.log(z_max), z_int_res, axis=1))
+  else:
+    z_grids = jnp.linspace(z_min, z_max, z_int_res, axis=1)
   return z_grids
