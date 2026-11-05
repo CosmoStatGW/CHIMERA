@@ -3,17 +3,20 @@ import jax.numpy as jnp
 from .core import base_rate_struct
 
 class power_law(base_rate_struct):
-  r"""A normalized Madau-Dickinson merger rate model implemented as an Equinox module.
+  r"""A normalized power-law merger rate model implemented as an Equinox module.
 
   Args:
     gamma (float): power-law exponent.
+
   Class Attributes:
     - name (str): The name of the model.
     - keys (List[str]): A list of parameter names used in the model.
+
   Properties:
     - as_dict (Dict[str, float]): Returns the current model parameters as a dictionary.
+
   Methods:
-    - update(**kwargs) (power_law): Creates a new instance of the model, updating any parameters provided in `kwargs`.
+    - ``update(**kwargs)`` (power_law): Creates a new instance of the model, updating any parameters provided in `kwargs`.
       Parameters are automatically broadcasted to the same shape as the largest parameter.
   """
   gamma: float

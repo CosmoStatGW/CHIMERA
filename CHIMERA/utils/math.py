@@ -4,6 +4,31 @@ import jax.numpy as jnp
 import numba as nb
 import numpy as np
 
+from .config import SAFE_WHERE
+
+######################
+# safe_where (NaN/Inf-gradient guard, "double where" trick) #
+######################
+
+def safe_where(is_safe, real_value, dummy_value):
+  """Guard `real_value` against being fed into a risky downstream op (division,
+  log, pow, ...) on the branch where `is_safe` is False, by substituting
+  `dummy_value` there instead. Must always be paired with an outer `jnp.where(is_safe,
+  ..., ...)` that picks the correct final value for each branch -- this function only
+  protects the *input*, so that jax.grad's reverse-mode AD (which still differentiates
+  the untaken branch of a jnp.where) never sees a NaN/Inf coming out of the unsafe
+  branch and propagating into the gradient.
+
+  Controlled globally by CHIMERA_SAFE_WHERE (read once at import time, like USE_x64 /
+  USE_GPU). Set CHIMERA_SAFE_WHERE=False before importing CHIMERA to disable this
+  substitution everywhere in CHIMERA and feed `real_value` straight through instead --
+  forward values are typically unaffected, but gradients can become NaN/Inf. Useful for
+  probing how much these guards actually matter for gradient-based samplers (e.g. NUTS).
+  """
+  if SAFE_WHERE:
+    return jnp.where(is_safe, real_value, dummy_value)
+  return real_value
+
 ##################
 # trapz function #
 ##################
@@ -25,6 +50,58 @@ def cumtrapz(y,x):
   dx = jnp.diff(x)
   res  = jnp.cumsum(0.5*(y[:-1]+y[1:])*dx)
   return jnp.concatenate([jnp.array([0]), res])
+
+##########
+# interp #
+##########
+
+@jax.jit
+def interp(x, xp, fp, left=None, right=None):
+  return jnp.interp(x, xp, fp, left, right)
+  
+##################################
+# interp2d (separable, bilinear) #
+##################################
+
+@jax.jit
+def interp2d(x_query, y_query, x_grid, y_grid, z_grid):
+  """Bilinear interpolation of ``z_grid`` (shape ``(len(x_grid),
+  len(y_grid))``, values of some f(x,y) on a regular tensor grid) at
+  arbitrary, broadcastable-shape query points ``(x_query, y_query)``.
+
+  Implemented directly (bracket + 4-corner blend) rather than via two
+  chained ``jnp.interp`` calls: an earlier version vmapped ``jnp.interp``
+  over every grid row, which re-runs each row's O(len(grid)) search
+  against the *full* query array per row, costing O(n_rows * n_queries)
+  memory/time -- fine for a handful of queries, but it blew up to
+  multi-GB intermediates once both the grid and the query count were in
+  the hundreds/thousands (exactly the regime this is used in). This
+  version does one O(n_queries) bracket search per axis up front (cost
+  independent of grid size beyond the search itself) and then a cheap
+  O(n_queries) 4-corner gather-and-blend -- no per-row repetition.
+  """
+  shape = x_query.shape
+  xq = x_query.reshape(-1)
+  yq = y_query.reshape(-1)
+
+  def _bracket(q, grid):
+    n = grid.shape[0]
+    i = jnp.clip(jnp.searchsorted(grid, q) - 1, 0, n - 2)
+    x0, x1 = grid[i], grid[i + 1]
+    t = (q - x0) / (x1 - x0)
+    return i, t
+
+  ix, tx = _bracket(xq, x_grid)
+  iy, ty = _bracket(yq, y_grid)
+
+  z00 = z_grid[ix, iy]
+  z01 = z_grid[ix, iy + 1]
+  z10 = z_grid[ix + 1, iy]
+  z11 = z_grid[ix + 1, iy + 1]
+
+  out = ((1 - tx) * (1 - ty) * z00 + (1 - tx) * ty * z01
+         + tx * (1 - ty) * z10 + tx * ty * z11)
+  return out.reshape(shape)
 
 ##############
 # 1d binning #

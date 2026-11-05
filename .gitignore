@@ -18,8 +18,7 @@ dist/
 
 # Documentation builds
 docs/_build/
-docs/_static/
-!docs/_static/
+docs/user_guide/tutorials/*.ipynb
 
 # IDE and editor files
 .vscode/
@@ -36,8 +35,15 @@ Thumbs.db
 *.jpg
 *.npy
 *.json
-*.logb
+*.log
 
 
 # Dockerfile
 Dockerfile
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Claude outputs
+Claude outputs/
+.claude/

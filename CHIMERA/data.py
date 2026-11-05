@@ -98,13 +98,22 @@ def load_galaxy_catalog(file_path,
     backend: Array backend ('numpy' or 'jax')
 
   Returns:
-    Dictionary with 'ra' (right ascension), 'dec' (declination), 'z' (redshift).
+    Dictionary with 'ra' (right ascension), 'dec' (declination), 'z' (redshift),
+    and 'z_err' (per-galaxy redshift uncertainty) if the file provides it --
+    e.g. GLADE+ catalogs built by `preprocessing/build_glade_catalog.py` ship
+    their own per-galaxy `z_err` (GLADE+ col 32); older/simulated catalogs
+    without one simply omit the key, and
+    `CHIMERA.catalog.catalog.precompute_p_cat` falls back to its flat
+    `z_err * (1+z)` TOML setting for any galaxy lacking a real value.
   """
   # Validate inputs
   if units not in ['rad', 'deg']:
     raise ValueError("units must be either 'rad' or 'deg'")
 
-  # Load data with validation
+  # `load_data_h5` loads every dataset in the file regardless of `parameters`
+  # (which only drives `require_keys`'s existence check below), so an
+  # optional extra column like `z_err` is already sitting in `data` if the
+  # file has one -- it just wasn't being copied into `result`.
   data = load_data_h5(file_path, backend=backend, require_keys=parameters)
 
   # Prepare output dictionary with standardized names
@@ -113,6 +122,8 @@ def load_galaxy_catalog(file_path,
     'dec': data['dec_gal'],
     'z': data['z_cgal']
   }
+  if 'z_err' in data:
+    result['z_err'] = data['z_err']
 
   # Convert units if requested
   if units == 'rad':
@@ -366,6 +377,47 @@ def _compute_sky_conf_event(healpix_pe, sky_conf, nside):
   p[unique] = counts/healpix_pe.shape[0]
   return np.argwhere(p >= _get_threshold(p, sky_conf)).flatten()
 
+
+def _dedupe_for_float32(arr):
+  """Nudge apart any adjacent values that are distinct in float64 but
+  would collapse to the exact same float32 value once downcast.
+
+  `ra_grids`/`dec_grids`/`ra_edges`/`dec_edges` are built here in float64
+  (via `np.unique`, which guarantees distinct entries at that precision),
+  but CHIMERA commonly runs with `CHIMERA_USE_x64=False` (the default),
+  so these arrays get silently downcast to float32 wherever they are
+  later wrapped in `jnp.asarray` (see `pixelize_gw_catalog`'s `.update(...)`
+  below). Two `np.unique`-distinct RA (or Dec) values that are extremely
+  close in float64 can then land on the exact same float32 value, handing
+  `likelihood.p_gw3d_full`'s `fft_kde3d` call a sky grid with a literal
+  zero spacing somewhere -- which makes its FFT-frequency construction
+  divide by that zero grid step and/or its histogram density
+  normalization divide by a zero bin width, and because an FFT mixes
+  every array element, that single NaN/inf poisons the *entire* 3D KDE
+  output for the event (observed for a handful of GWTC-5 events whose
+  optimal-nside pixel RA/Dec values happened to be this close together).
+
+  A 1-ULP nudge is not enough on its own: `build_hist_edges` (called right
+  after this on the deduped centers) derives each edge as a *midpoint*
+  between neighboring centers (`0.5*(c[i]+c[i-1])`), and halving a 1-ULP
+  gap underflows below float32's rounding resolution -- the midpoint
+  rounds right back to one of the two centers, so the two *edges* on
+  either side of that gap can still collide even though the centers no
+  longer do. Nudging by several ULPs keeps a representable (non-zero)
+  gap after that halving.
+  """
+  arr = np.asarray(arr, dtype=np.float64).copy()
+  arr32 = arr.astype(np.float32)
+  n_ulp_margin = 8
+  for i in range(1, len(arr32)):
+    if arr32[i] <= arr32[i-1]:
+      bumped = arr32[i-1]
+      for _ in range(n_ulp_margin):
+        bumped = np.nextafter(bumped, np.float32(np.inf), dtype=np.float32)
+      arr32[i] = bumped
+      arr[i] = float(bumped)
+  return arr
+
 def pixelize_gw_catalog(theta_gw,
                        nside_list,
                        mean_npixels_event,
@@ -476,6 +528,10 @@ def pixelize_gw_catalog(theta_gw,
       # Create unique sorted grids
       ra_unique = np.sort(np.unique(pixel_ra[e]))
       dec_unique = np.sort(np.unique(pixel_dec[e]))
+      # See _dedupe_for_float32: guards against distinct-in-float64 grid
+      # values that would otherwise collide once downcast to float32.
+      ra_unique = _dedupe_for_float32(ra_unique)
+      dec_unique = _dedupe_for_float32(dec_unique)
 
       ra_size = len(ra_unique)
       dec_size = len(dec_unique)
@@ -500,7 +556,19 @@ def pixelize_gw_catalog(theta_gw,
       pixel_indices[e] = indices
 
   # Create padded arrays for the main pixel data
-  padded_event_pixels = _pad_arr_list(event_pixels, pad_value=np.nan, dtype=np.float64)
+  # NOTE (2026-10-20): `pixels_opt_nsides` must be padded with the project-wide
+  # `-100` sentinel, not NaN: `catalog.precompute_p_cat`'s `_select`/`_compute_event`
+  # (`event_pix_indexes != -100`), `pixelated_catalog.p_gal` (`self.p_cat != -100.`),
+  # and both completeness classes' `set_gw_mask_idxs` (their docstrings document
+  # `-100`-padded input explicitly, e.g. `mth_completeness.set_gw_mask_idxs`) all
+  # test padding against `-100`, not `isnan`. A NaN-padded array here silently broke
+  # `convert_pixelization`'s `hp.pix2ang` call (NaN can't cast to an integer pixel
+  # index) the first time this function's output was ever fed into a completeness
+  # class's `set_gw_mask_idxs` -- i.e. the two halves of this pipeline (GW
+  # pixelization and the catalog/completeness machinery) had never actually been
+  # exercised together before. `neff_pixels` below is unaffected by this change:
+  # both NaN and -100 fail the `>= 0` test the same way.
+  padded_event_pixels = _pad_arr_list(event_pixels, pad_value=-100, dtype=np.float64)
   padded_pixel_ra = _pad_arr_list(pixel_ra, pad_value=np.nan)
   padded_pixel_dec = _pad_arr_list(pixel_dec, pad_value=np.nan)
   padded_pixel_probs = _pad_arr_list(pixel_probabilities, pad_value=np.nan)
@@ -518,7 +586,7 @@ def pixelize_gw_catalog(theta_gw,
     ra_pix=padded_pixel_ra,
     dec_pix=padded_pixel_dec,
     gw_loc2d_pdf=padded_pixel_probs,
-    pixels_pe_opt_nside=jnp.asarray(pe_samples_pixels).astype(jnp.float64),
+    pixels_pe_opt_nside=jnp.asarray(pe_samples_pixels).astype(jnp.float_),
     ra_grids=jnp.asarray(ra_grids),
     dec_grids=jnp.asarray(dec_grids),
     ra_edges=jnp.asarray(ra_edges),

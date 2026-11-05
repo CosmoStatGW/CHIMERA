@@ -4,9 +4,9 @@ from typing import Union, List
 from numbers import Number
 from plum import dispatch
 
-from CHIMERA.utils.math import cumtrapz, trapz
-from CHIMERA.data import theta_src
-from ..core import tpl_notnorm, smoothing
+from ....utils.math import cumtrapz, trapz, interp
+from ....data import theta_src
+from ..core import _truncated_pl_notnorm, high_pass_filter
 
 ################
 # MASS PYTREES #
@@ -75,8 +75,8 @@ def p_m1(mass:base_mass_conditioned_struct, theta:theta_src):
 
 @dispatch
 def secondary_mass_conditioned_pdf_notnorm(mass:base_mass_conditioned_struct, m2:jnp.ndarray, m1:Union[Number,jnp.ndarray]):
-  pdf = tpl_notnorm(m2, mass.beta, mass.m_low, m1)
-  pdf *= smoothing(m2, mass.delta_m, mass.m_low)
+  pdf = _truncated_pl_notnorm(m2, mass.beta, mass.m_low, m1)
+  pdf *= high_pass_filter(m2, mass.delta_m, mass.m_low)
   return pdf
 
 #######################
@@ -87,7 +87,7 @@ def secondary_mass_conditioned_pdf_notnorm(mass:base_mass_conditioned_struct, m2
 def p_m1m2(mass:base_mass_conditioned_struct, m1:jnp.ndarray, m2:jnp.ndarray):
   pm1 = p_m1(mass, m1)
   pm2m1 = secondary_mass_conditioned_pdf_notnorm(mass, m2, m1)
-  pm2m1_norm = jnp.interp(m1, mass.m_grid, mass.cdf_m2_conditioned)
+  pm2m1_norm = interp(m1, mass.m_grid, mass.cdf_m2_conditioned)
   pm2m1_norm = jnp.maximum(pm2m1_norm, jnp.finfo(pm2m1_norm.dtype).eps) # to avoid 0./0. that may occur in the line below
   pm2m1 /= pm2m1_norm
   return pm1 * pm2m1

@@ -3,133 +3,206 @@
 HPC and GPU Installation
 ========================
 
-This guide provides instructions for installing CHIMERA on High Performance Computing (HPC) systems also enabling GPU support.
+This guide installs CHIMERA on HPC systems with `micromamba <https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html>`_,
+with optional MPI and GPU support. It has been tested on:
 
-General Installation Steps
----------------------------
+- **DIFA OPH**: University of Bologna's HPC cluster (`website <https://fisica-astronomia.unibo.it/it/dipartimento/servizi-tecnici-e-amministrativi/servizi-tecnici-informatici/servizi-informatici/cluster-oph>`_), CPU only.
+- **CINECA LEONARDO**: Booster (GPU, 4x NVIDIA A100 64 GB per node) and DCGP (CPU) partitions
+  (`documentation <https://docs.hpc.cineca.it/hpc/leonardo.html>`_).
 
-The typical installation process on HPC systems involves:
-
-1. Loading appropriate Python and compiler modules
-2. Creating and activating a virtual environment
-3. Installing MPI4PY with proper MPI support
-4. Installing JAX with GPU support (if needed)
-5. Installing CHIMERA
-
-Below are detailed instructions for two specific systems where this process has been tested:
-
-- **DIFA OPH**: University of Bologna's HPC cluster (`website <https://fisica-astronomia.unibo.it/it/dipartimento/servizi-tecnici-e-amministrativi/servizi-tecnici-informatici/servizi-informatici/cluster-oph>`_)
-- **LEONARDO**: One of CINECA's supercomputing facilities (`website <https://www.hpc.cineca.it/user-support/documentation/>`_)
-
-
-DIFA OPH
+Overview
 --------
 
-1. **Load Python 3.10**
+The same recipe works on both machines:
+
+1. micromamba provides Python and the compiled scientific stack (``environment.yml``).
+2. ``mpi4py`` is built with ``pip`` against the cluster's **own** MPI module, so that it
+   uses the cluster interconnect and plays well with SLURM. Do not install ``mpi4py`` or
+   ``openmpi`` from conda-forge on a cluster.
+3. On GPU nodes, JAX is installed as ``jax[cuda12]``, which ships its own CUDA/cuDNN
+   libraries as pip wheels: only the NVIDIA driver is taken from the system.
+4. CHIMERA is installed in editable mode from a clone of the repository.
+
+.. note::
+
+    Install everything from a **login node** (compute nodes usually have no internet access),
+    then test from a **compute node** (login nodes have no GPUs and must not be used for computations).
+
+
+Step 0: micromamba (once per cluster)
+-------------------------------------
 
 .. code-block:: bash
+
+    "${SHELL}" <(curl -L micro.mamba.pm/install.sh)
+
+When prompted for the root prefix, choose a filesystem with enough quota (on LEONARDO, a folder
+in your project ``$WORK`` area rather than ``$HOME``). Then reload your shell (``source ~/.bashrc``)
+and check ``micromamba --version``.
+
+Step 1: base environment
+------------------------
+
+.. code-block:: bash
+
+    git clone https://github.com/CosmoStatGW/CHIMERA
+    cd CHIMERA/
 
     module purge
-    module load astro/python/3.10.0
+    micromamba create -y -n chimera -f environment.yml
+    micromamba activate chimera
 
-2. **Create and activate virtual environment**
 
-.. code-block:: bash
+DIFA OPH (CPU)
+--------------
 
-    mkdir virtual_env
-    python -m venv "virtual_env/chimera-gw"
-    source virtual_env/chimera-gw/bin/activate
-
-3. **Install MPI4PY with OpenMPI support**
+2. **Build mpi4py against the cluster OpenMPI**
 
 .. code-block:: bash
 
     module load astro/gcc/10.3.0
     module load mpi/openmpi/4.1.4
-    MPICC=$(which mpicc) pip install --no-cache-dir mpi4py>=4.0
+    MPICC=$(which mpicc) pip install --no-cache-dir --no-binary=mpi4py "mpi4py>=4.0"
 
-Verify the installation:
+Module names change over time: check them with ``module avail`` and keep the same modules
+loaded in your job scripts.
 
-.. code-block:: bash
-
-    python -m mpi4py --mpi-lib-version
-    ldd $(python -m mpi4py --prefix)/MPI.*.so
-
-4. **Install MPI-related packages and JAX without CUDA support (no GPU nodes on DIFA-OPH at the moment)**
+3. **Install JAX (CPU), the MPI extras and CHIMERA**
 
 .. code-block:: bash
 
-    pip install wheel cython jax
+    pip install jax
     pip install mpi4jax --no-build-isolation
+    pip install -e ".[plots,samplers,mpi]"
 
-
-5. **Install CHIMERA**
-
-.. code-block:: bash
-
-    git clone https://github.com/CosmoStatGW/CHIMERA
-    cd CHIMERA/
-    pip install -e .
-
-
-CINECA/LEONARDO
----------------
-
-1. **Load Python 3.10**
+4. **Check the installation**
 
 .. code-block:: bash
 
-    module load python/3.10.8--gcc--8.5.0
+    python -m mpi4py --mpi-lib-version          # should report the cluster OpenMPI
+    python -c "import CHIMERA; print(CHIMERA.__version__)"
 
-2. **Create and activate virtual environment**
+Example SLURM script (fill in partition and resources for your allocation):
 
 .. code-block:: bash
 
-    mkdir virtual_env
-    python -m venv "virtual_env/chimera-gw"
-    source virtual_env/chimera-gw/bin/activate
+    #!/bin/bash
+    #SBATCH --job-name=chimera
+    #SBATCH --partition=<partition>
+    #SBATCH --nodes=1
+    #SBATCH --ntasks-per-node=32
+    #SBATCH --cpus-per-task=1
+    #SBATCH --time=12:00:00
+    #SBATCH --output=chimera-%j.out
+    #SBATCH --error=chimera-%j.err
 
-3. **Load required modules and install MPI4PY**
+    module purge
+    module load astro/gcc/10.3.0 mpi/openmpi/4.1.4
+    eval "$(micromamba shell hook --shell bash)"
+    micromamba activate chimera
+
+    export OMP_NUM_THREADS=1
+    mpirun -np $SLURM_NTASKS python run_chimera.py
+
+
+CINECA LEONARDO (GPU and CPU)
+-----------------------------
+
+2. **Build mpi4py against the cluster OpenMPI**
 
 .. code-block:: bash
 
     module load openmpi/4.1.6--gcc--12.2.0
-    module load cuda/12.2
-    MPICC=$(which mpicc) pip install --no-cache-dir mpi4py>=4.0
+    MPICC=$(which mpicc) pip install --no-cache-dir --no-binary=mpi4py "mpi4py>=4.0"
 
-4. **Install MPI-related packages and JAX with CUDA support**
+3. **Install JAX with CUDA support, the MPI extras and CHIMERA**
 
 .. code-block:: bash
 
-    pip install wheel cython
     pip install "jax[cuda12]"
     pip install mpi4jax --no-build-isolation
-    pip install chimera-gw
+    pip install -e ".[plots,samplers,mpi]"
 
-Note that if the HPC cluster does not have GPU nodes, you have to install JAX as
-.. code-block:: bash
+Do **not** ``module load cuda`` together with ``jax[cuda12]``: the CUDA libraries are provided by the
+pip wheels, and a different CUDA version on ``LD_LIBRARY_PATH`` can shadow them. For CPU-only runs on the
+DCGP partition, install ``jax`` instead of ``jax[cuda12]``.
 
-    pip install jax
-
-Alternative using micromamba:
-
-.. code-block:: bash
-
-    micromamba install -c conda-forge gcc_linux-64 gxx_linux-64
-    # Then install remaining packages with pip as above
-
-5. **Install CHIMERA**
+4. **Check the installation on a GPU node**
 
 .. code-block:: bash
 
-    git clone https://github.com/CosmoStatGW/CHIMERA
-    cd CHIMERA/
-    pip install -e .
+    srun -A <account> -p boost_usr_prod --qos=boost_qos_dbg -N 1 --gres=gpu:1 -t 00:10:00 --pty bash
+    micromamba activate chimera
+    python -c "import jax; print(jax.devices())"          # expect [CudaDevice(id=0)]
+    CHIMERA_ENABLE_GPU=true python -c "import CHIMERA; print(CHIMERA.__version__)"
 
-Notes
------
+Example SLURM script for one Booster node (4 GPUs):
 
-- For systems requiring SLURM job submission, you may need to install MPI4PY within a SLURM job
-- Ensure GPU drivers and CUDA libraries are properly configured on your system
-- The installation order is important: install MPI4PY before MPI4JAX to avoid conflicts
-- Test your installation by importing CHIMERA and running a simple example
+.. code-block:: bash
+
+    #!/bin/bash
+    #SBATCH -A <account>
+    #SBATCH -p boost_usr_prod
+    #SBATCH --qos=normal
+    #SBATCH --nodes=1
+    #SBATCH --ntasks-per-node=1
+    #SBATCH --cpus-per-task=8
+    #SBATCH --gres=gpu:4
+    #SBATCH --time=04:00:00
+    #SBATCH --job-name=chimera-gpu
+    #SBATCH --output=chimera-%j.out
+    #SBATCH --error=chimera-%j.err
+
+    module purge
+    eval "$(micromamba shell hook --shell bash)"
+    micromamba activate chimera
+
+    export CHIMERA_ENABLE_GPU=true
+    export CHIMERA_USE_x64=false      # set to true for float64 (slower on GPU)
+    python run_chimera.py
+
+For CPU runs use ``-p dcgp_usr_prod`` (112 cores per node), drop ``--gres``, ``module load
+openmpi/4.1.6--gcc--12.2.0`` and launch with ``srun`` or ``mpirun`` as in the OPH example.
+Use the debug QOS (``boost_qos_dbg`` / ``dcgp_qos_dbg``, 30 min) for tests.
+
+
+Runtime configuration
+---------------------
+
+CHIMERA reads these environment variables **once, at import time**:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 12 63
+
+   * - Variable
+     - Default
+     - Effect
+   * - ``CHIMERA_ENABLE_GPU``
+     - ``false``
+     - Run JAX on GPU.
+   * - ``CHIMERA_USE_x64``
+     - ``false``
+     - Enable 64-bit floats in JAX (float32 otherwise).
+   * - ``CHIMERA_SAFE_WHERE``
+     - ``true``
+     - NaN/Inf-gradient guards in ``jnp.where`` branches (needed for gradient-based samplers).
+   * - ``CHIMERA_XLA_FTZ``
+     - ``true``
+     - GPU flush-to-zero for denormals (avoids large slowdowns on A100).
+
+CHIMERA also sets ``XLA_PYTHON_CLIENT_PREALLOCATE=false`` and a few ``XLA_FLAGS`` defaults; values you export
+yourself take precedence. To limit GPU memory per process, export ``XLA_PYTHON_CLIENT_MEM_FRACTION``.
+
+
+Troubleshooting
+---------------
+
+- ``python -m mpi4py --mpi-lib-version`` reports Open MPI from conda (not the module): reinstall with
+  ``pip uninstall -y mpi4py`` and repeat the ``MPICC=... pip install --no-binary=mpi4py`` step with the
+  module loaded, and make sure ``openmpi`` is not installed in the environment (``micromamba list openmpi``).
+- ``jax.devices()`` shows only CPU on a GPU node: check that ``jax[cuda12]`` was installed (``pip list | grep jax``),
+  that no ``cuda`` module is loaded, and that the job requested GPUs (``--gres=gpu:N``).
+- ``mpi4jax`` build fails: it needs ``cython`` and ``wheel`` in the environment (provided by ``environment.yml``)
+  and the MPI module loaded, since it is built with ``--no-build-isolation``.
+- Keep the same modules loaded at install time and in every job script.

@@ -1,7 +1,7 @@
 import equinox as eqx
 from typing import List
 import jax.numpy as jnp
-from ...utils.math import cumtrapz
+from ...utils.math import cumtrapz, interp
 
 ########################
 # COSMOLOGICAL PYTREES #
@@ -16,15 +16,18 @@ class flrw(eqx.Module):
     Or0 (float, optional): The radiation density parameter. Default is 0.
     w0 (float, optional): The present value of the dark energy equation of state parameter. Default is -1.
     wa (float, optional): The rate of change of the dark energy equation of state parameter. Default is 0
+
   Class Attributes:
     - name (str): The name of the model.
     - keys (List[str]): A list of parameter names used in the model.
+
   Properties:
     - as_dict (Dict[str, float]): Returns the current model parameters as a dictionary.
     - Ode0 (float): The dark energy density parameter, calculated as `1 - Om0 - Or0 - Ok0`.
     - dH (float): The Hubble distance in units of Mpc, calculated as `299792.458e-3 / H0`.
+
   Methods:
-    - update(**kwargs) (flrw): Creates a new instance of the model, updating any parameters provided in `kwargs`.
+    - ``update(**kwargs)`` (flrw): Creates a new instance of the model, updating any parameters provided in `kwargs`.
       Parameters are automatically broadcasted to the same shape as the largest parameter.
   """
   H0: float
@@ -93,7 +96,7 @@ class mg_flrw(flrw):
     - dH (float): The Hubble distance in units of Mpc, calculated as `299792.458e-3 / H0`.
 
   Methods:
-    - update(**kwargs) (mg_flrw): Creates a new instance of the model, updating any parameters provided in `kwargs`.
+    - ``update(**kwargs)`` (mg_flrw): Creates a new instance of the model, updating any parameters provided in `kwargs`.
       Parameters are automatically broadcasted to the same shape as the largest parameter.
   """
   Xi0: float
@@ -104,7 +107,7 @@ class mg_flrw(flrw):
 # Common functions
 def _setup_interp(cosmo:flrw):
   # utility function used in each struct initialization
-  setattr(cosmo, 'z_grid_interp',jnp.concatenate([jnp.array([0]), jnp.logspace(-10, jnp.log10(cosmo.z_max), cosmo.z_grid_res-1)]))
+  setattr(cosmo, 'z_grid_interp', jnp.concatenate([jnp.array([0]), jnp.logspace(-10, jnp.log10(cosmo.z_max), cosmo.z_grid_res-1)]))
   Ez = E_at_z(cosmo, cosmo.z_grid_interp)
   setattr(cosmo, 'integral_invE_interp', cumtrapz(1./Ez, cosmo.z_grid_interp))
 
@@ -119,4 +122,4 @@ def E_at_z(cosmo: flrw, z: jnp.ndarray):
   return Ez
 
 def int_invE_at_z(cosmo: flrw, z: jnp.ndarray):
-  return jnp.interp(z, cosmo.z_grid_interp, cosmo.integral_invE_interp)
+  return interp(z, cosmo.z_grid_interp, cosmo.integral_invE_interp)

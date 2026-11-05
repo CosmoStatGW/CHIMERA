@@ -4,7 +4,7 @@ import arviz as az
 import jax
 from numpyro.infer import MCMC
 
-def run_mcmc_with_checkpoints(mcmc, rng_key, checkpoint_every = 500, output_file = './test', restart=False, additional_samples = 0, model_args={}):
+def run_mcmc_with_checkpoints(mcmc, rng_key, checkpoint_every = 500, output_file = './test', restart=False, additional_samples = 0, model_args={}, jit_model_args=False):
   # File names
   arviz_file = f"{output_file}.nc"
   state_file = f"{output_file}_state.pkl"
@@ -43,7 +43,7 @@ def run_mcmc_with_checkpoints(mcmc, rng_key, checkpoint_every = 500, output_file
                     num_samples=1,
                     num_chains=mcmc.num_chains,
                     chain_method=mcmc.chain_method,
-                    jit_model_args=True,
+                    jit_model_args=jit_model_args,
                     progress_bar=mcmc.progress_bar
                   )
     mcmc_warmup.warmup(warmup_key, **model_args)
@@ -75,7 +75,7 @@ def run_mcmc_with_checkpoints(mcmc, rng_key, checkpoint_every = 500, output_file
                       num_chains=mcmc.num_chains,
                       postprocess_fn=mcmc.postprocess_fn,
                       chain_method=mcmc.chain_method,
-                      jit_model_args=True,
+                      jit_model_args=jit_model_args,
                       progress_bar=mcmc.progress_bar,
                     )
   mcmc_postwarmup.post_warmup_state = mcmc_state # start after the warmup of from the loaded state
