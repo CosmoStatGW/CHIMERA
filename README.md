@@ -89,7 +89,6 @@ The development of CHIMERA has also been supported from the work of Master's the
 
 CHIMERA has been used in these works:
 
-The development of CHIMERA has also been supported from the work of Master's thesis students at the University of Bologna (in reverse chronological order):
 - Borghi et al. 2024 ([ADS](https://ui.adsabs.harvard.edu/abs/2024ApJ...964..191B/abstract), [arXiv](https://arxiv.org/abs/2312.05302), [INSPIRE](https://inspirehep.net/literature/2734729))
 - Tagliazucchi et al. 2025 ([ADS](https://ui.adsabs.harvard.edu/abs/2025arXiv250402034T/abstract), [arXiv](https://arxiv.org/abs/2504.02034), [INSPIRE](https://inspirehep.net/literature/2907634))
 - Borghi et al. 2026 ([ADS](https://ui.adsabs.harvard.edu/abs/2026A%26A...706A.199B/abstract), [arXiv](https://arxiv.org/abs/2509.18243), [INSPIRE](https://inspirehep.net/literature/2972466))
